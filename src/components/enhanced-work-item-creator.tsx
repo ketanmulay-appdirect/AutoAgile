@@ -6,6 +6,7 @@ import { ContentEditor } from './content-editor'
 import { ToastContainer } from './ui/toast'
 import { useToast } from '../hooks/use-toast'
 import { devsAIService } from '../lib/devs-ai-service'
+import { templateService } from '../lib/template-service'
 import { type DevsAIConnection } from './devs-ai-connection'
 
 interface EnhancedWorkItemCreatorProps {
@@ -58,6 +59,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [jiraIssueUrl, setJiraIssueUrl] = useState<string | null>(null)
   const [isDevsAIReady, setIsDevsAIReady] = useState(false)
   const [selectedDevsAIModel, setSelectedDevsAIModel] = useState('gpt-4')
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('default')
   
   const { toasts, removeToast, success, error, warning, info } = useToast()
 
@@ -74,6 +76,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       }
     }
   }, [devsAIConnection])
+
+  // Get available templates for current work item type
+  const availableTemplates = templateService.getTemplatesByType(workItemType)
+  const currentTemplate = availableTemplates.find(t => t.id === selectedTemplate) || templateService.getDefaultTemplate(workItemType)
 
   const handleGenerate = async () => {
     if (!description.trim()) {
@@ -92,41 +98,21 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     setJiraIssueUrl(null)
 
     try {
+      // Generate custom prompt using template
+      const customPrompt = templateService.generatePrompt(currentTemplate, description)
+      
       // Handle DevS.ai separately
       if (aiModel === 'devs-ai') {
-
-        // Get the prompt from the API
-        const promptResponse = await fetch('/api/generate-content-devs-ai', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            type: workItemType,
-            description,
-          }),
-        })
-
-        if (!promptResponse.ok) {
-          throw new Error(`HTTP error! status: ${promptResponse.status}`)
-        }
-
-        const promptData = await promptResponse.json()
-        
-        if (!promptData.success) {
-          throw new Error(promptData.error || 'Failed to prepare DevS.ai request')
-        }
-
-        // Use DevS.ai service to generate content
-        const devsAIContent = await devsAIService.generateContent(promptData.metadata.prompt, selectedDevsAIModel)
+        // Use DevS.ai service to generate content with custom prompt
+        const devsAIContent = await devsAIService.generateContent(customPrompt, selectedDevsAIModel)
         
         // Parse the generated content into the expected format
         const content = parseGeneratedContent(devsAIContent, workItemType)
         setGeneratedContent(content)
         
-        success('Content Generated', `${workItemType} content has been generated successfully using DevS.ai (${selectedDevsAIModel}).`)
+        success('Content Generated', `${workItemType} content has been generated successfully using DevS.ai (${selectedDevsAIModel}) with ${currentTemplate.name}.`)
       } else {
-        // Handle other AI models
+        // Handle other AI models with custom prompt
         const response = await fetch('/api/generate-content', {
           method: 'POST',
           headers: {
@@ -134,9 +120,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           },
           body: JSON.stringify({
             type: workItemType,
-            description,
+            description: customPrompt, // Use the template-generated prompt
             context: {
-              preferredModel: aiModel
+              preferredModel: aiModel,
+              template: currentTemplate.name
             }
           }),
         })
@@ -156,7 +143,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         setGeneratedContent(content)
         
         const modelInfo = data.metadata?.model || 'AI'
-        success('Content Generated', `${workItemType} content has been generated successfully using ${modelInfo}.`)
+        success('Content Generated', `${workItemType} content has been generated successfully using ${modelInfo} with ${currentTemplate.name}.`)
       }
     } catch (err) {
       console.error('Error generating content:', err)
@@ -227,8 +214,6 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     info('Form Reset', 'The form has been reset.')
   }
 
-
-
   return (
     <div className="space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -246,20 +231,41 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
 
       {/* Input Form */}
       <div className="bg-white rounded-lg shadow-sm border p-6 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Work Item Type
             </label>
             <select
               value={workItemType}
-              onChange={(e) => setWorkItemType(e.target.value as WorkItemType)}
+              onChange={(e) => {
+                setWorkItemType(e.target.value as WorkItemType)
+                setSelectedTemplate('default') // Reset template when work item type changes
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isGenerating || isPushing}
             >
               <option value="initiative">Initiative</option>
               <option value="epic">Epic</option>
               <option value="story">Story</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Content Template
+            </label>
+            <select
+              value={selectedTemplate}
+              onChange={(e) => setSelectedTemplate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isGenerating || isPushing}
+            >
+              {availableTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -318,6 +324,26 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             disabled={isGenerating || isPushing}
           />
         </div>
+
+        {/* Template Preview */}
+        {currentTemplate && (
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <h4 className="text-sm font-medium text-blue-800 mb-2">
+              Template: {currentTemplate.name}
+            </h4>
+            <div className="text-xs text-blue-700">
+              <p className="mb-2">
+                <strong>Fields to generate:</strong> {currentTemplate.fields.map(f => f.name).join(', ')}
+              </p>
+              {currentTemplate.aiPrompt && (
+                <p>
+                  <strong>Custom prompt:</strong> {currentTemplate.aiPrompt.substring(0, 100)}
+                  {currentTemplate.aiPrompt.length > 100 ? '...' : ''}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-between items-center">
           <button
