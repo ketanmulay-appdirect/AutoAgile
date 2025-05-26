@@ -1,0 +1,208 @@
+'use client'
+
+import React, { useState } from 'react'
+import { WorkItemTemplate, WorkItemType, FieldDefinition } from '../types'
+
+interface WorkTypeFormatConfigProps {
+  workItemType: WorkItemType
+  template?: WorkItemTemplate
+  onSave: (template: WorkItemTemplate) => void
+  onCancel: () => void
+}
+
+export function WorkTypeFormatConfig({ 
+  workItemType, 
+  template, 
+  onSave, 
+  onCancel 
+}: WorkTypeFormatConfigProps) {
+  const [templateName, setTemplateName] = useState(template?.name || `${workItemType} Template`)
+  const [fields, setFields] = useState<FieldDefinition[]>(template?.fields || [
+    { id: 'title', name: 'Title', type: 'text', required: true, jiraField: 'summary' },
+    { id: 'description', name: 'Description', type: 'textarea', required: true, jiraField: 'description' },
+    { id: 'priority', name: 'Priority', type: 'select', required: false, jiraField: 'priority', 
+      options: ['Highest', 'High', 'Medium', 'Low', 'Lowest'] }
+  ])
+  const [aiPrompt, setAiPrompt] = useState(template?.aiPrompt || '')
+
+  const addField = () => {
+    const newField: FieldDefinition = {
+      id: `custom_field_${Date.now()}`,
+      name: 'New Field',
+      type: 'text',
+      required: false,
+      jiraField: ''
+    }
+    setFields([...fields, newField])
+  }
+
+  const updateField = (index: number, updates: Partial<FieldDefinition>) => {
+    const updatedFields = [...fields]
+    updatedFields[index] = { ...updatedFields[index], ...updates }
+    setFields(updatedFields)
+  }
+
+  const removeField = (index: number) => {
+    setFields(fields.filter((_, i) => i !== index))
+  }
+
+  const handleSave = () => {
+    const newTemplate: WorkItemTemplate = {
+      id: template?.id || `template_${workItemType}_${Date.now()}`,
+      name: templateName,
+      workItemType,
+      fields,
+      aiPrompt: aiPrompt || ''
+    }
+    onSave(newTemplate)
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Configure {workItemType.charAt(0).toUpperCase() + workItemType.slice(1)} Format</h2>
+        <div className="space-x-2">
+          <button 
+            onClick={onCancel}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSave}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Save Template
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {/* Template Name */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Template Name
+          </label>
+          <input
+            type="text"
+            value={templateName}
+            onChange={(e) => setTemplateName(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter template name"
+          />
+        </div>
+
+        {/* Field Mappings */}
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Field Mappings</h3>
+            <Button onClick={addField} variant="outline" size="sm">
+              Add Field
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {fields.map((field, index) => (
+              <div key={field.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Field Name
+                    </label>
+                    <input
+                      type="text"
+                      value={field.name}
+                      onChange={(e) => updateField(index, { name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Field Type
+                    </label>
+                    <select
+                      value={field.type}
+                      onChange={(e) => updateField(index, { type: e.target.value as any })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="text">Text</option>
+                      <option value="textarea">Textarea</option>
+                      <option value="select">Select</option>
+                      <option value="number">Number</option>
+                      <option value="date">Date</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Jira Field ID
+                    </label>
+                    <input
+                      type="text"
+                      value={field.jiraField}
+                      onChange={(e) => updateField(index, { jiraField: e.target.value })}
+                      placeholder="e.g., customfield_10001"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={field.required}
+                        onChange={(e) => updateField(index, { required: e.target.checked })}
+                        className="mr-2"
+                      />
+                      <span className="text-sm text-gray-700">Required</span>
+                    </label>
+                    <Button
+                      onClick={() => removeField(index)}
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+
+                {field.type === 'select' && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Options (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={field.options?.join(', ') || ''}
+                      onChange={(e) => updateField(index, { 
+                        options: e.target.value.split(',').map(opt => opt.trim()).filter(Boolean)
+                      })}
+                      placeholder="Option 1, Option 2, Option 3"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* AI Prompt Customization */}
+        <div>
+          <h3 className="text-lg font-semibold mb-4">AI Prompt Customization (Optional)</h3>
+          <textarea
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder="Enter custom AI prompt for generating this work item type. Leave empty to use default prompts."
+            className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
+          <p className="mt-2 text-sm text-gray-500">
+            Use {'{description}'} as a placeholder for the user's input description.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+} 
