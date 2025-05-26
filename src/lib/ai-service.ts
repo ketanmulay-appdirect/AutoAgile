@@ -2,7 +2,7 @@ import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
 import { WorkItemType, AIGenerationOptions } from '../types'
 
-export type AIProvider = 'openai' | 'anthropic'
+export type AIProvider = 'openai' | 'anthropic' | 'devs-ai'
 
 interface AIServiceConfig {
   openaiApiKey?: string
@@ -40,7 +40,9 @@ export class AIService {
     const prompt = this.buildPrompt(type, description)
 
     try {
-      if (provider === 'openai' && this.openai) {
+      if (provider === 'devs-ai') {
+        return await this.generateWithDevsAI(prompt, options)
+      } else if (provider === 'openai' && this.openai) {
         return await this.generateWithOpenAI(prompt, options)
       } else if (provider === 'anthropic' && this.anthropic) {
         return await this.generateWithAnthropic(prompt, options)
@@ -57,12 +59,14 @@ export class AIService {
     } catch (error) {
       console.error(`Error with ${provider}:`, error)
       
-      // Try fallback provider
-      const fallbackProvider = provider === 'openai' ? 'anthropic' : 'openai'
-      if (fallbackProvider === 'anthropic' && this.anthropic) {
-        return await this.generateWithAnthropic(prompt, options)
-      } else if (fallbackProvider === 'openai' && this.openai) {
-        return await this.generateWithOpenAI(prompt, options)
+      // Try fallback provider (but not devs-ai as it's client-side only)
+      if (provider !== 'devs-ai') {
+        const fallbackProvider = provider === 'openai' ? 'anthropic' : 'openai'
+        if (fallbackProvider === 'anthropic' && this.anthropic) {
+          return await this.generateWithAnthropic(prompt, options)
+        } else if (fallbackProvider === 'openai' && this.openai) {
+          return await this.generateWithOpenAI(prompt, options)
+        }
       }
       
       throw error
@@ -130,6 +134,15 @@ export class AIService {
       provider: 'anthropic',
       model
     }
+  }
+
+  private async generateWithDevsAI(
+    prompt: string,
+    options: AIGenerationOptions
+  ): Promise<{ content: string; provider: AIProvider; model: string }> {
+    // DevS.ai is handled on the client-side, so this method should not be called on the server
+    // This is a placeholder that will be overridden by client-side logic
+    throw new Error('DevS.ai generation must be handled on the client-side')
   }
 
   private buildPrompt(type: WorkItemType, description: string): string {

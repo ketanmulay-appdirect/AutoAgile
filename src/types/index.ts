@@ -2,7 +2,7 @@
 export type WorkItemType = 'initiative' | 'epic' | 'story'
 
 // AI model types
-export type AIModel = 'auto' | 'gemini' | 'openai' | 'anthropic'
+export type AIModel = 'auto' | 'gemini' | 'openai' | 'anthropic' | 'devs-ai'
 
 // Jira field types
 export interface JiraField {

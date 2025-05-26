@@ -3,23 +3,38 @@
 import React, { useState } from 'react'
 import { JiraInstance } from '../types'
 import { JiraConnection } from '../components/jira-connection'
+import { DevsAIConnection, type DevsAIConnection as DevsAIConnectionType } from '../components/devs-ai-connection'
 import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creator'
 // import { WorkTypeFormatConfig } from '../components/work-type-format-config'
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'config'>('create')
+  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config'>('create')
   const [jiraConnection, setJiraConnection] = useState<JiraInstance | null>(null)
+  const [devsAIConnection, setDevsAIConnection] = useState<DevsAIConnectionType | null>(null)
 
-  // Load Jira connection from localStorage on mount
+  // Load connections from localStorage on mount
   React.useEffect(() => {
-    const savedConnection = localStorage.getItem('jira-connection')
-    if (savedConnection) {
+    // Load Jira connection
+    const savedJiraConnection = localStorage.getItem('jira-connection')
+    if (savedJiraConnection) {
       try {
-        const parsed = JSON.parse(savedConnection)
+        const parsed = JSON.parse(savedJiraConnection)
         setJiraConnection(parsed)
       } catch (error) {
         console.error('Failed to parse saved Jira connection:', error)
         localStorage.removeItem('jira-connection')
+      }
+    }
+
+    // Load DevS.ai connection
+    const savedDevsAIConnection = localStorage.getItem('devs-ai-connection')
+    if (savedDevsAIConnection) {
+      try {
+        const parsed = JSON.parse(savedDevsAIConnection)
+        setDevsAIConnection(parsed)
+      } catch (error) {
+        console.error('Failed to parse saved DevS.ai connection:', error)
+        localStorage.removeItem('devs-ai-connection')
       }
     }
   }, [])
@@ -41,6 +56,15 @@ export default function Home() {
 
   const handleJiraConnectionRemoved = () => {
     setJiraConnection(null)
+  }
+
+  const handleDevsAIConnectionSaved = (connection: DevsAIConnectionType) => {
+    setDevsAIConnection(connection)
+    setCurrentView('create')
+  }
+
+  const handleDevsAIConnectionRemoved = () => {
+    setDevsAIConnection(null)
   }
 
   const handleJiraConnectionRequired = () => {
@@ -86,6 +110,19 @@ export default function Home() {
                 <span className="ml-2 w-2 h-2 bg-green-500 rounded-full inline-block"></span>
               )}
             </button>
+            <button
+              onClick={() => setCurrentView('devs-ai')}
+              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                currentView === 'devs-ai'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              DevS.ai Connection
+              {devsAIConnection && (
+                <span className="ml-2 w-2 h-2 bg-green-500 rounded-full inline-block"></span>
+              )}
+            </button>
 {/* Temporarily disabled due to build issues
             <button
               onClick={() => setCurrentView('config')}
@@ -106,6 +143,7 @@ export default function Home() {
           {currentView === 'create' && (
             <EnhancedWorkItemCreator
               jiraConnection={jiraConnection}
+              devsAIConnection={devsAIConnection}
             />
           )}
 
@@ -113,6 +151,13 @@ export default function Home() {
             <JiraConnection 
               onConnectionSaved={handleJiraConnectionSaved}
               onConnectionRemoved={handleJiraConnectionRemoved}
+            />
+          )}
+
+          {currentView === 'devs-ai' && (
+            <DevsAIConnection 
+              onConnectionSaved={handleDevsAIConnectionSaved}
+              onConnectionRemoved={handleDevsAIConnectionRemoved}
             />
           )}
 
