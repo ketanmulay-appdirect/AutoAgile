@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { JiraInstance, JiraProject, JiraWorkItem, WorkItemType, ContentType } from '../types'
 import { jiraContentService } from '../lib/jira-content-service'
-import { WorkItemCard } from './work-item-card'
 import { ContentGenerator } from './content-generator'
 import { InstructionEditor } from './instruction-editor'
 
@@ -17,11 +16,12 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   const [selectedProject, setSelectedProject] = useState<string>('')
   const [quarters, setQuarters] = useState<string[]>([])
   const [selectedQuarter, setSelectedQuarter] = useState<string>('')
-  const [workItemType, setWorkItemType] = useState<WorkItemType>('all')
+  const [workItemType, setWorkItemType] = useState<WorkItemType>('epic')
   const [workItems, setWorkItems] = useState<JiraWorkItem[]>([])
   const [selectedWorkItem, setSelectedWorkItem] = useState<JiraWorkItem | null>(null)
   const [selectedContentType, setSelectedContentType] = useState<ContentType | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingQuarters, setLoadingQuarters] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showInstructionEditor, setShowInstructionEditor] = useState(false)
 
@@ -45,6 +45,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   const loadQuarters = useCallback(async () => {
     if (!jiraConnection || !selectedProject) return
     
+    setLoadingQuarters(true)
+    
     try {
       const quarterList = await jiraContentService.getProjectVersions(jiraConnection, selectedProject)
       setQuarters(quarterList)
@@ -59,6 +61,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         `Q4 ${currentYear}`,
         `Q1 ${currentYear + 1}`
       ])
+    } finally {
+      setLoadingQuarters(false)
     }
   }, [jiraConnection, selectedProject])
 
@@ -92,19 +96,34 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     }
   }, [jiraConnection, loadProjects])
 
-  // Load quarters when project is selected
+  // Load quarters when work type is selected (only for epics and initiatives)
   useEffect(() => {
-    if (jiraConnection && selectedProject) {
+    if (jiraConnection && selectedProject && (workItemType === 'epic' || workItemType === 'initiative')) {
       loadQuarters()
+    } else {
+      setQuarters([])
+      setSelectedQuarter('')
     }
-  }, [jiraConnection, selectedProject, loadQuarters])
+  }, [jiraConnection, selectedProject, workItemType, loadQuarters])
 
-  // Load work items when project is selected (quarter is optional)
-  useEffect(() => {
-    if (jiraConnection && selectedProject) {
-      loadWorkItems()
-    }
-  }, [jiraConnection, selectedProject, selectedQuarter, workItemType, loadWorkItems])
+  const handleProjectSelect = (projectKey: string) => {
+    setSelectedProject(projectKey)
+    // Reset dependent selections
+    setWorkItemType('epic')
+    setSelectedQuarter('')
+    setWorkItems([])
+    setSelectedWorkItem(null)
+    setSelectedContentType(null)
+  }
+
+  const handleWorkTypeSelect = (type: WorkItemType) => {
+    setWorkItemType(type)
+    // Reset dependent selections
+    setSelectedQuarter('')
+    setWorkItems([])
+    setSelectedWorkItem(null)
+    setSelectedContentType(null)
+  }
 
   const handleWorkItemSelect = (workItem: JiraWorkItem) => {
     setSelectedWorkItem(workItem)
@@ -122,6 +141,12 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   const handleBackToWorkItems = () => {
     setSelectedWorkItem(null)
     setSelectedContentType(null)
+  }
+
+  const truncateText = (text: string, maxLength: number = 150) => {
+    if (!text || typeof text !== 'string') return 'No description available'
+    if (text.length <= maxLength) return text
+    return text.substring(0, maxLength) + '...'
   }
 
   if (!jiraConnection) {
@@ -181,40 +206,99 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
           </button>
         </div>
 
-        {/* Selected work item */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Selected Work Item</h2>
-          <WorkItemCard workItem={selectedWorkItem} isSelected={true} onClick={() => {}} />
-        </div>
+        {/* Two-column layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left column - Work item details */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Work Item Details</h2>
+              
+              {/* Work item header */}
+              <div className="border-b border-gray-200 pb-4 mb-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{selectedWorkItem.key}</h3>
+                    <p className="text-gray-700 mt-1">{selectedWorkItem.summary}</p>
+                  </div>
+                  <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+                    selectedWorkItem.status === 'Done' ? 'bg-green-100 text-green-700' :
+                    selectedWorkItem.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {selectedWorkItem.status}
+                  </span>
+                </div>
+              </div>
 
-        {/* Content type selection */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Choose Content Type</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <ContentTypeCard
-              type="quarterly-presentation"
-              title="Quarterly Presentation"
-              description="Executive slide deck for quarterly business reviews"
-              phase="Planning Phase"
-              icon="📊"
-              onClick={() => handleContentTypeSelect('quarterly-presentation')}
-            />
-            <ContentTypeCard
-              type="customer-webinar"
-              title="Customer Webinar"
-              description="Customer-facing presentation content"
-              phase="Planning Phase"
-              icon="🎯"
-              onClick={() => handleContentTypeSelect('customer-webinar')}
-            />
-            <ContentTypeCard
-              type="feature-newsletter"
-              title="Feature Newsletter"
-              description="Newsletter content for feature announcement"
-              phase="Post-Completion"
-              icon="📰"
-              onClick={() => handleContentTypeSelect('feature-newsletter')}
-            />
+              {/* Work item metadata */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-500">Type:</span>
+                  <p className="text-gray-900">{selectedWorkItem.issueType}</p>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-500">Project:</span>
+                  <p className="text-gray-900">{selectedWorkItem.project}</p>
+                </div>
+                {selectedWorkItem.fixVersions && selectedWorkItem.fixVersions.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Fix Versions:</span>
+                    <p className="text-gray-900">{selectedWorkItem.fixVersions.join(', ')}</p>
+                  </div>
+                )}
+                {selectedWorkItem.labels && selectedWorkItem.labels.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Labels:</span>
+                    <p className="text-gray-900">{selectedWorkItem.labels.join(', ')}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Full description */}
+              <div>
+                <span className="text-sm font-medium text-gray-500">Description:</span>
+                <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+                  <p className="text-gray-700 whitespace-pre-wrap">
+                    {selectedWorkItem.description && typeof selectedWorkItem.description === 'string' 
+                      ? selectedWorkItem.description 
+                      : 'No description available'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right column - Content type selection */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Choose Content Type</h3>
+              <div className="space-y-4">
+                <ContentTypeCard
+                  type="quarterly-presentation"
+                  title="Quarterly Presentation"
+                  description="Executive slide deck for quarterly business reviews"
+                  phase="Planning Phase"
+                  icon="📊"
+                  onClick={() => handleContentTypeSelect('quarterly-presentation')}
+                />
+                <ContentTypeCard
+                  type="customer-webinar"
+                  title="Customer Webinar"
+                  description="Customer-facing presentation content"
+                  phase="Planning Phase"
+                  icon="🎯"
+                  onClick={() => handleContentTypeSelect('customer-webinar')}
+                />
+                <ContentTypeCard
+                  type="feature-newsletter"
+                  title="Feature Newsletter"
+                  description="Newsletter content for feature announcement"
+                  phase="Post-Completion"
+                  icon="📰"
+                  onClick={() => handleContentTypeSelect('feature-newsletter')}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -247,7 +331,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             </label>
             <select
               value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
+              onChange={(e) => handleProjectSelect(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={loading}
             >
@@ -267,10 +351,10 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             </label>
             <select
               value={workItemType}
-              onChange={(e) => setWorkItemType(e.target.value as WorkItemType)}
+              onChange={(e) => handleWorkTypeSelect(e.target.value as WorkItemType)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={!selectedProject}
             >
-              <option value="all">All Issue Types</option>
               <option value="epic">Epic</option>
               <option value="story">Story</option>
               <option value="initiative">Initiative</option>
@@ -288,7 +372,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
               value={selectedQuarter}
               onChange={(e) => setSelectedQuarter(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={!selectedProject}
+              disabled={!selectedProject || !workItemType || loadingQuarters}
             >
               <option value="">All Quarters (Optional)</option>
               {quarters.map((quarter) => (
@@ -297,13 +381,16 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                 </option>
               ))}
             </select>
+            {loadingQuarters && (
+              <p className="text-xs text-gray-500 mt-1">Loading quarters...</p>
+            )}
           </div>
 
           {/* Search Button */}
           <div className="flex items-end">
             <button
               onClick={loadWorkItems}
-              disabled={!selectedProject || loading}
+              disabled={!selectedProject || !workItemType || loading}
               className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Loading...' : 'Find Work Items'}
@@ -332,19 +419,57 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
           </h3>
           <div className="grid grid-cols-1 gap-4">
             {workItems.map((workItem) => (
-              <WorkItemCard
+              <div
                 key={workItem.id}
-                workItem={workItem}
-                isSelected={false}
                 onClick={() => handleWorkItemSelect(workItem)}
-              />
+                className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="font-semibold text-blue-600">{workItem.key}</span>
+                      <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+                        workItem.status === 'Done' ? 'bg-green-100 text-green-700' :
+                        workItem.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {workItem.status}
+                      </span>
+                      <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
+                        {workItem.issueType}
+                      </span>
+                    </div>
+                    <h4 className="font-medium text-gray-900 mb-2">{workItem.summary}</h4>
+                    <p className="text-sm text-gray-600">
+                      {truncateText(workItem.description)}
+                    </p>
+                    {(workItem.labels && workItem.labels.length > 0) && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {workItem.labels.slice(0, 3).map((label, index) => (
+                          <span key={index} className="inline-block px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded">
+                            {label}
+                          </span>
+                        ))}
+                        {workItem.labels.length > 3 && (
+                          <span className="inline-block px-2 py-1 text-xs bg-gray-50 text-gray-500 rounded">
+                            +{workItem.labels.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <svg className="w-5 h-5 text-gray-400 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
             ))}
           </div>
         </div>
       )}
 
       {/* No Work Items Found */}
-      {!loading && selectedProject && workItems.length === 0 && (
+      {!loading && selectedProject && workItemType && workItems.length === 0 && (
         <div className="bg-white rounded-lg shadow-lg p-6 text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -391,22 +516,24 @@ function ContentTypeCard({ type, title, description, phase, icon, onClick }: Con
     <div className="border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200 group">
       <button
         onClick={onClick}
-        className="w-full p-6 text-left"
+        className="w-full p-4 text-left"
       >
-        <div className="text-2xl mb-3">{icon}</div>
-        <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-          {title}
-        </h4>
-        <p className="text-gray-600 text-sm mb-3">{description}</p>
+        <div className="flex items-center mb-2">
+          <span className="text-xl mr-3">{icon}</span>
+          <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors text-sm">
+            {title}
+          </h4>
+        </div>
+        <p className="text-gray-600 text-xs mb-2">{description}</p>
         <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
           {phase}
         </span>
       </button>
       
-      <div className="px-6 pb-4">
+      <div className="px-4 pb-3">
         <button
           onClick={handleConfigureClick}
-          className="w-full text-xs text-gray-500 hover:text-blue-600 transition-colors border-t border-gray-100 pt-3 mt-3"
+          className="w-full text-xs text-gray-500 hover:text-blue-600 transition-colors border-t border-gray-100 pt-2 mt-2"
         >
           Configure Instructions →
         </button>
