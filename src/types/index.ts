@@ -1,5 +1,58 @@
 // Work item types
-export type WorkItemType = 'initiative' | 'epic' | 'story'
+export type WorkItemType = 'all' | 'initiative' | 'epic' | 'story' | 'task' | 'bug'
+
+// Content generation types
+export type ContentType = 'quarterly-presentation' | 'customer-webinar' | 'feature-newsletter'
+
+export interface ContentGenerationRequest {
+  projectKey: string
+  workItemId: string
+  workItemType: WorkItemType
+  contentType: ContentType
+  deliveryQuarter: string
+  customInstructions?: string
+}
+
+export interface ContentGenerationResponse {
+  success: boolean
+  content: string
+  contentType: ContentType
+  metadata?: {
+    model: string
+    tokensUsed?: number
+    generatedAt: Date
+  }
+  error?: string
+}
+
+export interface JiraProject {
+  id: string
+  key: string
+  name: string
+  description?: string
+}
+
+export interface JiraWorkItem {
+  id: string
+  key: string
+  summary: string
+  description: string
+  issueType: string
+  status: string
+  project: string
+  fixVersions?: string[]
+  labels?: string[]
+}
+
+export interface AIInstructionTemplate {
+  id: string
+  contentType: ContentType
+  name: string
+  defaultInstructions: string
+  userInstructions?: string
+  isCustomized: boolean
+  updatedAt: Date
+}
 
 // AI model types
 export type AIModel = 'auto' | 'gemini' | 'openai' | 'anthropic' | 'devs-ai'

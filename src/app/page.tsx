@@ -6,10 +6,11 @@ import { JiraConnection } from '../components/jira-connection'
 import { DevsAIConnection, type DevsAIConnection as DevsAIConnectionType } from '../components/devs-ai-connection'
 import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creator'
 import { WorkTypeFormatConfig } from '../components/work-type-format-config'
+import { ContentStudio } from '../components/content-studio'
 import { templateService, type WorkItemTemplate } from '../lib/template-service'
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config'>('create')
+  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio'>('create')
   const [jiraConnection, setJiraConnection] = useState<JiraInstance | null>(null)
   const [devsAIConnection, setDevsAIConnection] = useState<DevsAIConnectionType | null>(null)
   const [configWorkItemType, setConfigWorkItemType] = useState<WorkItemType>('epic')
@@ -69,9 +70,7 @@ export default function Home() {
     setDevsAIConnection(null)
   }
 
-  const handleJiraConnectionRequired = () => {
-    setCurrentView('jira')
-  }
+
 
   const handleTemplateSaved = (template: WorkItemTemplate) => {
     try {
@@ -92,15 +91,15 @@ export default function Home() {
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Jira AI Content Generator
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+          <p className="text-xl text-gray-600 max-w-4xl mx-auto">
             Generate professional Jira initiatives, epics, and stories using AI. 
-            Create content and push directly to your Jira instance.
+            Create content, push directly to your Jira instance, and generate presentation materials for PMs and EMs.
           </p>
         </div>
 
         {/* Navigation */}
-        <div className="max-w-4xl mx-auto mb-8">
-          <div className="flex justify-center space-x-4">
+        <div className="max-w-6xl mx-auto mb-8">
+          <div className="flex justify-center space-x-4 flex-wrap">
             <button
               onClick={() => setCurrentView('create')}
               className={`px-6 py-3 rounded-lg font-medium transition-colors ${
@@ -110,6 +109,17 @@ export default function Home() {
               }`}
             >
               Create & Push
+            </button>
+            <button
+              onClick={() => setCurrentView('content-studio')}
+              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                currentView === 'content-studio'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              Content Studio
+              <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">NEW</span>
             </button>
             <button
               onClick={() => setCurrentView('jira')}
@@ -151,9 +161,16 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           {currentView === 'create' && (
             <EnhancedWorkItemCreator
+              jiraConnection={jiraConnection}
+              devsAIConnection={devsAIConnection}
+            />
+          )}
+
+          {currentView === 'content-studio' && (
+            <ContentStudio
               jiraConnection={jiraConnection}
               devsAIConnection={devsAIConnection}
             />
