@@ -6,7 +6,7 @@ import { ContentEditor } from './content-editor'
 import { ToastContainer } from './ui/toast'
 import { useToast } from '../hooks/use-toast'
 import { devsAIService } from '../lib/devs-ai-service'
-import { templateService } from '../lib/template-service'
+import { templateService, type WorkItemTemplate } from '../lib/template-service'
 import { type DevsAIConnection } from './devs-ai-connection'
 
 interface EnhancedWorkItemCreatorProps {
@@ -61,7 +61,33 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [selectedDevsAIModel, setSelectedDevsAIModel] = useState('gpt-4')
   const [selectedTemplate, setSelectedTemplate] = useState<string>('default')
   
+  // Client-side template state
+  const [availableTemplates, setAvailableTemplates] = useState<WorkItemTemplate[]>([])
+  const [currentTemplate, setCurrentTemplate] = useState<WorkItemTemplate | null>(null)
+  const [isTemplatesLoaded, setIsTemplatesLoaded] = useState(false)
+  
   const { toasts, removeToast, success, error, warning, info } = useToast()
+
+  // Load templates on client-side only
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const templates = templateService.getTemplatesByType(workItemType)
+        setAvailableTemplates(templates)
+        
+        const template = templates.find(t => t.id === selectedTemplate) || templateService.getDefaultTemplate(workItemType)
+        setCurrentTemplate(template)
+        setIsTemplatesLoaded(true)
+      } catch (error) {
+        console.error('Failed to load templates:', error)
+        // Fallback to default template
+        const defaultTemplate = templateService.getDefaultTemplate(workItemType)
+        setAvailableTemplates([defaultTemplate])
+        setCurrentTemplate(defaultTemplate)
+        setIsTemplatesLoaded(true)
+      }
+    }
+  }, [workItemType, selectedTemplate])
 
   // Check for DevS.ai connection on component mount
   useEffect(() => {
@@ -77,13 +103,19 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     }
   }, [devsAIConnection])
 
-  // Get available templates for current work item type
-  const availableTemplates = templateService.getTemplatesByType(workItemType)
-  const currentTemplate = availableTemplates.find(t => t.id === selectedTemplate) || templateService.getDefaultTemplate(workItemType)
+  // Reset template selection when work item type changes
+  useEffect(() => {
+    setSelectedTemplate('default')
+  }, [workItemType])
 
   const handleGenerate = async () => {
     if (!description.trim()) {
       warning('Missing Description', 'Please enter a description for the work item.')
+      return
+    }
+
+    if (!currentTemplate) {
+      warning('Template Not Loaded', 'Please wait for templates to load.')
       return
     }
 
@@ -212,6 +244,17 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     setIsEditing(false)
     setJiraIssueUrl(null)
     info('Form Reset', 'The form has been reset.')
+  }
+
+  // Show loading state while templates are loading
+  if (!isTemplatesLoaded) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-100 border border-blue-300 rounded-md p-3 text-sm text-blue-800 font-medium">
+          🔄 Loading templates...
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -357,7 +400,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           <button
             onClick={handleGenerate}
             disabled={isGenerating || isPushing || !description.trim()}
-                          className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+            className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                 isGenerating || isPushing || !description.trim()
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5'

@@ -60,11 +60,19 @@ const DEFAULT_TEMPLATES: Record<WorkItemType, WorkItemTemplate> = {
   }
 }
 
+// Check if we're in a browser environment
+const isBrowser = typeof window !== 'undefined'
+
 class TemplateService {
   private readonly STORAGE_KEY = 'work-item-templates'
 
   // Get all templates
   getTemplates(): WorkItemTemplate[] {
+    if (!isBrowser) {
+      // Return default templates on server-side
+      return Object.values(DEFAULT_TEMPLATES)
+    }
+
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY)
       if (stored) {
@@ -97,6 +105,11 @@ class TemplateService {
 
   // Save a template
   saveTemplate(template: WorkItemTemplate): void {
+    if (!isBrowser) {
+      console.warn('Cannot save template on server-side')
+      return
+    }
+
     try {
       const templates = this.getTemplates()
       const existingIndex = templates.findIndex(t => t.id === template.id)
@@ -124,6 +137,11 @@ class TemplateService {
 
   // Delete a template
   deleteTemplate(id: string): void {
+    if (!isBrowser) {
+      console.warn('Cannot delete template on server-side')
+      return
+    }
+
     try {
       const templates = this.getTemplates()
       const filtered = templates.filter(template => template.id !== id)
