@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Toast } from '../components/ui/toast'
+
+let toastCounter = 0
 
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = Math.random().toString(36).substr(2, 9)
+    const id = `toast-${++toastCounter}`
     setToasts(prev => [...prev, { ...toast, id }])
   }, [])
 

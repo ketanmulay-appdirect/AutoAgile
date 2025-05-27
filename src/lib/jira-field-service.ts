@@ -1,12 +1,20 @@
 import { JiraInstance, WorkItemType } from '../types'
 
+export interface JiraFieldOption {
+  id?: string
+  name?: string
+  value?: string
+}
+
 export interface JiraField {
   id: string
   name: string
   type: string
   required: boolean
-  allowedValues?: string[]
+  allowedValues?: (string | JiraFieldOption)[]
   description?: string
+  schema?: any
+  isMultiSelect?: boolean
 }
 
 export interface JiraFieldMapping {
@@ -68,6 +76,52 @@ class JiraFieldService {
     }
   }
 
+  // Get comprehensive field metadata from Jira
+  async getFieldMetadata(jiraConnection: JiraInstance, fieldId: string): Promise<any> {
+    try {
+      const response = await fetch('/api/jira/get-field-metadata', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          jiraConnection,
+          fieldId
+        }),
+      })
+
+      if (!response.ok) {
+        console.warn(`Failed to get metadata for field ${fieldId}`)
+        return null
+      }
+
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error(`Error getting field metadata for ${fieldId}:`, error)
+      return null
+    }
+  }
+
+  // Get actual field options from Jira
+  async getFieldOptions(jiraConnection: JiraInstance, fieldId: string): Promise<string[]> {
+    try {
+      const metadata = await this.getFieldMetadata(jiraConnection, fieldId)
+      if (!metadata) return []
+
+      const options = metadata.options || []
+      
+      // Extract option values/names
+      return options.map((option: any) => {
+        if (typeof option === 'string') return option
+        return option.value || option.name || option.id || String(option)
+      }).filter(Boolean)
+    } catch (error) {
+      console.error(`Error getting field options for ${fieldId}:`, error)
+      return []
+    }
+  }
+
   // Parse Jira field metadata into our format
   private parseFieldMetadata(fieldsData: any): JiraField[] {
     const fields: JiraField[] = []
@@ -75,12 +129,22 @@ class JiraFieldService {
     for (const [fieldId, fieldInfo] of Object.entries(fieldsData as any)) {
       const field = fieldInfo as any
       
+      // Extract allowed values more comprehensively
+      let allowedValues: string[] | undefined
+      
+      if (field.allowedValues && Array.isArray(field.allowedValues)) {
+        allowedValues = field.allowedValues.map((v: any) => {
+          if (typeof v === 'string') return v
+          return v.name || v.value || v.id || String(v)
+        }).filter(Boolean)
+      }
+      
       fields.push({
         id: fieldId,
         name: field.name || fieldId,
         type: this.mapJiraFieldType(field.schema?.type || 'string'),
         required: field.required || false,
-        allowedValues: field.allowedValues?.map((v: any) => v.name || v.value) || undefined,
+        allowedValues,
         description: field.description || undefined
       })
     }
@@ -141,7 +205,8 @@ class JiraFieldService {
         ]
       } else {
         // Parse error response for required fields
-        return this.parseErrorForRequiredFields(data.error || '')
+        console.log('Test creation failed, parsing error for required fields:', data)
+        return this.parseErrorForRequiredFields(data)
       }
     } catch (error) {
       console.error('Error in test creation:', error)
@@ -150,28 +215,96 @@ class JiraFieldService {
   }
 
   // Parse Jira error messages to extract required fields
-  private parseErrorForRequiredFields(errorMessage: string): JiraField[] {
+  private parseErrorForRequiredFields(errorData: any): JiraField[] {
     const fields: JiraField[] = []
     
-    // Common patterns in Jira error messages
-    const patterns = [
-      /Field '([^']+)' is required/gi,
-      /([^,\s]+) is required/gi,
-      /"([^"]+)" is required/gi
-    ]
+    console.log('Parsing error data for required fields:', JSON.stringify(errorData, null, 2))
+    
+    // Handle the actual Jira error format: { errors: { fieldId: "error message" } }
+    if (errorData && typeof errorData === 'object') {
+      // Check for errors object (most common format)
+      if (errorData.errors && typeof errorData.errors === 'object') {
+        console.log('Found errors object with', Object.keys(errorData.errors).length, 'fields')
+        for (const [fieldId, errorMessage] of Object.entries(errorData.errors)) {
+          console.log(`Processing field ${fieldId}: ${errorMessage}`)
+          if (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('required')) {
+            // Extract field name from error message or use field ID
+            let fieldName = this.formatFieldName(fieldId)
+            
+            // Try to extract a more readable name from the error message
+            const nameMatch = errorMessage.match(/^([^.]+) is required/i)
+            if (nameMatch) {
+              fieldName = nameMatch[1]
+            }
+            
+            const field = {
+              id: fieldId,
+              name: fieldName,
+              type: this.guessFieldTypeFromId(fieldId),
+              required: true,
+              allowedValues: this.getCommonAllowedValues(fieldId, fieldName),
+              description: `Required field discovered from error: ${errorMessage}`
+            }
+            console.log(`Adding required field:`, field)
+            fields.push(field)
+          }
+        }
+      }
+      
+      // Check for errorMessages array
+      if (errorData.errorMessages && Array.isArray(errorData.errorMessages)) {
+        for (const message of errorData.errorMessages) {
+          if (typeof message === 'string') {
+            // Parse patterns like "Field 'customfield_12345' is required"
+            const patterns = [
+              /Field '([^']+)' is required/gi,
+              /([a-zA-Z_][a-zA-Z0-9_]*) is required/gi,
+              /"([^"]+)" is required/gi
+            ]
 
-    for (const pattern of patterns) {
-      let match
-      while ((match = pattern.exec(errorMessage)) !== null) {
-        const fieldName = match[1]
-        if (fieldName && !fields.some(f => f.name === fieldName)) {
-          fields.push({
-            id: fieldName.toLowerCase().replace(/\s+/g, ''),
-            name: fieldName,
-            type: 'text',
-            required: true,
-            description: `Required field discovered from error: ${fieldName}`
-          })
+            for (const pattern of patterns) {
+              let match
+              while ((match = pattern.exec(message)) !== null) {
+                const fieldId = match[1]
+                if (fieldId && !fields.some(f => f.id === fieldId)) {
+                  fields.push({
+                    id: fieldId,
+                    name: fieldId,
+                    type: this.guessFieldTypeFromId(fieldId),
+                    required: true,
+                    allowedValues: this.getCommonAllowedValues(fieldId, fieldId),
+                    description: `Required field discovered from error: ${message}`
+                  })
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // If it's a string, try to parse it
+    if (typeof errorData === 'string') {
+      const patterns = [
+        /Field '([^']+)' is required/gi,
+        /([a-zA-Z_][a-zA-Z0-9_]*) is required/gi,
+        /"([^"]+)" is required/gi
+      ]
+
+      for (const pattern of patterns) {
+        let match
+        while ((match = pattern.exec(errorData)) !== null) {
+          const fieldId = match[1]
+          if (fieldId && !fields.some(f => f.id === fieldId)) {
+            fields.push({
+              id: fieldId,
+              name: fieldId,
+              type: this.guessFieldTypeFromId(fieldId),
+              required: true,
+              allowedValues: this.getCommonAllowedValues(fieldId, fieldId),
+              description: `Required field discovered from error: ${errorData}`
+            })
+          }
         }
       }
     }
@@ -181,12 +314,121 @@ class JiraFieldService {
       fields.push(
         { id: 'summary', name: 'Summary', type: 'text', required: true },
         { id: 'description', name: 'Description', type: 'textarea', required: false },
-        { id: 'issuetype', name: 'Issue Type', type: 'select', required: true },
+        { id: 'issuetype', name: 'Issue Type', type: 'select', required: true, allowedValues: ['Epic', 'Story', 'Task', 'Bug', 'Initiative'] },
         { id: 'project', name: 'Project', type: 'select', required: true }
       )
     }
 
+    console.log(`Final parsed fields (${fields.length}):`, fields.map(f => ({ id: f.id, name: f.name })))
     return fields
+  }
+
+  // Guess field type based on field ID patterns
+  private guessFieldTypeFromId(fieldId: string): string {
+    // Handle specific known fields
+    if (fieldId === 'customfield_26362') return 'select' // Delivery Quarter
+    if (fieldId === 'customfield_26360') return 'select' // Include on Roadmap (changed from checkbox to select for better UX)
+    
+    if (fieldId.includes('date') || fieldId.includes('time')) return 'date'
+    if (fieldId.includes('number') || fieldId.includes('point')) return 'number'
+    if (fieldId.includes('priority') || fieldId.includes('status') || fieldId.includes('type')) return 'select'
+    if (fieldId.includes('description') || fieldId.includes('comment')) return 'textarea'
+    if (fieldId.includes('roadmap') || fieldId.includes('include')) return 'select'
+    if (fieldId.includes('quarter')) return 'select'
+    return 'text'
+  }
+
+  // Get common allowed values for known fields
+  private getCommonAllowedValues(fieldId: string, fieldName: string): string[] | undefined {
+    const lowerFieldName = fieldName.toLowerCase()
+    
+    // Handle specific custom fields based on error messages
+    if (fieldId === 'customfield_26362' || lowerFieldName.includes('delivery quarter')) {
+      // Based on error: "Specify a valid 'id' or 'name' for Delivery Quarter"
+      // This suggests it needs specific IDs/names, not just text
+      const currentYear = new Date().getFullYear()
+      const nextYear = currentYear + 1
+      return [
+        `Q1 ${currentYear}`,
+        `Q2 ${currentYear}`, 
+        `Q3 ${currentYear}`,
+        `Q4 ${currentYear}`,
+        `Q1 ${nextYear}`,
+        `Q2 ${nextYear}`,
+        `Q3 ${nextYear}`,
+        `Q4 ${nextYear}`
+      ]
+    }
+    
+    if (fieldId === 'customfield_26360' || lowerFieldName.includes('roadmap') || lowerFieldName.includes('include on roadmap')) {
+      // Based on error: "Specify the value for Include on Roadmap? in an array"
+      // This suggests it's a multi-select or checkbox that needs array format
+      return ['Yes', 'No']
+    }
+    
+    // Handle standard fields
+    if (fieldId === 'issuetype' || lowerFieldName.includes('issue type')) {
+      return ['Epic', 'Story', 'Task', 'Bug', 'Initiative']
+    }
+    
+    if (fieldId === 'priority' || lowerFieldName.includes('priority')) {
+      return ['Highest', 'High', 'Medium', 'Low', 'Lowest']
+    }
+    
+    // Handle generic patterns
+    if (lowerFieldName.includes('quarter')) {
+      const currentYear = new Date().getFullYear()
+      const nextYear = currentYear + 1
+      return [
+        `Q1 ${currentYear}`,
+        `Q2 ${currentYear}`,
+        `Q3 ${currentYear}`,
+        `Q4 ${currentYear}`,
+        `Q1 ${nextYear}`,
+        `Q2 ${nextYear}`
+      ]
+    }
+    
+    if (lowerFieldName.includes('yes') || lowerFieldName.includes('no') || lowerFieldName.includes('include')) {
+      return ['Yes', 'No']
+    }
+    
+    return undefined
+  }
+
+  // Format field name for display
+  private formatFieldName(fieldId: string): string {
+    // Handle custom fields
+    if (fieldId.startsWith('customfield_')) {
+      // Try to get a better name based on common patterns
+      const commonNames: Record<string, string> = {
+        'customfield_26362': 'Delivery Quarter',
+        'customfield_26360': 'Include on Roadmap?',
+        'customfield_17950': 'Priority',
+        'customfield_10002': 'Story Points'
+      }
+      
+      if (commonNames[fieldId]) {
+        return commonNames[fieldId]
+      }
+      
+      // Generic custom field name
+      return `Custom Field (${fieldId})`
+    }
+    
+    // Handle standard fields
+    const standardNames: Record<string, string> = {
+      'summary': 'Summary',
+      'description': 'Description',
+      'issuetype': 'Issue Type',
+      'project': 'Project',
+      'reporter': 'Reporter',
+      'assignee': 'Assignee',
+      'priority': 'Priority',
+      'labels': 'Labels'
+    }
+    
+    return standardNames[fieldId] || fieldId.charAt(0).toUpperCase() + fieldId.slice(1)
   }
 
   // Main method to discover fields for a work item type
@@ -289,6 +531,63 @@ class JiraFieldService {
   clearFieldMappings(): void {
     if (typeof window === 'undefined') return
     localStorage.removeItem(this.STORAGE_KEY)
+  }
+
+  // Discover fields from a failed Jira creation attempt
+  async discoverFieldsFromError(
+    jiraConnection: JiraInstance, 
+    workItemType: WorkItemType, 
+    errorData: any
+  ): Promise<JiraFieldMapping | null> {
+    try {
+      console.log('Discovering fields from Jira error:', errorData)
+      
+      // Parse the error to extract required fields
+      const discoveredFields = this.parseErrorForRequiredFields(errorData)
+      
+      if (discoveredFields.length === 0) {
+        console.warn('No required fields could be discovered from error')
+        return null
+      }
+
+      // Fetch actual allowed values for custom fields
+      for (const field of discoveredFields) {
+        if (field.id.startsWith('customfield_')) {
+          console.log(`Fetching actual options for custom field: ${field.id}`)
+          try {
+            const actualOptions = await this.getFieldOptions(jiraConnection, field.id)
+            if (actualOptions.length > 0) {
+              field.allowedValues = actualOptions
+              console.log(`Found ${actualOptions.length} options for ${field.id}:`, actualOptions)
+            }
+          } catch (optionError) {
+            console.warn(`Failed to get options for ${field.id}:`, optionError)
+          }
+        }
+      }
+
+      // Get issue types to determine the correct issue type name
+      const issueTypes = await this.getIssueTypes(jiraConnection)
+      const issueType = this.mapWorkItemTypeToJiraIssueType(workItemType, issueTypes)
+      
+      const mapping: JiraFieldMapping = {
+        workItemType,
+        issueType: issueType?.name || 'Unknown',
+        fields: discoveredFields,
+        discoveredAt: new Date().toISOString()
+      }
+
+      // Save the mapping
+      this.saveFieldMapping(mapping)
+      
+      console.log(`Discovered ${discoveredFields.length} required fields from error:`, 
+        discoveredFields.map(f => `${f.id} (${f.name}) - ${f.allowedValues?.length || 0} options`))
+
+      return mapping
+    } catch (error) {
+      console.error('Error discovering fields from error:', error)
+      return null
+    }
   }
 }
 

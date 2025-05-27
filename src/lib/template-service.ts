@@ -40,7 +40,37 @@ const DEFAULT_TEMPLATES: Record<WorkItemType, WorkItemTemplate> = {
       { id: 'user_stories', name: 'User Stories', type: 'textarea', required: false, description: 'List of user stories to be created' },
       { id: 'priority', name: 'Priority', type: 'select', required: false, description: 'Priority level' }
     ],
-    aiPrompt: 'Generate a detailed epic based on: {description}. Include acceptance criteria and suggest user stories.',
+    aiPrompt: `You're an experienced product manager writing Jira Epics in the style used by enterprise technology companies like Amazon, Google, and AppDirect. When given a {description}, respond with a complete Jira Epic formatted using the following structure and tone:
+
+### Format Requirements:
+- Use \`###\` (Markdown Heading Level 3) for each section heading
+- **Do not bold** the headings
+- **Do not use dividers** or horizontal lines
+- **Do not use emojis**
+- Write for a cross-functional audience: engineers, product managers, and senior non-technical leadership
+- Language should be **rich, clear, and actionable**
+- Where relevant, use **bulleted lists** for readability
+
+### Jira Epic Sections:
+- Problem description  
+- Solution description  
+- Scope  
+- Out of scope  
+- Expected launch timeline  
+- Business case  
+- Dependencies  
+- Definition of done/Acceptance criteria  
+- Test plan  
+
+### Additional Guidance:
+- Maintain a structured, professional tone without sounding robotic.
+- In "Business case", clearly tie the initiative to measurable impact or strategic goals.
+- Where applicable, refer to personas, linked documents, or user journeys.
+- Incorporate the following user preference:  
+  - Use **Heading Level 3** for all section headings  
+  - Do **not bold** any heading  
+  - Do **not** include dividers  
+  - Avoid emojis entirely`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },

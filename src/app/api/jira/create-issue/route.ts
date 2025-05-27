@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { jiraFieldFormatter } from '../../../../lib/jira-field-formatter'
+import { jiraFieldService } from '../../../../lib/jira-field-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,6 +18,14 @@ export async function POST(request: NextRequest) {
     if (!url || !email || !apiToken) {
       return NextResponse.json(
         { error: 'Invalid Jira connection. Missing url, email, or apiToken.' },
+        { status: 400 }
+      )
+    }
+
+    // Validate project key
+    if (!projectKey) {
+      return NextResponse.json(
+        { error: 'Project key is required. Please configure your Jira connection with a valid project key.' },
         { status: 400 }
       )
     }
@@ -93,13 +103,62 @@ export async function POST(request: NextRequest) {
       issueData.fields.labels = content.labels
     }
 
-    // Add custom fields if present
+    // Add custom fields if present - with proper formatting
     if (content.customFields) {
-      Object.entries(content.customFields).forEach(([key, value]) => {
+      // Process custom fields with proper formatting
+      for (const [key, value] of Object.entries(content.customFields)) {
         if (value !== null && value !== undefined && value !== '') {
-          issueData.fields[key] = value
+          // Handle special fields that need specific formatting
+          if (key === 'project') {
+            // Project should be an object with key
+            issueData.fields.project = { key: value }
+          } else if (key === 'issuetype') {
+            // Issue type should be an object with name
+            issueData.fields.issuetype = { name: value }
+          } else if (key === 'assignee') {
+            // User fields should be objects with accountId or emailAddress
+            issueData.fields[key] = { emailAddress: value }
+          } else if (key === 'reporter') {
+            // Skip reporter field as it's often not settable by API
+            console.log('Skipping reporter field - not settable via API')
+          } else if (key === 'priority') {
+            // Priority field needs to be an object with name
+            issueData.fields[key] = { name: value }
+          } else if (key.startsWith('customfield_')) {
+            // For custom fields, get metadata and format properly
+            try {
+              const fieldMetadata = await jiraFieldService.getFieldMetadata(jiraConnection, key)
+              if (fieldMetadata) {
+                const formatInfo = jiraFieldFormatter.getFieldFormatInfo(fieldMetadata)
+                const formattedValue = jiraFieldFormatter.formatFieldValue(formatInfo, value)
+                if (formattedValue !== null) {
+                  issueData.fields[key] = formattedValue
+                  console.log(`Formatted field ${key}:`, formattedValue)
+                }
+              } else {
+                // Fallback formatting for unknown custom fields
+                console.log(`No metadata found for ${key}, using fallback formatting`)
+                if (key === 'customfield_26360') {
+                  // Include on Roadmap - needs array format
+                  issueData.fields[key] = Array.isArray(value) ? value.map(v => ({ value: v })) : [{ value: value }]
+                } else if (key === 'customfield_26362') {
+                  // Delivery Quarter - needs object format
+                  issueData.fields[key] = { value: value }
+                } else {
+                  // Default object format for custom fields
+                  issueData.fields[key] = { value: value }
+                }
+              }
+            } catch (error) {
+              console.error(`Error formatting field ${key}:`, error)
+              // Fallback to simple formatting
+              issueData.fields[key] = { value: value }
+            }
+          } else {
+            issueData.fields[key] = value
+          }
         }
-      })
+      }
     }
 
     // Function to create issue with given data
@@ -120,16 +179,37 @@ export async function POST(request: NextRequest) {
     // Try to create the issue with all fields first
     let response = await createIssue(issueData)
 
-    // If we get a 400 error due to field issues, try with just basic fields
+    // If we get a 400 error, check for field discovery opportunities first
     if (!response.ok && response.status === 400) {
       const errorData = await response.json().catch(() => ({}))
       console.error('Jira API error:', response.status, response.statusText, errorData)
       
-      // Check if the error is related to field availability
-      if (errorData.errors && (
+      // Check if this is a required fields error that can be used for field discovery
+      const hasRequiredFieldsError = errorData.errors && Object.keys(errorData.errors).some(key => 
+        typeof errorData.errors[key] === 'string' && 
+        (errorData.errors[key].toLowerCase().includes('required') || 
+         errorData.errors[key].toLowerCase().includes('is required'))
+      )
+      
+      if (hasRequiredFieldsError) {
+        console.log('Required fields error detected, triggering field discovery')
+        console.log('Error details:', errorData.errors)
+        // Return the full error data for field discovery
+        return NextResponse.json({
+          error: 'Required fields missing',
+          fieldDiscovery: true,
+          jiraError: errorData,
+          workItemType: workItemType
+        }, { status: 400 })
+      }
+      
+      // If not a required fields error, try with basic fields only
+      // Only retry for non-required field errors (like priority, optional custom fields)
+      if (errorData.errors && !hasRequiredFieldsError && (
         errorData.errors.priority || 
-        errorData.errors.customfield_10002 ||
-        Object.keys(errorData.errors).some(key => key.startsWith('customfield_'))
+        errorData.errors.duedate ||
+        errorData.errors.reporter ||
+        (errorData.errors.customfield_10002 && !errorData.errors.customfield_10002.toLowerCase().includes('required'))
       )) {
         console.log('Retrying with basic fields only due to field availability issues')
         
@@ -143,6 +223,52 @@ export async function POST(request: NextRequest) {
             description: descriptionADF,
             issuetype: {
               name: issueTypeMap[workItemType as keyof typeof issueTypeMap] || 'Task'
+            }
+          }
+        }
+
+        // Add any required fields from customFields with proper formatting
+        if (content.customFields) {
+          for (const [key, value] of Object.entries(content.customFields)) {
+            if (value !== null && value !== undefined && value !== '') {
+              if (key === 'project') {
+                basicIssueData.fields.project = { key: value }
+              } else if (key === 'issuetype') {
+                basicIssueData.fields.issuetype = { name: value }
+              } else if (key === 'assignee') {
+                basicIssueData.fields[key] = { emailAddress: value }
+              } else if (key === 'reporter') {
+                // Skip reporter field - not settable via API
+                console.log('Skipping reporter field in retry')
+              } else if (key === 'priority') {
+                // Skip priority field - may not be available
+                console.log('Skipping priority field in retry')
+              } else if (key.startsWith('customfield_')) {
+                // Include custom fields that might be required with proper formatting
+                try {
+                  const fieldMetadata = await jiraFieldService.getFieldMetadata(jiraConnection, key)
+                  if (fieldMetadata) {
+                    const formatInfo = jiraFieldFormatter.getFieldFormatInfo(fieldMetadata)
+                    const formattedValue = jiraFieldFormatter.formatFieldValue(formatInfo, value)
+                    if (formattedValue !== null) {
+                      basicIssueData.fields[key] = formattedValue
+                      console.log(`Formatted field ${key} in retry:`, formattedValue)
+                    }
+                  } else {
+                    // Fallback formatting
+                    if (key === 'customfield_26360') {
+                      basicIssueData.fields[key] = Array.isArray(value) ? value.map(v => ({ value: v })) : [{ value: value }]
+                    } else if (key === 'customfield_26362') {
+                      basicIssueData.fields[key] = { value: value }
+                    } else {
+                      basicIssueData.fields[key] = { value: value }
+                    }
+                  }
+                } catch (error) {
+                  console.error(`Error formatting field ${key} in retry:`, error)
+                  basicIssueData.fields[key] = { value: value }
+                }
+              }
             }
           }
         }
@@ -162,6 +288,16 @@ export async function POST(request: NextRequest) {
       console.error('Jira API error:', response.status, response.statusText, errorData)
       
       if (response.status === 400) {
+        // Check if this is a project key error
+        if (errorData.errors && errorData.errors.project) {
+          return NextResponse.json(
+            { error: `Project error: ${errorData.errors.project}. Please check your Jira connection and ensure the project key is valid.` },
+            { status: 400 }
+          )
+        }
+        
+
+        
         const errorMessages = errorData.errors 
           ? Object.values(errorData.errors).join(', ')
           : 'Invalid request data'

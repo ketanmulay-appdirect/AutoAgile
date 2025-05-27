@@ -8,6 +8,9 @@ import { useToast } from '../hooks/use-toast'
 import { devsAIService } from '../lib/devs-ai-service'
 import { templateService, type WorkItemTemplate } from '../lib/template-service'
 import { type DevsAIConnection } from './devs-ai-connection'
+import { FieldValidationModal } from './field-validation-modal'
+import { fieldValidationService, type MissingField } from '../lib/field-validation-service'
+import { jiraFieldService, type JiraField } from '../lib/jira-field-service'
 
 interface EnhancedWorkItemCreatorProps {
   jiraConnection: JiraInstance | null
@@ -49,7 +52,7 @@ function parseGeneratedContent(content: string, workItemType: WorkItemType): Gen
 }
 
 export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: EnhancedWorkItemCreatorProps) {
-  const [workItemType, setWorkItemType] = useState<WorkItemType>('story')
+  const [workItemType, setWorkItemType] = useState<WorkItemType>('epic')
   const [description, setDescription] = useState('')
   const [aiModel, setAiModel] = useState<AIModel>('auto')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -65,6 +68,15 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [availableTemplates, setAvailableTemplates] = useState<WorkItemTemplate[]>([])
   const [currentTemplate, setCurrentTemplate] = useState<WorkItemTemplate | null>(null)
   const [isTemplatesLoaded, setIsTemplatesLoaded] = useState(false)
+  
+  // Field validation state
+  const [showValidationModal, setShowValidationModal] = useState(false)
+  const [validationMissingFields, setValidationMissingFields] = useState<MissingField[]>([])
+  const [jiraFields, setJiraFields] = useState<JiraField[]>([])
+  const [isLoadingFields, setIsLoadingFields] = useState(false)
+  const [pendingContent, setPendingContent] = useState<GeneratedContent | null>(null)
+  const [extractedFields, setExtractedFields] = useState<Record<string, any>>({})
+  const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, any[]>>({})
   
   const { toasts, removeToast, success, error, warning, info } = useToast()
 
@@ -88,6 +100,81 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       }
     }
   }, [workItemType, selectedTemplate])
+
+  // Load Jira fields when connection is available
+  useEffect(() => {
+    if (jiraConnection) {
+      const loadJiraFields = async () => {
+        try {
+          setIsLoadingFields(true)
+          console.log('Loading Jira fields for', workItemType)
+          
+          // Use the new field discovery API
+          const response = await fetch('/api/jira/discover-fields', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              jiraConnection,
+              workItemType
+            }),
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            console.log(`Discovered ${data.fields.length} Jira fields for ${workItemType}`)
+            
+            // Convert the discovered fields to our JiraField format
+            const jiraFieldsData = data.fields.map((field: any) => ({
+              id: field.id,
+              name: field.name,
+              type: field.type,
+              required: field.required,
+              allowedValues: field.allowedValues?.map((v: any) => 
+                typeof v === 'object' ? (v.name || v.value || v.id) : v
+              ),
+              description: field.description,
+              schema: field.schema,
+              isMultiSelect: field.isMultiSelect
+            }))
+            
+            setJiraFields(jiraFieldsData)
+            
+            // Show info about discovered fields
+            const requiredFields = jiraFieldsData.filter((f: any) => f.required)
+            if (requiredFields.length > 0) {
+              info(
+                'Jira Fields Discovered', 
+                `Found ${requiredFields.length} required field(s) for ${workItemType}. These will be validated before creating issues.`
+              )
+            }
+          } else {
+            console.warn('Failed to discover Jira fields, falling back to error-based discovery')
+            // Fallback to the old method
+            let fieldMapping = jiraFieldService.getFieldMapping(workItemType)
+            
+            if (!fieldMapping) {
+              fieldMapping = await jiraFieldService.discoverFields(jiraConnection, workItemType)
+            }
+            
+            if (fieldMapping) {
+              setJiraFields(fieldMapping.fields)
+            }
+          }
+        } catch (error) {
+          console.error('Error loading Jira fields:', error)
+          warning('Field Discovery Failed', 'Unable to discover Jira fields. Some validation may be limited.')
+        } finally {
+          setIsLoadingFields(false)
+        }
+      }
+
+      loadJiraFields()
+    } else {
+      setJiraFields([])
+    }
+  }, [jiraConnection, workItemType])
 
   // Check for DevS.ai connection on component mount
   useEffect(() => {
@@ -196,6 +283,91 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       return
     }
 
+    // Ensure we have Jira fields loaded
+    if (jiraFields.length === 0) {
+      console.log('No Jira fields loaded, attempting to discover them now...')
+      try {
+        const fieldMapping = await jiraFieldService.discoverFields(jiraConnection, workItemType)
+        if (fieldMapping) {
+          setJiraFields(fieldMapping.fields)
+        }
+      } catch (error) {
+        console.error('Failed to discover fields during push:', error)
+      }
+    }
+
+    // Validate fields with smart extraction before pushing
+    if (jiraFields.length > 0) {
+      try {
+        // Get AI provider info for field extraction
+        let aiProvider: string | undefined
+        let apiKey: string | undefined
+        
+        if (aiModel === 'devs-ai' && isDevsAIReady) {
+          aiProvider = 'devs-ai'
+          const savedConnection = devsAIService.loadSavedConnection()
+          apiKey = savedConnection?.apiToken
+        }
+
+        console.log('Starting field validation with extraction...')
+        const validationResult = await fieldValidationService.validateContentWithExtraction(
+          content,
+          workItemType,
+          currentTemplate,
+          jiraFields,
+          aiProvider,
+          apiKey
+        )
+
+        // Store extracted fields and suggestions for the modal
+        setExtractedFields(validationResult.extractedFields || {})
+        setFieldSuggestions(validationResult.suggestions || {})
+
+        if (validationResult.extractedFields && Object.keys(validationResult.extractedFields).length > 0) {
+          info('Smart Fields Extracted', `Automatically extracted ${Object.keys(validationResult.extractedFields).length} field(s) from your description.`)
+        }
+
+        if (!validationResult.isValid) {
+          console.log(`Validation failed: ${validationResult.missingFields.length} missing fields`)
+          // Show validation modal with missing fields and suggestions
+          setValidationMissingFields(validationResult.missingFields)
+          setPendingContent({
+            ...content,
+            customFields: {
+              ...content.customFields,
+              ...validationResult.extractedFields
+            }
+          })
+          setShowValidationModal(true)
+          return
+        }
+
+        // If validation passed, update content with extracted fields
+        if (validationResult.extractedFields && Object.keys(validationResult.extractedFields).length > 0) {
+          content = {
+            ...content,
+            customFields: {
+              ...content.customFields,
+              ...validationResult.extractedFields
+            }
+          }
+        }
+      } catch (validationError) {
+        console.error('Field validation error:', validationError)
+        warning('Validation Error', 'Unable to validate fields. Proceeding with basic validation.')
+      }
+    }
+
+    // Proceed with Jira creation
+    await createJiraIssue(content)
+  }
+
+  const createJiraIssue = async (content: GeneratedContent) => {
+    if (!jiraConnection) {
+      error('Jira Not Connected', 'Jira connection is required to create an issue.')
+      return
+    }
+
     setIsPushing(true)
 
     try {
@@ -213,6 +385,50 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
 
       if (!response.ok) {
         const errorData = await response.json()
+        
+        // Check if this is a field discovery error
+        if (errorData.fieldDiscovery && errorData.jiraError) {
+          console.log('Field discovery error detected, discovering fields from error...')
+          
+          try {
+            // Discover fields from the error
+            const fieldMapping = await jiraFieldService.discoverFieldsFromError(
+              jiraConnection,
+              workItemType,
+              errorData.jiraError
+            )
+            
+            if (fieldMapping) {
+              // Update the jiraFields state with discovered fields
+              setJiraFields(fieldMapping.fields)
+              
+              // Show info about discovered fields
+              info(
+                'Required Fields Discovered', 
+                `Discovered ${fieldMapping.fields.length} required fields from Jira. Please fill in the missing information.`
+              )
+              
+              // Trigger field validation with the discovered fields
+              const validationResult = await fieldValidationService.validateContent(
+                content,
+                workItemType,
+                currentTemplate,
+                fieldMapping.fields
+              )
+              
+              if (!validationResult.isValid) {
+                // Show validation modal with the newly discovered fields
+                setValidationMissingFields(validationResult.missingFields)
+                setPendingContent(content)
+                setShowValidationModal(true)
+                return
+              }
+            }
+          } catch (discoveryError) {
+            console.error('Field discovery failed:', discoveryError)
+          }
+        }
+        
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
@@ -230,6 +446,17 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     } finally {
       setIsPushing(false)
     }
+  }
+
+  const handleValidationSubmit = async (updatedContent: GeneratedContent, customFields: Record<string, any>) => {
+    setShowValidationModal(false)
+    await createJiraIssue(updatedContent)
+  }
+
+  const handleValidationCancel = () => {
+    setShowValidationModal(false)
+    setPendingContent(null)
+    setValidationMissingFields([])
   }
 
   const handleContentSave = (content: GeneratedContent) => {
@@ -288,9 +515,9 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isGenerating || isPushing}
             >
-              <option value="initiative">Initiative</option>
               <option value="epic">Epic</option>
               <option value="story">Story</option>
+              <option value="initiative">Initiative</option>
             </select>
           </div>
 
@@ -566,6 +793,20 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         </div>
       )}
 
+      {/* Field Validation Modal */}
+      <FieldValidationModal
+        isOpen={showValidationModal}
+        onClose={handleValidationCancel}
+        onSubmit={handleValidationSubmit}
+        content={pendingContent || generatedContent!}
+        template={currentTemplate}
+        jiraFields={jiraFields}
+        missingFields={validationMissingFields}
+        extractedFields={extractedFields}
+        suggestions={fieldSuggestions}
+        jiraConnection={jiraConnection}
+        workItemType={workItemType}
+      />
 
     </div>
   )

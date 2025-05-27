@@ -1,14 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { WorkItemType, FieldDefinition, JiraInstance } from '../types'
+import { WorkItemType } from '../types'
 import { WorkItemTemplate } from '../lib/template-service'
-import { jiraFieldService, JiraField, JiraFieldMapping } from '../lib/jira-field-service'
 
 interface WorkTypeFormatConfigProps {
   workItemType: WorkItemType
   template?: WorkItemTemplate
-  jiraConnection?: JiraInstance | null
   onSave: (template: WorkItemTemplate) => void
   onCancel: () => void
 }
@@ -16,29 +14,48 @@ interface WorkTypeFormatConfigProps {
 export function WorkTypeFormatConfig({ 
   workItemType, 
   template, 
-  jiraConnection,
   onSave, 
   onCancel 
 }: WorkTypeFormatConfigProps) {
   const [templateName, setTemplateName] = useState(template?.name || `${workItemType} Template`)
-  const [fields, setFields] = useState<FieldDefinition[]>(template?.fields || [])
   const [aiPrompt, setAiPrompt] = useState(template?.aiPrompt || '')
   const [showPromptPreview, setShowPromptPreview] = useState(false)
   const [sampleDescription, setSampleDescription] = useState('')
-  
-  // Jira field discovery state
-  const [jiraFields, setJiraFields] = useState<JiraField[]>([])
-  const [isDiscoveringFields, setIsDiscoveringFields] = useState(false)
-  const [fieldMapping, setFieldMapping] = useState<JiraFieldMapping | null>(null)
-  const [showJiraFields, setShowJiraFields] = useState(false)
-  const [fieldMappings, setFieldMappings] = useState<Record<string, string>>({}) // templateFieldId -> jiraFieldId
-
-
 
   // Default prompts for each work item type
   const defaultPrompts = {
     initiative: 'Generate a comprehensive initiative based on: {description}. Include business value, success metrics, and high-level scope. Structure the response with clear sections for business justification, expected outcomes, and implementation timeline.',
-    epic: 'Generate a detailed epic based on: {description}. Include acceptance criteria and suggest user stories. Focus on the user journey and break down the epic into manageable components with clear dependencies.',
+    epic: `You're an experienced product manager writing Jira Epics in the style used by enterprise technology companies like Amazon, Google, and AppDirect. When given a {description}, respond with a complete Jira Epic formatted using the following structure and tone:
+
+### Format Requirements:
+- Use \`###\` (Markdown Heading Level 3) for each section heading
+- **Do not bold** the headings
+- **Do not use dividers** or horizontal lines
+- **Do not use emojis**
+- Write for a cross-functional audience: engineers, product managers, and senior non-technical leadership
+- Language should be **rich, clear, and actionable**
+- Where relevant, use **bulleted lists** for readability
+
+### Jira Epic Sections:
+- Problem description  
+- Solution description  
+- Scope  
+- Out of scope  
+- Expected launch timeline  
+- Business case  
+- Dependencies  
+- Definition of done/Acceptance criteria  
+- Test plan  
+
+### Additional Guidance:
+- Maintain a structured, professional tone without sounding robotic.
+- In "Business case", clearly tie the initiative to measurable impact or strategic goals.
+- Where applicable, refer to personas, linked documents, or user journeys.
+- Incorporate the following user preference:  
+  - Use **Heading Level 3** for all section headings  
+  - Do **not bold** any heading  
+  - Do **not** include dividers  
+  - Avoid emojis entirely`,
     story: 'Generate a detailed user story based on: {description}. Include specific acceptance criteria and suggest story points. Follow the "As a [user], I want [goal] so that [benefit]" format and provide clear, testable acceptance criteria.'
   }
 
@@ -48,132 +65,6 @@ export function WorkTypeFormatConfig({
       setAiPrompt(defaultPrompts[workItemType])
     }
   }, [workItemType, aiPrompt, template?.aiPrompt])
-
-  // Load existing field mapping when component mounts
-  useEffect(() => {
-    if (jiraConnection) {
-      const existingMapping = jiraFieldService.getFieldMapping(workItemType)
-      if (existingMapping) {
-        setFieldMapping(existingMapping)
-        setJiraFields(existingMapping.fields)
-        setShowJiraFields(true)
-      }
-    }
-  }, [workItemType, jiraConnection])
-
-  const discoverJiraFields = async () => {
-    if (!jiraConnection) {
-      alert('Please connect to Jira first')
-      return
-    }
-
-    setIsDiscoveringFields(true)
-    try {
-      const mapping = await jiraFieldService.discoverFields(jiraConnection, workItemType)
-      if (mapping) {
-        setFieldMapping(mapping)
-        setJiraFields(mapping.fields)
-        setShowJiraFields(true)
-        
-        // Auto-map common fields if template fields exist
-        if (fields.length > 0) {
-          const autoMappings: Record<string, string> = {}
-          fields.forEach(templateField => {
-            const jiraField = mapping.fields.find(jf => 
-              jf.name.toLowerCase().includes(templateField.name.toLowerCase()) ||
-              jf.id.toLowerCase().includes(templateField.id.toLowerCase()) ||
-              (templateField.id === 'title' && (jf.id === 'summary' || jf.name.toLowerCase().includes('summary'))) ||
-              (templateField.id === 'description' && (jf.id === 'description' || jf.name.toLowerCase().includes('description')))
-            )
-            if (jiraField) {
-              autoMappings[templateField.id] = jiraField.id
-            }
-          })
-          setFieldMappings(autoMappings)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to discover Jira fields:', error)
-      alert('Failed to discover Jira fields. Please check your connection and try again.')
-    } finally {
-      setIsDiscoveringFields(false)
-    }
-  }
-
-  const createTemplateFieldsFromJira = () => {
-    if (jiraFields.length === 0) {
-      alert('Please discover Jira fields first')
-      return
-    }
-
-    // Create template fields from required Jira fields
-    const requiredJiraFields = jiraFields.filter(jf => jf.required)
-    const newFields: FieldDefinition[] = requiredJiraFields.map(jiraField => ({
-      id: jiraField.id,
-      name: jiraField.name,
-      type: jiraField.type,
-      required: jiraField.required,
-      description: jiraField.description || `${jiraField.name} field from Jira`
-    }))
-
-    // Add common optional fields if they exist in Jira
-    const optionalCommonFields = ['description', 'priority', 'labels', 'assignee']
-    optionalCommonFields.forEach(fieldId => {
-      const jiraField = jiraFields.find(jf => jf.id === fieldId && !jf.required)
-      if (jiraField && !newFields.some(f => f.id === fieldId)) {
-        newFields.push({
-          id: jiraField.id,
-          name: jiraField.name,
-          type: jiraField.type,
-          required: false,
-          description: jiraField.description || `${jiraField.name} field from Jira`
-        })
-      }
-    })
-
-    setFields(newFields)
-
-    // Auto-map all created fields
-    const autoMappings: Record<string, string> = {}
-    newFields.forEach(templateField => {
-      autoMappings[templateField.id] = templateField.id
-    })
-    setFieldMappings(autoMappings)
-  }
-
-  const addField = () => {
-    const newField: FieldDefinition = {
-      id: `custom_field_${Date.now()}`,
-      name: 'New Field',
-      type: 'text',
-      required: false,
-      description: ''
-    }
-    setFields([...fields, newField])
-  }
-
-  const updateField = (index: number, updates: Partial<FieldDefinition>) => {
-    const updatedFields = [...fields]
-    updatedFields[index] = { ...updatedFields[index], ...updates }
-    setFields(updatedFields)
-  }
-
-  const removeField = (index: number) => {
-    const fieldToRemove = fields[index]
-    setFields(fields.filter((_, i) => i !== index))
-    
-    // Remove field mapping if it exists
-    const newMappings = { ...fieldMappings }
-    delete newMappings[fieldToRemove.id]
-    setFieldMappings(newMappings)
-  }
-
-  const updateFieldMapping = (templateFieldId: string, jiraFieldId: string) => {
-    setFieldMappings(prev => ({
-      ...prev,
-      [templateFieldId]: jiraFieldId
-    }))
-  }
 
   const resetToDefault = () => {
     setAiPrompt(defaultPrompts[workItemType])
@@ -191,23 +82,18 @@ export function WorkTypeFormatConfig({
       id: template?.id || `template_${workItemType}_${Date.now()}`,
       name: templateName,
       workItemType,
-      fields,
+      fields: [], // Empty fields since we're not using template fields anymore
       aiPrompt: aiPrompt || defaultPrompts[workItemType],
-      jiraFieldMappings: fieldMappings, // Save field mappings with template
       createdAt: template?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
     onSave(newTemplate)
   }
 
-  const getJiraFieldById = (fieldId: string): JiraField | undefined => {
-    return jiraFields.find(f => f.id === fieldId)
-  }
-
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 max-w-7xl mx-auto">
+    <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Configure {workItemType.charAt(0).toUpperCase() + workItemType.slice(1)} Format</h2>
+        <h2 className="text-2xl font-bold">Configure {workItemType.charAt(0).toUpperCase() + workItemType.slice(1)} AI Prompt</h2>
         <div className="space-x-2">
           <button 
             onClick={onCancel}
@@ -224,7 +110,7 @@ export function WorkTypeFormatConfig({
         </div>
       </div>
 
-      <div className="space-y-8">
+      <div className="space-y-6">
         {/* Template Name */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -238,90 +124,6 @@ export function WorkTypeFormatConfig({
             placeholder="Enter template name"
           />
         </div>
-
-        {/* Jira Field Discovery */}
-        {jiraConnection && (
-          <div className="border border-gray-200 rounded-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Jira Field Discovery</h3>
-              <div className="flex space-x-2">
-                <button
-                  onClick={discoverJiraFields}
-                  disabled={isDiscoveringFields}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isDiscoveringFields
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-green-600 hover:bg-green-700 text-white'
-                  }`}
-                >
-                  {isDiscoveringFields ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Discovering...</span>
-                    </div>
-                  ) : (
-                    '🔍 Discover Jira Fields'
-                  )}
-                </button>
-                {jiraFields.length > 0 && (
-                  <button
-                    onClick={() => setShowJiraFields(!showJiraFields)}
-                    className="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                  >
-                    {showJiraFields ? 'Hide' : 'Show'} Jira Fields ({jiraFields.length})
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {fieldMapping && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-                <p className="text-sm text-green-800">
-                  ✅ Fields discovered for <strong>{fieldMapping.issueType}</strong> issue type
-                  <span className="text-green-600 ml-2">
-                    ({fieldMapping.fields.length} fields found, {fieldMapping.fields.filter(f => f.required).length} required)
-                  </span>
-                </p>
-                <p className="text-xs text-green-600 mt-1">
-                  Last discovered: {new Date(fieldMapping.discoveredAt).toLocaleString()}
-                </p>
-              </div>
-            )}
-
-            {showJiraFields && jiraFields.length > 0 && (
-              <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Available Jira Fields</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
-                  {jiraFields.map((field) => (
-                    <div
-                      key={field.id}
-                      className={`p-3 border rounded-md text-sm ${
-                        field.required
-                          ? 'border-red-200 bg-red-50'
-                          : 'border-gray-200 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-gray-900">{field.name}</span>
-                        {field.required && (
-                          <span className="text-xs text-red-600 font-medium">Required</span>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        <span>ID: {field.id}</span>
-                        <span className="ml-2">Type: {field.type}</span>
-                      </div>
-                      {field.description && (
-                        <p className="text-xs text-gray-600 mt-1">{field.description}</p>
-                      )}
-                    </div>
-                              ))}
-            </div>
-          )}
-        </div>
-            )}
-          </div>
-        )}
 
         {/* AI Prompt Customization */}
         <div className="border border-gray-200 rounded-lg p-6">
@@ -396,205 +198,6 @@ export function WorkTypeFormatConfig({
           </div>
         </div>
 
-        {/* Enhanced Field Mappings */}
-        <div className="border border-gray-200 rounded-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Template Fields & Jira Mapping</h3>
-            <div className="flex space-x-2">
-              {jiraFields.length > 0 && (
-                <button 
-                  onClick={createTemplateFieldsFromJira}
-                  className="px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                >
-                  📋 Create Fields from Jira
-                </button>
-              )}
-              <button 
-                onClick={addField}
-                className="px-3 py-1 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                ➕ Add Custom Field
-              </button>
-            </div>
-          </div>
-
-          {fields.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
-              <div className="space-y-3">
-                <div className="text-4xl">📝</div>
-                <h4 className="text-lg font-medium text-gray-700">No Template Fields</h4>
-                <p className="text-sm text-gray-600 max-w-md mx-auto">
-                  Start by discovering Jira fields and creating template fields from them, or add custom fields manually.
-                </p>
-                <div className="flex justify-center space-x-3 mt-4">
-                  {jiraConnection ? (
-                    jiraFields.length > 0 ? (
-                      <button 
-                        onClick={createTemplateFieldsFromJira}
-                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
-                      >
-                        📋 Create Fields from Jira
-                      </button>
-                    ) : (
-                      <button 
-                        onClick={discoverJiraFields}
-                        disabled={isDiscoveringFields}
-                        className={`px-4 py-2 rounded-md text-sm transition-colors ${
-                          isDiscoveringFields
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
-                        }`}
-                      >
-                        {isDiscoveringFields ? 'Discovering...' : '🔍 Discover Jira Fields'}
-                      </button>
-                    )
-                  ) : (
-                    <p className="text-xs text-gray-500">Connect to Jira to discover fields</p>
-                  )}
-                  <button 
-                    onClick={addField}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-sm"
-                  >
-                    ➕ Add Custom Field
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {fields.map((field, index) => (
-              <div key={field.id} className="border border-gray-200 rounded-lg p-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Template Field Configuration */}
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-medium text-gray-700 border-b pb-2">Template Field</h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Field Name
-                        </label>
-                        <input
-                          type="text"
-                          value={field.name}
-                          onChange={(e) => updateField(index, { name: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Field Type
-                        </label>
-                        <select
-                          value={field.type}
-                          onChange={(e) => updateField(index, { type: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                        >
-                          <option value="text">Text</option>
-                          <option value="textarea">Textarea</option>
-                          <option value="select">Select</option>
-                          <option value="number">Number</option>
-                          <option value="date">Date</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Description
-                      </label>
-                      <input
-                        type="text"
-                        value={field.description || ''}
-                        onChange={(e) => updateField(index, { description: e.target.value })}
-                        placeholder="Field description or help text"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={field.required}
-                          onChange={(e) => updateField(index, { required: e.target.checked })}
-                          className="mr-2"
-                        />
-                        <span className="text-sm text-gray-700">Required</span>
-                      </label>
-                      <button
-                        onClick={() => removeField(index)}
-                        className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Jira Field Mapping */}
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-medium text-gray-700 border-b pb-2">Jira Field Mapping</h4>
-                    
-                    {jiraFields.length > 0 ? (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Map to Jira Field
-                        </label>
-                        <select
-                          value={fieldMappings[field.id] || ''}
-                          onChange={(e) => updateFieldMapping(field.id, e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                        >
-                          <option value="">-- Select Jira Field --</option>
-                          {jiraFields.map((jiraField) => (
-                            <option key={jiraField.id} value={jiraField.id}>
-                              {jiraField.name} ({jiraField.id})
-                              {jiraField.required ? ' *' : ''}
-                            </option>
-                          ))}
-                        </select>
-                        
-                        {fieldMappings[field.id] && (
-                          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
-                            {(() => {
-                              const mappedField = getJiraFieldById(fieldMappings[field.id])
-                              return mappedField ? (
-                                <div className="text-sm">
-                                  <p className="font-medium text-blue-800">
-                                    Mapped to: {mappedField.name}
-                                  </p>
-                                  <p className="text-blue-600">
-                                    Type: {mappedField.type}
-                                    {mappedField.required && <span className="text-red-600 ml-2">Required</span>}
-                                  </p>
-                                  {mappedField.description && (
-                                    <p className="text-blue-600 text-xs mt-1">{mappedField.description}</p>
-                                  )}
-                                </div>
-                              ) : null
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-4 text-gray-500">
-                        <p className="text-sm">No Jira fields discovered</p>
-                        <p className="text-xs mt-1">
-                          {jiraConnection 
-                            ? 'Click "Discover Jira Fields" to load available fields'
-                            : 'Connect to Jira to discover available fields'
-                          }
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Template Summary */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-3">Template Summary</h3>
@@ -602,26 +205,21 @@ export function WorkTypeFormatConfig({
             <div>
               <p><strong>Template Name:</strong> {templateName}</p>
               <p><strong>Work Item Type:</strong> {workItemType}</p>
-              <p><strong>Total Fields:</strong> {fields.length}</p>
-              <p><strong>Required Fields:</strong> {fields.filter(f => f.required).length}</p>
+              <p><strong>Custom AI Prompt:</strong> {aiPrompt ? 'Yes' : 'Using Default'}</p>
             </div>
             <div>
-              <p><strong>Custom AI Prompt:</strong> {aiPrompt ? 'Yes' : 'Using Default'}</p>
               <p><strong>Prompt Length:</strong> {aiPrompt.length} characters</p>
               <p><strong>Uses Placeholder:</strong> {aiPrompt.includes('{description}') ? 'Yes' : 'No'}</p>
-              <p><strong>Jira Mappings:</strong> {Object.keys(fieldMappings).length} of {fields.length} fields mapped</p>
+              <p><strong>Field Validation:</strong> Automatic via Jira integration</p>
             </div>
           </div>
           
-          {jiraConnection && fieldMapping && (
-            <div className="mt-4 pt-4 border-t border-gray-300">
-              <p className="text-sm"><strong>Jira Integration:</strong></p>
-              <p className="text-xs text-gray-600">
-                Connected to: {jiraConnection.url} | Issue Type: {fieldMapping.issueType} | 
-                {fieldMapping.fields.length} fields available
-              </p>
-            </div>
-          )}
+          <div className="mt-4 pt-4 border-t border-gray-300">
+            <p className="text-sm text-gray-600">
+              <strong>Note:</strong> Required Jira fields are automatically discovered and validated when pushing to Jira. 
+              The AI will generate content, and any missing required fields will be prompted for completion.
+            </p>
+          </div>
         </div>
       </div>
     </div>

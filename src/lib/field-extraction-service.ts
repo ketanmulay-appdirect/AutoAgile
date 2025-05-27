@@ -1,0 +1,517 @@
+import { JiraField } from './jira-field-service';
+
+export interface ExtractedFieldValue {
+  fieldId: string;
+  value: any;
+  confidence: number; // 0-1 scale
+  extractionMethod: 'ai' | 'pattern' | 'default';
+}
+
+export interface FieldExtractionResult {
+  extractedFields: ExtractedFieldValue[];
+  missingFields: string[];
+  suggestions: { [fieldId: string]: any[] };
+}
+
+export class FieldExtractionService {
+  private static instance: FieldExtractionService;
+
+  static getInstance(): FieldExtractionService {
+    if (!FieldExtractionService.instance) {
+      FieldExtractionService.instance = new FieldExtractionService();
+    }
+    return FieldExtractionService.instance;
+  }
+
+  async extractFieldValues(
+    description: string,
+    jiraFields: JiraField[],
+    aiProvider?: string,
+    apiKey?: string
+  ): Promise<FieldExtractionResult> {
+    const extractedFields: ExtractedFieldValue[] = [];
+    const missingFields: string[] = [];
+    const suggestions: { [fieldId: string]: any[] } = {};
+
+    // First try AI extraction if provider is available
+    if (aiProvider && apiKey) {
+      try {
+        const aiExtracted = await this.extractWithAI(description, jiraFields, aiProvider, apiKey);
+        extractedFields.push(...aiExtracted);
+        console.log(`AI extraction successful: ${aiExtracted.length} fields extracted`);
+      } catch (error) {
+        console.warn('AI extraction failed, falling back to pattern matching:', error);
+        // Continue with pattern matching fallback
+      }
+    } else {
+      console.log('No AI provider configured, using pattern matching only');
+    }
+
+    // Pattern matching fallback for fields not extracted by AI
+    const extractedFieldIds = new Set(extractedFields.map(f => f.fieldId));
+    const remainingFields = jiraFields.filter(field => !extractedFieldIds.has(field.id));
+    
+    const patternExtracted = this.extractWithPatterns(description, remainingFields);
+    extractedFields.push(...patternExtracted);
+
+    // Generate suggestions for fields with multiple possible values
+    for (const field of jiraFields) {
+      if (field.allowedValues && field.allowedValues.length > 0) {
+        suggestions[field.id] = this.generateSuggestions(field, description);
+      }
+    }
+
+    // Identify missing required fields
+    const allExtractedIds = new Set(extractedFields.map(f => f.fieldId));
+    for (const field of jiraFields) {
+      if (field.required && !allExtractedIds.has(field.id)) {
+        missingFields.push(field.id);
+      }
+    }
+
+    return {
+      extractedFields,
+      missingFields,
+      suggestions
+    };
+  }
+
+  private async extractWithAI(
+    description: string,
+    jiraFields: JiraField[],
+    aiProvider: string,
+    apiKey: string
+  ): Promise<ExtractedFieldValue[]> {
+    const extractedFields: ExtractedFieldValue[] = [];
+
+    // Create extraction prompt
+    const fieldsInfo = jiraFields.map(field => ({
+      id: field.id,
+      name: field.name,
+      type: field.type || 'string',
+      required: field.required,
+      allowedValues: field.allowedValues?.slice(0, 10) // Limit for prompt size
+    }));
+
+    const prompt = `
+Extract field values from the following description for Jira issue creation.
+
+Description:
+${description}
+
+Fields to extract:
+${JSON.stringify(fieldsInfo, null, 2)}
+
+Instructions:
+1. Extract values that match the field types and requirements
+2. For select fields, only use values from allowedValues if provided
+3. For date fields, use ISO format (YYYY-MM-DD)
+4. For number fields, extract numeric values only
+5. Return null if no suitable value can be extracted
+6. Be conservative - only extract values you're confident about
+
+Return a JSON object with this structure:
+{
+  "extractions": [
+    {
+      "fieldId": "field_id",
+      "value": "extracted_value",
+      "confidence": 0.8
+    }
+  ]
+}
+`;
+
+    try {
+      const response = await this.callAIProvider(prompt, aiProvider, apiKey);
+      
+      if (!response || response.trim() === '') {
+        throw new Error('Empty response from AI provider');
+      }
+
+      let result;
+      try {
+        result = JSON.parse(response);
+      } catch (parseError) {
+        console.warn('Failed to parse AI response as JSON, falling back to pattern matching. Response was:', response.substring(0, 200));
+        // Don't throw error, just return empty array to fall back to pattern matching
+        return [];
+      }
+
+      if (result.extractions && Array.isArray(result.extractions)) {
+        for (const extraction of result.extractions) {
+          if (extraction.fieldId && extraction.value !== null && extraction.confidence > 0.5) {
+            extractedFields.push({
+              fieldId: extraction.fieldId,
+              value: extraction.value,
+              confidence: extraction.confidence,
+              extractionMethod: 'ai'
+            });
+          }
+        }
+        console.log(`AI extracted ${extractedFields.length} fields with confidence > 0.5`);
+      } else {
+        console.warn('AI response does not contain valid extractions array:', result);
+      }
+    } catch (error) {
+      console.error('AI extraction error:', error);
+      throw error;
+    }
+
+    return extractedFields;
+  }
+
+  private extractWithPatterns(description: string, jiraFields: JiraField[]): ExtractedFieldValue[] {
+    const extractedFields: ExtractedFieldValue[] = [];
+    const lowerDescription = description.toLowerCase();
+
+    for (const field of jiraFields) {
+      const fieldName = field.name.toLowerCase();
+      let extractedValue = null;
+      let confidence = 0;
+
+      // Priority extraction
+      if (fieldName.includes('priority')) {
+        const priorityMatch = lowerDescription.match(/\b(highest|high|medium|low|lowest|critical|major|minor|trivial)\b/);
+        if (priorityMatch) {
+          extractedValue = this.mapPriorityValue(priorityMatch[1], field.allowedValues);
+          confidence = 0.8;
+        }
+      }
+
+      // Quarter extraction - enhanced for specific fields
+      else if (fieldName.includes('quarter') || field.id === 'customfield_26362') {
+        // Look for various quarter patterns
+        const quarterPatterns = [
+          /\b(q[1-4])\s*(\d{4})\b/i,
+          /\bquarter\s*([1-4])\s*(\d{4})\b/i,
+          /\b([1-4])(?:st|nd|rd|th)\s*quarter\s*(\d{4})\b/i,
+          /\b(first|second|third|fourth)\s*quarter\s*(\d{4})\b/i,
+          /\b(q[1-4])\b/i,
+          /\bquarter\s*([1-4])\b/i
+        ];
+        
+        for (const pattern of quarterPatterns) {
+          const match = description.match(pattern);
+          if (match) {
+            let quarter = match[1];
+            let year = match[2] || new Date().getFullYear().toString();
+            
+            // Convert word to number
+            if (quarter === 'first') quarter = '1';
+            else if (quarter === 'second') quarter = '2';
+            else if (quarter === 'third') quarter = '3';
+            else if (quarter === 'fourth') quarter = '4';
+            
+            // Extract just the number from Q1, Q2, etc.
+            if (quarter.toLowerCase().startsWith('q')) {
+              quarter = quarter.substring(1);
+            }
+            
+            const quarterValue = `Q${quarter} ${year}`;
+            
+            // Check if this value exists in allowed values
+            if (field.allowedValues?.includes(quarterValue)) {
+              extractedValue = quarterValue;
+              confidence = 0.8;
+              break;
+            }
+          }
+        }
+        
+        // If no specific quarter found, try to extract year and use current quarter
+        if (!extractedValue) {
+          const yearMatch = description.match(/\b(\d{4})\b/);
+          if (yearMatch) {
+            const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
+            const quarterValue = `Q${currentQuarter} ${yearMatch[1]}`;
+            if (field.allowedValues?.includes(quarterValue)) {
+              extractedValue = quarterValue;
+              confidence = 0.6;
+            }
+          }
+        }
+        
+        // Fallback to current quarter if nothing found
+        if (!extractedValue) {
+          const currentYear = new Date().getFullYear();
+          const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
+          const quarterValue = `Q${currentQuarter} ${currentYear}`;
+          if (field.allowedValues?.includes(quarterValue)) {
+            extractedValue = quarterValue;
+            confidence = 0.4;
+          }
+        }
+      }
+
+      // Boolean fields (Yes/No) - enhanced for roadmap field
+      else if (fieldName.includes('roadmap') || fieldName.includes('include') || field.id === 'customfield_26360') {
+        // Look for positive indicators
+        const yesPatterns = [
+          /\b(yes|include|add|roadmap|public|external|visible|show)\b/i,
+          /\bon\s+roadmap\b/i,
+          /\binclude.*roadmap\b/i,
+          /\broadmap.*include\b/i
+        ];
+        
+        // Look for negative indicators
+        const noPatterns = [
+          /\b(no|exclude|skip|private|internal|hidden|not)\b/i,
+          /\bnot.*roadmap\b/i,
+          /\bexclude.*roadmap\b/i,
+          /\binternal.*only\b/i
+        ];
+        
+        let yesMatch = false;
+        let noMatch = false;
+        
+        for (const pattern of yesPatterns) {
+          if (pattern.test(description)) {
+            yesMatch = true;
+            break;
+          }
+        }
+        
+        for (const pattern of noPatterns) {
+          if (pattern.test(description)) {
+            noMatch = true;
+            break;
+          }
+        }
+        
+        if (yesMatch && !noMatch) {
+          extractedValue = 'Yes';
+          confidence = 0.7;
+        } else if (noMatch && !yesMatch) {
+          extractedValue = 'No';
+          confidence = 0.7;
+        } else if (yesMatch) {
+          // Default to yes if roadmap is mentioned
+          extractedValue = 'Yes';
+          confidence = 0.5;
+        }
+      }
+
+      // Story points extraction
+      else if (fieldName.includes('story') && fieldName.includes('point')) {
+        const pointsMatch = lowerDescription.match(/\b(\d+)\s*(?:story\s*)?points?\b/i);
+        if (pointsMatch) {
+          extractedValue = parseInt(pointsMatch[1]);
+          confidence = 0.9;
+        }
+      }
+
+      // Component extraction
+      else if (fieldName.includes('component')) {
+        if (field.allowedValues) {
+          for (const allowedValue of field.allowedValues) {
+            const componentName = allowedValue.toLowerCase();
+            if (componentName && lowerDescription.includes(componentName)) {
+              extractedValue = allowedValue;
+              confidence = 0.7;
+              break;
+            }
+          }
+        }
+      }
+
+      // Epic link extraction
+      else if (fieldName.includes('epic')) {
+        const epicMatch = lowerDescription.match(/\b([A-Z]+-\d+)\b/);
+        if (epicMatch) {
+          extractedValue = epicMatch[1];
+          confidence = 0.8;
+        }
+      }
+
+      if (extractedValue !== null) {
+        extractedFields.push({
+          fieldId: field.id,
+          value: extractedValue,
+          confidence,
+          extractionMethod: 'pattern'
+        });
+      }
+    }
+
+    return extractedFields;
+  }
+
+  private generateSuggestions(field: JiraField, description: string): any[] {
+    if (!field.allowedValues) return [];
+
+    const suggestions = [];
+    const lowerDescription = description.toLowerCase();
+
+    // Score each allowed value based on relevance to description
+    for (const allowedValue of field.allowedValues) {
+      const value = allowedValue.toLowerCase();
+      let score = 0;
+
+      // Exact match
+      if (lowerDescription.includes(value)) {
+        score += 10;
+      }
+
+      // Partial word match
+      const words = value.split(/\s+/);
+      for (const word of words) {
+        if (word.length > 2 && lowerDescription.includes(word)) {
+          score += 3;
+        }
+      }
+
+      // Common patterns
+      if (field.name.toLowerCase().includes('priority')) {
+        if (lowerDescription.includes('urgent') && value.includes('high')) score += 5;
+        if (lowerDescription.includes('important') && value.includes('high')) score += 3;
+        if (lowerDescription.includes('later') && value.includes('low')) score += 3;
+      }
+
+      if (score > 0) {
+        suggestions.push({
+          value: allowedValue,
+          score
+        });
+      }
+    }
+
+    // Sort by score and return top suggestions
+    return suggestions
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(s => s.value);
+  }
+
+  private mapPriorityValue(priority: string, allowedValues?: any[]): any {
+    if (!allowedValues) return priority;
+
+    const priorityMap: { [key: string]: string[] } = {
+      'highest': ['highest', 'critical', '1'],
+      'high': ['high', 'major', '2'],
+      'medium': ['medium', 'normal', '3'],
+      'low': ['low', 'minor', '4'],
+      'lowest': ['lowest', 'trivial', '5']
+    };
+
+    const mappings = priorityMap[priority.toLowerCase()] || [priority];
+    
+    for (const mapping of mappings) {
+      const match = allowedValues.find(v => 
+        v.toLowerCase().includes(mapping.toLowerCase())
+      );
+      if (match) return match;
+    }
+
+    return priority;
+  }
+
+  private mapQuarterValue(quarter: string, allowedValues?: any[]): any {
+    if (!allowedValues) return quarter;
+
+    const currentYear = new Date().getFullYear();
+    const quarterNum = quarter.match(/[1-4]/)?.[0];
+    
+    if (quarterNum) {
+      const patterns = [
+        `Q${quarterNum}`,
+        `q${quarterNum}`,
+        `Quarter ${quarterNum}`,
+        `${currentYear} Q${quarterNum}`,
+        `${currentYear}-Q${quarterNum}`
+      ];
+
+      for (const pattern of patterns) {
+        const match = allowedValues.find(v => 
+          v.includes(pattern)
+        );
+        if (match) return match;
+      }
+    }
+
+    return quarter;
+  }
+
+  private mapBooleanValue(value: boolean, allowedValues?: any[]): any {
+    if (!allowedValues) return value;
+
+    const trueValues = ['yes', 'true', 'include', 'add'];
+    const falseValues = ['no', 'false', 'exclude', 'skip'];
+
+    const searchValues = value ? trueValues : falseValues;
+
+    for (const searchValue of searchValues) {
+      const match = allowedValues.find(v => 
+        v.toLowerCase().includes(searchValue)
+      );
+      if (match) return match;
+    }
+
+    return value;
+  }
+
+  private getCurrentQuarter(): string {
+    const month = new Date().getMonth() + 1;
+    const quarter = Math.ceil(month / 3);
+    return `Q${quarter}`;
+  }
+
+  private async callAIProvider(prompt: string, provider: string, apiKey: string): Promise<string> {
+    if (provider === 'devs-ai') {
+      // DevS.ai specific format
+      const response = await fetch('/api/devs-ai-proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          apiToken: apiKey,
+          requestBody: {
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ],
+            model: 'gpt-4', // Default model for field extraction
+            stream: false
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(`DevS.ai API error: ${errorData.error || response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content || '';
+    } else {
+      // Generic format for other providers
+      const endpoint = `/api/${provider.toLowerCase()}-proxy`;
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          apiKey,
+          maxTokens: 1000,
+          temperature: 0.1 // Low temperature for consistent extraction
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(`AI provider request failed: ${errorData.error || response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.content || data.response || '';
+    }
+  }
+}
+
+export const fieldExtractionService = FieldExtractionService.getInstance(); 

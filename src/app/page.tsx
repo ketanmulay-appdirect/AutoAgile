@@ -12,7 +12,7 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config'>('create')
   const [jiraConnection, setJiraConnection] = useState<JiraInstance | null>(null)
   const [devsAIConnection, setDevsAIConnection] = useState<DevsAIConnectionType | null>(null)
-  const [configWorkItemType, setConfigWorkItemType] = useState<WorkItemType>('story')
+  const [configWorkItemType, setConfigWorkItemType] = useState<WorkItemType>('epic')
 
   // Load connections from localStorage on mount
   React.useEffect(() => {
@@ -183,7 +183,7 @@ export default function Home() {
                 </p>
                 
                 <div className="flex space-x-4 mb-6">
-                  {(['story', 'epic', 'initiative'] as WorkItemType[]).map((type) => (
+                  {(['epic', 'story', 'initiative'] as WorkItemType[]).map((type) => (
                     <button
                       key={type}
                       onClick={() => setConfigWorkItemType(type)}
@@ -202,7 +202,6 @@ export default function Home() {
               <WorkTypeFormatConfig
                 workItemType={configWorkItemType}
                 template={templateService.getDefaultTemplate(configWorkItemType)}
-                jiraConnection={jiraConnection}
                 onSave={handleTemplateSaved}
                 onCancel={() => setCurrentView('create')}
               />

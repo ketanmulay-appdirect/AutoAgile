@@ -18,6 +18,9 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
     projectKey: ''
   })
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [isDiscoveringProjects, setIsDiscoveringProjects] = useState(false)
+  const [availableProjects, setAvailableProjects] = useState<any[]>([])
+  const [showProjectList, setShowProjectList] = useState(false)
 
   useEffect(() => {
     // Load saved connection from localStorage
@@ -74,6 +77,50 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
     }
   }
 
+  const discoverProjects = async () => {
+    if (!connection.url || !connection.email || !connection.apiToken) {
+      setTestResult({ success: false, message: 'Please fill in URL, email, and API token first' })
+      return
+    }
+
+    setIsDiscoveringProjects(true)
+    setTestResult(null)
+
+    try {
+      const response = await fetch('/api/jira/get-projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ jiraConnection: connection }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        setAvailableProjects(result.projects)
+        setShowProjectList(true)
+        setTestResult({ success: true, message: `Found ${result.count} projects` })
+      } else {
+        setTestResult({ success: false, message: result.error || 'Failed to discover projects' })
+        setAvailableProjects([])
+        setShowProjectList(false)
+      }
+    } catch (error) {
+      setTestResult({ success: false, message: 'Network error. Please check your connection.' })
+      setAvailableProjects([])
+      setShowProjectList(false)
+    } finally {
+      setIsDiscoveringProjects(false)
+    }
+  }
+
+  const selectProject = (projectKey: string) => {
+    setConnection(prev => ({ ...prev, projectKey }))
+    setShowProjectList(false)
+    setTestResult({ success: true, message: `Selected project: ${projectKey}` })
+  }
+
   const disconnect = () => {
     setConnection({
       url: '',
@@ -83,6 +130,8 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
     })
     setIsConnected(false)
     setTestResult(null)
+    setAvailableProjects([])
+    setShowProjectList(false)
     localStorage.removeItem('jira-connection')
     onConnectionRemoved?.()
   }
@@ -162,17 +211,52 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Default Project Key
           </label>
-          <input
-            type="text"
-            value={connection.projectKey || ''}
-            onChange={(e) => handleInputChange('projectKey', e.target.value)}
-            placeholder="PROJ"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isConnected}
-          />
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={connection.projectKey || ''}
+              onChange={(e) => handleInputChange('projectKey', e.target.value)}
+              placeholder="PROJ"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isConnected}
+            />
+            {!isConnected && (
+              <button
+                onClick={discoverProjects}
+                disabled={isDiscoveringProjects || !connection.url || !connection.email || !connection.apiToken}
+                className="px-3 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {isDiscoveringProjects ? 'Finding...' : 'Find Projects'}
+              </button>
+            )}
+          </div>
           <p className="mt-1 text-sm text-gray-500">
             Default project key for creating issues (optional)
           </p>
+          
+          {showProjectList && availableProjects.length > 0 && (
+            <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Available Projects:</h4>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {availableProjects.map((project) => (
+                  <button
+                    key={project.key}
+                    onClick={() => selectProject(project.key)}
+                    className="w-full text-left px-2 py-1 text-sm hover:bg-blue-100 rounded border border-transparent hover:border-blue-300 transition-colors"
+                  >
+                    <span className="font-medium text-blue-600">{project.key}</span>
+                    <span className="text-gray-600 ml-2">- {project.name}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowProjectList(false)}
+                className="mt-2 text-xs text-gray-500 hover:text-gray-700"
+              >
+                Hide project list
+              </button>
+            </div>
+          )}
         </div>
 
         {testResult && (
