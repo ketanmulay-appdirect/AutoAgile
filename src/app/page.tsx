@@ -1,11 +1,11 @@
 'use client'
 
 import React, { useState } from 'react'
-import { JiraInstance, WorkItemType } from '../types'
+import { JiraInstance } from '../types'
 import { JiraConnection } from '../components/jira-connection'
 import { DevsAIConnection, type DevsAIConnection as DevsAIConnectionType } from '../components/devs-ai-connection'
 import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creator'
-import { WorkTypeFormatConfig } from '../components/work-type-format-config'
+import { TemplateConfiguration } from '../components/template-configuration'
 import { ContentStudio } from '../components/content-studio'
 import { templateService, type WorkItemTemplate } from '../lib/template-service'
 
@@ -13,7 +13,6 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio'>('create')
   const [jiraConnection, setJiraConnection] = useState<JiraInstance | null>(null)
   const [devsAIConnection, setDevsAIConnection] = useState<DevsAIConnectionType | null>(null)
-  const [configWorkItemType, setConfigWorkItemType] = useState<WorkItemType>('epic')
 
   // Load connections from localStorage on mount
   React.useEffect(() => {
@@ -48,8 +47,17 @@ export default function Home() {
       setCurrentView('jira')
     }
 
+    const handleNavigateToConfig = () => {
+      setCurrentView('config')
+    }
+
     window.addEventListener('navigate-to-jira', handleNavigateToJira)
-    return () => window.removeEventListener('navigate-to-jira', handleNavigateToJira)
+    window.addEventListener('navigate-to-config', handleNavigateToConfig)
+    
+    return () => {
+      window.removeEventListener('navigate-to-jira', handleNavigateToJira)
+      window.removeEventListener('navigate-to-config', handleNavigateToConfig)
+    }
   }, [])
 
   const handleJiraConnectionSaved = (connection: JiraInstance) => {
@@ -69,8 +77,6 @@ export default function Home() {
   const handleDevsAIConnectionRemoved = () => {
     setDevsAIConnection(null)
   }
-
-
 
   const handleTemplateSaved = (template: WorkItemTemplate) => {
     try {
@@ -191,38 +197,10 @@ export default function Home() {
           )}
 
           {currentView === 'config' && (
-            <div className="space-y-6">
-              {/* Work Item Type Selector */}
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-xl font-bold mb-4">Configure Content Templates</h2>
-                <p className="text-gray-600 mb-6">
-                  Customize the fields and AI prompts for different work item types.
-                </p>
-                
-                <div className="flex space-x-4 mb-6">
-                  {(['epic', 'story', 'initiative'] as WorkItemType[]).map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setConfigWorkItemType(type)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                        configWorkItemType === type
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <WorkTypeFormatConfig
-                workItemType={configWorkItemType}
-                template={templateService.getDefaultTemplate(configWorkItemType)}
-                onSave={handleTemplateSaved}
-                onCancel={() => setCurrentView('create')}
-              />
-            </div>
+            <TemplateConfiguration
+              onTemplateSaved={handleTemplateSaved}
+              onCancel={() => setCurrentView('create')}
+            />
           )}
         </div>
       </div>

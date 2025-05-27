@@ -155,7 +155,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         contentType={selectedContentType}
         deliveryQuarter={selectedQuarter}
         onBack={handleBackToSelection}
-        onEditInstructions={() => setShowInstructionEditor(true)}
       />
     )
   }
@@ -175,10 +174,10 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             Back to Work Items
           </button>
           <button
-            onClick={() => setShowInstructionEditor(true)}
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-config'))}
             className="text-blue-600 hover:text-blue-700 transition-colors text-sm font-medium"
           >
-            Customize AI Instructions
+            Configure Templates
           </button>
         </div>
 
@@ -382,20 +381,36 @@ interface ContentTypeCardProps {
   onClick: () => void
 }
 
-function ContentTypeCard({ title, description, phase, icon, onClick }: ContentTypeCardProps) {
+function ContentTypeCard({ type, title, description, phase, icon, onClick }: ContentTypeCardProps) {
+  const handleConfigureClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    window.dispatchEvent(new CustomEvent('navigate-to-config'))
+  }
+
   return (
-    <button
-      onClick={onClick}
-      className="p-6 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200 text-left group"
-    >
-      <div className="text-2xl mb-3">{icon}</div>
-      <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-        {title}
-      </h4>
-      <p className="text-gray-600 text-sm mb-3">{description}</p>
-      <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-        {phase}
-      </span>
-    </button>
+    <div className="border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200 group">
+      <button
+        onClick={onClick}
+        className="w-full p-6 text-left"
+      >
+        <div className="text-2xl mb-3">{icon}</div>
+        <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+          {title}
+        </h4>
+        <p className="text-gray-600 text-sm mb-3">{description}</p>
+        <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+          {phase}
+        </span>
+      </button>
+      
+      <div className="px-6 pb-4">
+        <button
+          onClick={handleConfigureClick}
+          className="w-full text-xs text-gray-500 hover:text-blue-600 transition-colors border-t border-gray-100 pt-3 mt-3"
+        >
+          Configure Instructions →
+        </button>
+      </div>
+    </div>
   )
 } 

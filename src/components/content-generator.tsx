@@ -11,7 +11,6 @@ interface ContentGeneratorProps {
   contentType: ContentType
   deliveryQuarter: string
   onBack: () => void
-  onEditInstructions: () => void
 }
 
 export function ContentGenerator({
@@ -19,8 +18,7 @@ export function ContentGenerator({
   workItem,
   contentType,
   deliveryQuarter,
-  onBack,
-  onEditInstructions
+  onBack
 }: ContentGeneratorProps) {
   const [generatedContent, setGeneratedContent] = useState<string>('')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -269,10 +267,10 @@ Follow us for the latest updates and feature announcements.
           Back to Content Types
         </button>
         <button
-          onClick={onEditInstructions}
+          onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-config'))}
           className="text-blue-600 hover:text-blue-700 transition-colors text-sm font-medium"
         >
-          Edit AI Instructions
+          Configure Templates
         </button>
       </div>
 
