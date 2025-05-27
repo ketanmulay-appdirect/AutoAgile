@@ -366,7 +366,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
           {/* Quarter Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Delivery Quarter
+              Delivery Quarter (Fix Version)
             </label>
             <select
               value={selectedQuarter}
@@ -383,6 +383,9 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             </select>
             {loadingQuarters && (
               <p className="text-xs text-gray-500 mt-1">Loading quarters...</p>
+            )}
+            {quarters.length === 0 && !loadingQuarters && selectedProject && workItemType && (workItemType === 'epic' || workItemType === 'initiative') && (
+              <p className="text-xs text-gray-500 mt-1">No fix versions found for this project</p>
             )}
           </div>
 

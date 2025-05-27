@@ -60,21 +60,38 @@ export async function POST(request: NextRequest) {
       issues: data.issues?.slice(0, 3).map((issue: any) => ({
         key: issue.key,
         summary: issue.fields?.summary,
-        issueType: issue.fields?.issuetype?.name
+        issueType: issue.fields?.issuetype?.name,
+        descriptionType: typeof issue.fields?.description,
+        descriptionSample: issue.fields?.description
       }))
     })
 
-    const workItems = data.issues.map((issue: { id: string; key: string; fields: any }) => ({
-      id: issue.id,
-      key: issue.key,
-      summary: issue.fields.summary,
-      description: issue.fields.description || '',
-      issueType: issue.fields.issuetype.name,
-      status: issue.fields.status.name,
-      project: issue.fields.project.key,
-      fixVersions: issue.fields.fixVersions?.map((v: any) => v.name) || [],
-      labels: issue.fields.labels || []
-    }))
+    const workItems = data.issues.map((issue: { id: string; key: string; fields: any }) => {
+      // Handle different description formats from Jira
+      let description = ''
+      if (issue.fields.description) {
+        if (typeof issue.fields.description === 'string') {
+          description = issue.fields.description
+        } else if (issue.fields.description.content) {
+          // Atlassian Document Format - extract text content
+          description = extractTextFromADF(issue.fields.description)
+        } else if (issue.fields.description.toString) {
+          description = issue.fields.description.toString()
+        }
+      }
+
+      return {
+        id: issue.id,
+        key: issue.key,
+        summary: issue.fields.summary,
+        description: description,
+        issueType: issue.fields.issuetype.name,
+        status: issue.fields.status.name,
+        project: issue.fields.project.key,
+        fixVersions: issue.fields.fixVersions?.map((v: any) => v.name) || [],
+        labels: issue.fields.labels || []
+      }
+    })
 
     console.log('Processed work items count:', workItems.length)
     return NextResponse.json({ workItems })
@@ -86,4 +103,27 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+// Helper function to extract text from Atlassian Document Format
+function extractTextFromADF(adf: any): string {
+  if (!adf || !adf.content) return ''
+  
+  let text = ''
+  
+  function extractText(node: any): void {
+    if (node.type === 'text') {
+      text += node.text || ''
+    } else if (node.content && Array.isArray(node.content)) {
+      node.content.forEach(extractText)
+    }
+    
+    // Add line breaks for paragraphs
+    if (node.type === 'paragraph') {
+      text += '\n'
+    }
+  }
+  
+  adf.content.forEach(extractText)
+  return text.trim()
 } 
