@@ -202,6 +202,7 @@ export default function Home() {
               <WorkTypeFormatConfig
                 workItemType={configWorkItemType}
                 template={templateService.getDefaultTemplate(configWorkItemType)}
+                jiraConnection={jiraConnection}
                 onSave={handleTemplateSaved}
                 onCancel={() => setCurrentView('create')}
               />

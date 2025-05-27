@@ -7,6 +7,7 @@ export interface WorkItemTemplate {
   workItemType: WorkItemType
   fields: FieldDefinition[]
   aiPrompt: string
+  jiraFieldMappings?: Record<string, string>
   createdAt: string
   updatedAt: string
 }
