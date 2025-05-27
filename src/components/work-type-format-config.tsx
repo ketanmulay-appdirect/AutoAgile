@@ -21,11 +21,7 @@ export function WorkTypeFormatConfig({
   onCancel 
 }: WorkTypeFormatConfigProps) {
   const [templateName, setTemplateName] = useState(template?.name || `${workItemType} Template`)
-  const [fields, setFields] = useState<FieldDefinition[]>(template?.fields || [
-    { id: 'title', name: 'Title', type: 'text', required: true, description: 'The main title/summary of the work item' },
-    { id: 'description', name: 'Description', type: 'textarea', required: true, description: 'Detailed description of the work item' },
-    { id: 'priority', name: 'Priority', type: 'select', required: false, description: 'Priority level for the work item' }
-  ])
+  const [fields, setFields] = useState<FieldDefinition[]>(template?.fields || [])
   const [aiPrompt, setAiPrompt] = useState(template?.aiPrompt || '')
   const [showPromptPreview, setShowPromptPreview] = useState(false)
   const [sampleDescription, setSampleDescription] = useState('')
@@ -79,20 +75,22 @@ export function WorkTypeFormatConfig({
         setJiraFields(mapping.fields)
         setShowJiraFields(true)
         
-        // Auto-map common fields
-        const autoMappings: Record<string, string> = {}
-        fields.forEach(templateField => {
-          const jiraField = mapping.fields.find(jf => 
-            jf.name.toLowerCase().includes(templateField.name.toLowerCase()) ||
-            jf.id.toLowerCase().includes(templateField.id.toLowerCase()) ||
-            (templateField.id === 'title' && (jf.id === 'summary' || jf.name.toLowerCase().includes('summary'))) ||
-            (templateField.id === 'description' && (jf.id === 'description' || jf.name.toLowerCase().includes('description')))
-          )
-          if (jiraField) {
-            autoMappings[templateField.id] = jiraField.id
-          }
-        })
-        setFieldMappings(autoMappings)
+        // Auto-map common fields if template fields exist
+        if (fields.length > 0) {
+          const autoMappings: Record<string, string> = {}
+          fields.forEach(templateField => {
+            const jiraField = mapping.fields.find(jf => 
+              jf.name.toLowerCase().includes(templateField.name.toLowerCase()) ||
+              jf.id.toLowerCase().includes(templateField.id.toLowerCase()) ||
+              (templateField.id === 'title' && (jf.id === 'summary' || jf.name.toLowerCase().includes('summary'))) ||
+              (templateField.id === 'description' && (jf.id === 'description' || jf.name.toLowerCase().includes('description')))
+            )
+            if (jiraField) {
+              autoMappings[templateField.id] = jiraField.id
+            }
+          })
+          setFieldMappings(autoMappings)
+        }
       }
     } catch (error) {
       console.error('Failed to discover Jira fields:', error)
@@ -100,6 +98,47 @@ export function WorkTypeFormatConfig({
     } finally {
       setIsDiscoveringFields(false)
     }
+  }
+
+  const createTemplateFieldsFromJira = () => {
+    if (jiraFields.length === 0) {
+      alert('Please discover Jira fields first')
+      return
+    }
+
+    // Create template fields from required Jira fields
+    const requiredJiraFields = jiraFields.filter(jf => jf.required)
+    const newFields: FieldDefinition[] = requiredJiraFields.map(jiraField => ({
+      id: jiraField.id,
+      name: jiraField.name,
+      type: jiraField.type,
+      required: jiraField.required,
+      description: jiraField.description || `${jiraField.name} field from Jira`
+    }))
+
+    // Add common optional fields if they exist in Jira
+    const optionalCommonFields = ['description', 'priority', 'labels', 'assignee']
+    optionalCommonFields.forEach(fieldId => {
+      const jiraField = jiraFields.find(jf => jf.id === fieldId && !jf.required)
+      if (jiraField && !newFields.some(f => f.id === fieldId)) {
+        newFields.push({
+          id: jiraField.id,
+          name: jiraField.name,
+          type: jiraField.type,
+          required: false,
+          description: jiraField.description || `${jiraField.name} field from Jira`
+        })
+      }
+    })
+
+    setFields(newFields)
+
+    // Auto-map all created fields
+    const autoMappings: Record<string, string> = {}
+    newFields.forEach(templateField => {
+      autoMappings[templateField.id] = templateField.id
+    })
+    setFieldMappings(autoMappings)
   }
 
   const addField = () => {
@@ -276,9 +315,10 @@ export function WorkTypeFormatConfig({
                         <p className="text-xs text-gray-600 mt-1">{field.description}</p>
                       )}
                     </div>
-                  ))}
-                </div>
-              </div>
+                              ))}
+            </div>
+          )}
+        </div>
             )}
           </div>
         )}
@@ -360,16 +400,69 @@ export function WorkTypeFormatConfig({
         <div className="border border-gray-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">Template Fields & Jira Mapping</h3>
-            <button 
-              onClick={addField}
-              className="px-3 py-1 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-            >
-              Add Field
-            </button>
+            <div className="flex space-x-2">
+              {jiraFields.length > 0 && (
+                <button 
+                  onClick={createTemplateFieldsFromJira}
+                  className="px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                >
+                  📋 Create Fields from Jira
+                </button>
+              )}
+              <button 
+                onClick={addField}
+                className="px-3 py-1 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                ➕ Add Custom Field
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-4">
-            {fields.map((field, index) => (
+          {fields.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+              <div className="space-y-3">
+                <div className="text-4xl">📝</div>
+                <h4 className="text-lg font-medium text-gray-700">No Template Fields</h4>
+                <p className="text-sm text-gray-600 max-w-md mx-auto">
+                  Start by discovering Jira fields and creating template fields from them, or add custom fields manually.
+                </p>
+                <div className="flex justify-center space-x-3 mt-4">
+                  {jiraConnection ? (
+                    jiraFields.length > 0 ? (
+                      <button 
+                        onClick={createTemplateFieldsFromJira}
+                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+                      >
+                        📋 Create Fields from Jira
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={discoverJiraFields}
+                        disabled={isDiscoveringFields}
+                        className={`px-4 py-2 rounded-md text-sm transition-colors ${
+                          isDiscoveringFields
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                      >
+                        {isDiscoveringFields ? 'Discovering...' : '🔍 Discover Jira Fields'}
+                      </button>
+                    )
+                  ) : (
+                    <p className="text-xs text-gray-500">Connect to Jira to discover fields</p>
+                  )}
+                  <button 
+                    onClick={addField}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-sm"
+                  >
+                    ➕ Add Custom Field
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {fields.map((field, index) => (
               <div key={field.id} className="border border-gray-200 rounded-lg p-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Template Field Configuration */}
