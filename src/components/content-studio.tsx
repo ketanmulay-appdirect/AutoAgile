@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { JiraInstance, JiraProject, JiraWorkItem, WorkItemType, ContentType } from '../types'
 import { jiraContentService } from '../lib/jira-content-service'
 import { ContentGenerator } from './content-generator'
-import { InstructionEditor } from './instruction-editor'
 
 interface ContentStudioProps {
   jiraConnection: JiraInstance | null
@@ -23,7 +22,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   const [loading, setLoading] = useState(false)
   const [loadingQuarters, setLoadingQuarters] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showInstructionEditor, setShowInstructionEditor] = useState(false)
 
   const loadProjects = useCallback(async () => {
     if (!jiraConnection) return
@@ -48,26 +46,55 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     setLoadingQuarters(true)
     
     try {
-      const quarterList = await jiraContentService.getProjectVersions(jiraConnection, selectedProject)
+      const { quarters: quarterList, defaultQuarter } = await jiraContentService.getDeliveryQuarters(jiraConnection, selectedProject)
       setQuarters(quarterList)
+      
+      // Auto-select the default quarter (current quarter)
+      if (defaultQuarter && quarterList.includes(defaultQuarter)) {
+        setSelectedQuarter(defaultQuarter)
+      }
     } catch (err) {
-      console.error('Failed to load quarters:', err)
+      console.error('Failed to load delivery quarters:', err)
       // Set default quarters as fallback
-      const currentYear = new Date().getFullYear()
-      setQuarters([
+      const currentDate = new Date()
+      const currentYear = currentDate.getFullYear()
+      const currentMonth = currentDate.getMonth() + 1
+      
+      let currentQuarter = 1
+      if (currentMonth >= 4 && currentMonth <= 6) currentQuarter = 2
+      else if (currentMonth >= 7 && currentMonth <= 9) currentQuarter = 3
+      else if (currentMonth >= 10 && currentMonth <= 12) currentQuarter = 4
+
+      const fallbackQuarters = [
         `Q1 ${currentYear}`,
         `Q2 ${currentYear}`,
         `Q3 ${currentYear}`,
         `Q4 ${currentYear}`,
         `Q1 ${currentYear + 1}`
-      ])
+      ]
+      
+      setQuarters(fallbackQuarters)
+      setSelectedQuarter(`Q${currentQuarter} ${currentYear}`)
     } finally {
       setLoadingQuarters(false)
     }
   }, [jiraConnection, selectedProject])
 
   const loadWorkItems = useCallback(async () => {
-    if (!jiraConnection || !selectedProject) return
+    if (!jiraConnection || !selectedProject) {
+      console.log('Cannot load work items - missing requirements:', { 
+        jiraConnection: !!jiraConnection, 
+        selectedProject: !!selectedProject
+      })
+      return
+    }
+    
+    console.log('Loading work items with parameters:', {
+      project: selectedProject,
+      workItemType,
+      selectedQuarter,
+      quarterToPass: selectedQuarter || undefined
+    })
     
     setLoading(true)
     setError(null)
@@ -77,7 +104,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         jiraConnection,
         selectedProject,
         workItemType,
-        selectedQuarter
+        selectedQuarter || undefined // Pass undefined if no quarter selected
       )
       setWorkItems(items)
       setSelectedWorkItem(null)
@@ -96,21 +123,21 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     }
   }, [jiraConnection, loadProjects])
 
-  // Load quarters when work type is selected (only for epics and initiatives)
+  // Load quarters when project is selected
   useEffect(() => {
-    if (jiraConnection && selectedProject && (workItemType === 'epic' || workItemType === 'initiative')) {
+    if (jiraConnection && selectedProject) {
       loadQuarters()
     } else {
       setQuarters([])
       setSelectedQuarter('')
     }
-  }, [jiraConnection, selectedProject, workItemType, loadQuarters])
+  }, [jiraConnection, selectedProject, loadQuarters])
 
   const handleProjectSelect = (projectKey: string) => {
     setSelectedProject(projectKey)
     // Reset dependent selections
     setWorkItemType('epic')
-    setSelectedQuarter('')
+    // Don't reset selectedQuarter here - it will be auto-selected by loadQuarters
     setWorkItems([])
     setSelectedWorkItem(null)
     setSelectedContentType(null)
@@ -301,12 +328,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             </div>
           </div>
         </div>
-
-        {showInstructionEditor && (
-          <InstructionEditor
-            onClose={() => setShowInstructionEditor(false)}
-          />
-        )}
       </div>
     )
   }
@@ -372,7 +393,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
               value={selectedQuarter}
               onChange={(e) => setSelectedQuarter(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={!selectedProject || !workItemType || loadingQuarters}
+              disabled={!selectedProject || loadingQuarters}
             >
               <option value="">All Quarters (Optional)</option>
               {quarters.map((quarter) => (
@@ -384,7 +405,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             {loadingQuarters && (
               <p className="text-xs text-gray-500 mt-1">Loading quarters...</p>
             )}
-            {quarters.length === 0 && !loadingQuarters && selectedProject && workItemType && (workItemType === 'epic' || workItemType === 'initiative') && (
+            {quarters.length === 0 && !loadingQuarters && selectedProject && (
               <p className="text-xs text-gray-500 mt-1">No fix versions found for this project</p>
             )}
           </div>
@@ -489,12 +510,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             <li>• Checking if the project has any {workItemType}s</li>
           </ul>
         </div>
-      )}
-
-      {showInstructionEditor && (
-        <InstructionEditor
-          onClose={() => setShowInstructionEditor(false)}
-        />
       )}
     </div>
   )

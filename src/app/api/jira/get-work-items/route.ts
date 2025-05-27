@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
     }
     
     if (deliveryQuarter) {
-      // Try to filter by fixVersion if quarter is specified
-      jql += ` AND fixVersion ~ "${deliveryQuarter}"`
+      // Use the exact fix version name as provided from the dropdown
+      jql += ` AND fixVersion = "${deliveryQuarter}"`
     }
     
     // Order by created date descending to get most recent items first
@@ -37,7 +37,11 @@ export async function POST(request: NextRequest) {
 
     console.log('Search parameters:', { projectKey, workItemType, deliveryQuarter })
     console.log('JQL Query:', jql)
-    const searchUrl = `${jiraInstance.url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&fields=summary,description,issuetype,status,project,fixVersions,labels&maxResults=50`
+    
+    // Standard fields to include in the response
+    const fields = 'summary,description,issuetype,status,project,fixVersions,labels'
+    
+    const searchUrl = `${jiraInstance.url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&fields=${fields}&maxResults=50`
     console.log('Search URL:', searchUrl)
 
     const response = await fetch(searchUrl, {
@@ -50,7 +54,15 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      throw new Error(`Jira API error: ${response.status} ${response.statusText}`)
+      const errorText = await response.text()
+      console.error('Jira API error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText,
+        jql: jql,
+        url: searchUrl
+      })
+      throw new Error(`Jira API error: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
     const data = await response.json()
@@ -80,6 +92,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Extract delivery quarter value if available
+      let deliveryQuarter = ''
+      if (issue.fields.fixVersions && issue.fields.fixVersions.length > 0) {
+        deliveryQuarter = issue.fields.fixVersions[0].name
+      }
+
       return {
         id: issue.id,
         key: issue.key,
@@ -89,7 +107,8 @@ export async function POST(request: NextRequest) {
         status: issue.fields.status.name,
         project: issue.fields.project.key,
         fixVersions: issue.fields.fixVersions?.map((v: any) => v.name) || [],
-        labels: issue.fields.labels || []
+        labels: issue.fields.labels || [],
+        deliveryQuarter: deliveryQuarter
       }
     })
 
