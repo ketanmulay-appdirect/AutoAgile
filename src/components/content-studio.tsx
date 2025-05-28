@@ -174,8 +174,10 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   }
 
   const handleOpenInstructionEditor = (contentType: ContentType) => {
+    console.log('Opening instruction editor for content type:', contentType)
     setEditingContentType(contentType)
     setShowInstructionEditor(true)
+    console.log('State updated - showInstructionEditor:', true, 'editingContentType:', contentType)
   }
 
   const handleCloseInstructionEditor = () => {
@@ -336,6 +338,13 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         return <span key={key}>{node.text || ''}</span>
     }
   }
+
+  // Debug effect to log modal state changes
+  useEffect(() => {
+    if (showInstructionEditor && editingContentType) {
+      console.log('Modal should be rendered with:', { showInstructionEditor, editingContentType })
+    }
+  }, [showInstructionEditor, editingContentType])
 
   if (!jiraConnection) {
     return (
@@ -698,8 +707,10 @@ function ContentTypeCard({ type, title, description, phase, icon, workItem, onGe
   }
 
   const handleConfigureClick = (e: React.MouseEvent) => {
+    console.log('Configure button clicked for content type:', type)
     e.stopPropagation()
     onConfigure(type)
+    console.log('onConfigure called with type:', type)
   }
 
   return (
