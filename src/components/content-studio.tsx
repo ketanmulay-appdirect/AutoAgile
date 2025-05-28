@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { JiraInstance, JiraProject, JiraWorkItem, WorkItemType, ContentType } from '../types'
 import { jiraContentService } from '../lib/jira-content-service'
 import { ContentGenerator } from './content-generator'
-import { InstructionEditor } from './instruction-editor'
+import { contentInstructionService } from '../lib/content-instruction-service'
 
 interface ContentStudioProps {
   jiraConnection: JiraInstance | null
@@ -23,8 +23,9 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   const [loading, setLoading] = useState(false)
   const [loadingQuarters, setLoadingQuarters] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showInstructionEditor, setShowInstructionEditor] = useState(false)
+  const [showInstructionSection, setShowInstructionSection] = useState(false)
   const [editingContentType, setEditingContentType] = useState<ContentType | null>(null)
+  const [instructionText, setInstructionText] = useState('')
 
   const loadProjects = useCallback(async () => {
     if (!jiraConnection) return
@@ -173,14 +174,44 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     setSelectedContentType(null)
   }
 
-  const handleOpenInstructionEditor = (contentType: ContentType) => {
+  const handleOpenInstructionSection = (contentType: ContentType) => {
     setEditingContentType(contentType)
-    setShowInstructionEditor(true)
+    setShowInstructionSection(true)
+    // Load current instruction for this content type
+    const currentInstruction = contentInstructionService.getActiveInstructions(contentType)
+    setInstructionText(currentInstruction)
   }
 
-  const handleCloseInstructionEditor = () => {
-    setShowInstructionEditor(false)
+  const handleCloseInstructionSection = () => {
+    setShowInstructionSection(false)
     setEditingContentType(null)
+    setInstructionText('')
+  }
+
+  const handleSaveInstruction = () => {
+    if (editingContentType) {
+      const template = contentInstructionService.getTemplate(editingContentType)
+      const updatedTemplate = {
+        ...template,
+        userInstructions: instructionText,
+        isCustomized: true
+      }
+      contentInstructionService.saveTemplate(updatedTemplate)
+      handleCloseInstructionSection()
+    }
+  }
+
+  const getContentTypeDisplayName = (contentType: ContentType): string => {
+    switch (contentType) {
+      case 'quarterly-presentation':
+        return 'Quarterly Presentation'
+      case 'customer-webinar':
+        return 'Customer Webinar'
+      case 'feature-newsletter':
+        return 'Feature Newsletter'
+      default:
+        return contentType
+    }
   }
 
   const truncateText = (text: string, maxLength: number = 150) => {
@@ -459,7 +490,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   icon="📊"
                   workItem={selectedWorkItem}
                   onGenerate={(contentType) => handleContentTypeSelect(contentType)}
-                  onConfigure={(contentType) => handleOpenInstructionEditor(contentType)}
+                  onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
                 />
                 <ContentTypeCard
                   type="customer-webinar"
@@ -469,7 +500,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   icon="🎯"
                   workItem={selectedWorkItem}
                   onGenerate={(contentType) => handleContentTypeSelect(contentType)}
-                  onConfigure={(contentType) => handleOpenInstructionEditor(contentType)}
+                  onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
                 />
                 <ContentTypeCard
                   type="feature-newsletter"
@@ -479,7 +510,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   icon="📰"
                   workItem={selectedWorkItem}
                   onGenerate={(contentType) => handleContentTypeSelect(contentType)}
-                  onConfigure={(contentType) => handleOpenInstructionEditor(contentType)}
+                  onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
                 />
               </div>
             </div>
@@ -669,12 +700,66 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         </div>
       )}
 
-      {/* Instruction Editor Modal */}
-      {showInstructionEditor && editingContentType && (
-        <InstructionEditor
-          initialContentType={editingContentType}
-          onClose={handleCloseInstructionEditor}
-        />
+      {/* Instruction Section */}
+      {showInstructionSection && editingContentType && (
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-gray-900">
+              Configure Instructions: {getContentTypeDisplayName(editingContentType)}
+            </h3>
+            <button
+              onClick={handleCloseInstructionSection}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              AI Instructions for Content Generation
+            </label>
+            <textarea
+              value={instructionText}
+              onChange={(e) => setInstructionText(e.target.value)}
+              rows={8}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical"
+              placeholder="Enter detailed instructions for AI content generation..."
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              These instructions will guide the AI in generating content for {getContentTypeDisplayName(editingContentType).toLowerCase()}.
+            </p>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => {
+                const defaultTemplate = contentInstructionService.resetToDefault(editingContentType)
+                setInstructionText(defaultTemplate.defaultInstructions)
+              }}
+              className="text-gray-600 hover:text-gray-800 transition-colors text-sm"
+            >
+              Reset to Default
+            </button>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={handleCloseInstructionSection}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveInstruction}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Save Instructions
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
