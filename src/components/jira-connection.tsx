@@ -156,84 +156,84 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
               Configure your Jira instance connection to create and manage work items
             </CardDescription>
           </div>
-          {isConnected && (
-            <div className="flex items-center space-x-2">
+        {isConnected && (
+          <div className="flex items-center space-x-2">
               <Badge variant="success">Connected</Badge>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
       </CardHeader>
 
       <CardContent className="space-y-6">
-        <div className="space-y-4">
-          <div>
+      <div className="space-y-4">
+        <div>
             <label className="block text-sm font-medium text-navy-950 mb-2">
-              Jira Instance URL *
-            </label>
+            Jira Instance URL *
+          </label>
             <Input
-              type="url"
-              value={connection.url || ''}
-              onChange={(e) => handleInputChange('url', e.target.value)}
-              placeholder="https://your-domain.atlassian.net"
-              disabled={isConnected}
-            />
+            type="url"
+            value={connection.url || ''}
+            onChange={(e) => handleInputChange('url', e.target.value)}
+            placeholder="https://your-domain.atlassian.net"
+            disabled={isConnected}
+          />
             <p className="mt-1 text-sm text-cloud-600">
-              Your Jira Cloud instance URL
-            </p>
-          </div>
+            Your Jira Cloud instance URL
+          </p>
+        </div>
 
-          <div>
+        <div>
             <label className="block text-sm font-medium text-navy-950 mb-2">
-              Email Address *
-            </label>
+            Email Address *
+          </label>
             <Input
-              type="email"
-              value={connection.email || ''}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              placeholder="your-email@company.com"
-              disabled={isConnected}
-            />
+            type="email"
+            value={connection.email || ''}
+            onChange={(e) => handleInputChange('email', e.target.value)}
+            placeholder="your-email@company.com"
+            disabled={isConnected}
+          />
             <p className="mt-1 text-sm text-cloud-600">
-              Your Jira account email address
-            </p>
-          </div>
+            Your Jira account email address
+          </p>
+        </div>
 
-          <div>
+        <div>
             <label className="block text-sm font-medium text-navy-950 mb-2">
-              API Token *
-            </label>
+            API Token *
+          </label>
             <Input
-              type="password"
-              value={connection.apiToken || ''}
-              onChange={(e) => handleInputChange('apiToken', e.target.value)}
-              placeholder="Your Jira API token"
-              disabled={isConnected}
-            />
+            type="password"
+            value={connection.apiToken || ''}
+            onChange={(e) => handleInputChange('apiToken', e.target.value)}
+            placeholder="Your Jira API token"
+            disabled={isConnected}
+          />
             <p className="mt-1 text-sm text-cloud-600">
-              <a 
-                href="https://id.atlassian.com/manage-profile/security/api-tokens" 
-                target="_blank" 
-                rel="noopener noreferrer"
+            <a 
+              href="https://id.atlassian.com/manage-profile/security/api-tokens" 
+              target="_blank" 
+              rel="noopener noreferrer"
                 className="text-royal-950 hover:text-royal-900 underline"
-              >
-                Create an API token here
-              </a>
-            </p>
-          </div>
+            >
+              Create an API token here
+            </a>
+          </p>
+        </div>
 
-          <div>
+        <div>
             <label className="block text-sm font-medium text-navy-950 mb-2">
-              Default Project Key
-            </label>
-            <div className="flex space-x-2">
+            Default Project Key
+          </label>
+          <div className="flex space-x-2">
               <Input
-                type="text"
-                value={connection.projectKey || ''}
-                onChange={(e) => handleInputChange('projectKey', e.target.value)}
+              type="text"
+              value={connection.projectKey || ''}
+              onChange={(e) => handleInputChange('projectKey', e.target.value)}
                 placeholder="e.g., PROJ"
-                disabled={isConnected}
+              disabled={isConnected}
                 className="flex-1"
-              />
+            />
               <Button
                 variant="outline"
                 onClick={discoverProjects}
@@ -273,8 +273,8 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
             </AlertDescription>
           </Alert>
         )}
-
-        {showProjectList && availableProjects.length > 0 && (
+          
+          {showProjectList && availableProjects.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Available Projects</CardTitle>
@@ -331,9 +331,9 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
               Disconnect
             </Button>
           )}
-        </div>
+      </div>
 
-        {!isConnected && (
+      {!isConnected && (
           <Alert variant="info">
             <Icons.Info size="sm" />
             <AlertTitle>Setup Instructions</AlertTitle>
@@ -344,10 +344,10 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
                 <li>Create an API token from your Atlassian account security settings</li>
                 <li>Optionally discover and select a default project</li>
                 <li>Test the connection to verify everything works</li>
-              </ol>
+          </ol>
             </AlertDescription>
           </Alert>
-        )}
+      )}
       </CardContent>
     </Card>
   )

@@ -497,167 +497,158 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   return (
     <div className="space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
-      
-      {/* Input Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Icons.Settings size="md" className="mr-2" />
-            Configuration
-          </CardTitle>
-          <CardDescription>
-            Configure your work item type, template, and AI model
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-navy-950 mb-2">
-                Work Item Type
-              </label>
-              <select
-                value={workItemType}
-                onChange={(e) => {
-                  setWorkItemType(e.target.value as WorkItemType)
-                  setSelectedTemplate('default') // Reset template when work item type changes
-                }}
-                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-                disabled={isGenerating || isPushing}
-              >
-                <option value="epic">Epic</option>
-                <option value="story">Story</option>
-                <option value="initiative">Initiative</option>
-              </select>
-            </div>
 
-            <div>
+      {/* Input Form - Simplified */}
+      <Card>
+        <CardContent className="space-y-6 pt-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
               <label className="block text-sm font-medium text-navy-950 mb-2">
-                Content Template
+              Work Item Type
+            </label>
+            <select
+              value={workItemType}
+              onChange={(e) => {
+                setWorkItemType(e.target.value as WorkItemType)
+                setSelectedTemplate('default') // Reset template when work item type changes
+              }}
+                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+              disabled={isGenerating || isPushing}
+            >
+              <option value="epic">Epic</option>
+              <option value="story">Story</option>
+              <option value="initiative">Initiative</option>
+            </select>
+          </div>
+
+          <div>
+              <label className="block text-sm font-medium text-navy-950 mb-2">
+              Content Template
+            </label>
+            <select
+              value={selectedTemplate}
+              onChange={(e) => setSelectedTemplate(e.target.value)}
+                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+              disabled={isGenerating || isPushing}
+            >
+              {availableTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+              <label className="block text-sm font-medium text-navy-950 mb-2">
+              AI Model
+            </label>
+            <select
+              value={aiModel}
+              onChange={(e) => setAiModel(e.target.value as AIModel)}
+                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+              disabled={isGenerating || isPushing}
+            >
+              <option value="auto">Auto (Free - Gemini)</option>
+              <option value="gemini">Google Gemini (Free)</option>
+              <option value="openai">OpenAI GPT-4</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="devs-ai">
+                {isDevsAIReady ? 'Devs.ai (Multiple LLMs) ✓' : 'Devs.ai (Multiple LLMs) - Setup Required'}
+              </option>
+            </select>
+          </div>
+
+          {/* Devs.ai Model Selection */}
+          {aiModel === 'devs-ai' && isDevsAIReady && (
+            <div>
+                <label className="block text-sm font-medium text-navy-950 mb-2">
+                Devs.ai Model
               </label>
               <select
-                value={selectedTemplate}
-                onChange={(e) => setSelectedTemplate(e.target.value)}
-                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                value={selectedDevsAIModel}
+                onChange={(e) => setSelectedDevsAIModel(e.target.value)}
+                  className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
                 disabled={isGenerating || isPushing}
               >
-                {availableTemplates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
+                {devsAIService.getAvailableModels().map((model) => (
+                  <option key={model} value={model}>
+                    {model}
                   </option>
                 ))}
               </select>
             </div>
+          )}
+        </div>
 
-            <div>
-              <label className="block text-sm font-medium text-navy-950 mb-2">
-                AI Model
-              </label>
-              <select
-                value={aiModel}
-                onChange={(e) => setAiModel(e.target.value as AIModel)}
-                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-                disabled={isGenerating || isPushing}
-              >
-                <option value="auto">Auto (Free - Gemini)</option>
-                <option value="gemini">Google Gemini (Free)</option>
-                <option value="openai">OpenAI GPT-4</option>
-                <option value="anthropic">Anthropic Claude</option>
-                <option value="devs-ai">
-                  {isDevsAIReady ? 'Devs.ai (Multiple LLMs) ✓' : 'Devs.ai (Multiple LLMs) - Setup Required'}
-                </option>
-              </select>
-            </div>
-
-            {/* Devs.ai Model Selection */}
-            {aiModel === 'devs-ai' && isDevsAIReady && (
-              <div>
-                <label className="block text-sm font-medium text-navy-950 mb-2">
-                  Devs.ai Model
-                </label>
-                <select
-                  value={selectedDevsAIModel}
-                  onChange={(e) => setSelectedDevsAIModel(e.target.value)}
-                  className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-                  disabled={isGenerating || isPushing}
-                >
-                  {devsAIService.getAvailableModels().map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div>
+        <div>
             <label className="block text-sm font-medium text-navy-950 mb-2">
-              Description *
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
+            Description *
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
               className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 resize-none bg-white text-navy-950"
-              placeholder={`Describe your ${workItemType} in detail...`}
-              disabled={isGenerating || isPushing}
-            />
-          </div>
+            placeholder={`Describe your ${workItemType} in detail...`}
+            disabled={isGenerating || isPushing}
+          />
+        </div>
 
-          {/* Template Preview */}
-          {currentTemplate && (
+        {/* Template Preview */}
+        {currentTemplate && (
             <Alert variant="info">
               <Icons.FileText size="sm" />
               <AlertTitle>Template: {currentTemplate.name}</AlertTitle>
               <AlertDescription>
                 <div className="space-y-2 mt-2">
                   <p>
-                    <strong>Fields to generate:</strong> {currentTemplate.fields.map(f => f.name).join(', ')}
-                  </p>
-                  {currentTemplate.aiPrompt && (
-                    <p>
-                      <strong>Custom prompt:</strong> {currentTemplate.aiPrompt.substring(0, 100)}
-                      {currentTemplate.aiPrompt.length > 100 ? '...' : ''}
-                    </p>
-                  )}
-                </div>
+                <strong>Fields to generate:</strong> {currentTemplate.fields.map(f => f.name).join(', ')}
+              </p>
+              {currentTemplate.aiPrompt && (
+                <p>
+                  <strong>Custom prompt:</strong> {currentTemplate.aiPrompt.substring(0, 100)}
+                  {currentTemplate.aiPrompt.length > 100 ? '...' : ''}
+                </p>
+              )}
+            </div>
               </AlertDescription>
             </Alert>
-          )}
+        )}
 
-          <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center">
             <Button
               variant="outline"
-              onClick={handleReset}
-              disabled={isGenerating || isPushing}
-            >
+            onClick={handleReset}
+            disabled={isGenerating || isPushing}
+          >
               <Icons.RotateCcw size="sm" className="mr-2" />
-              Reset Form
+            Reset Form
             </Button>
-            
+          
             <Button
-              onClick={handleGenerate}
-              disabled={isGenerating || isPushing || !description.trim()}
+            onClick={handleGenerate}
+            disabled={isGenerating || isPushing || !description.trim()}
               className="min-w-[160px]"
-            >
-              {isGenerating ? (
+          >
+            {isGenerating ? (
                 <>
                   <LoadingSpinner size="sm" variant="white" className="mr-2" />
                   Generating...
                 </>
-              ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
+            ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
                 <>
                   <Icons.Settings size="sm" autoContrast className="mr-2" />
                   Setup Devs.ai API Key
                 </>
-              ) : (
+            ) : (
                 <>
                   <Icons.Sparkles size="sm" autoContrast className="mr-2" />
                   Generate Content
                 </>
-              )}
+            )}
             </Button>
-          </div>
+        </div>
         </CardContent>
       </Card>
 
@@ -774,15 +765,15 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           <Icons.CheckCircle size="sm" />
           <AlertTitle>Issue Created Successfully!</AlertTitle>
           <AlertDescription>
-            Your {workItemType} has been created in Jira.{' '}
-            <a
-              href={jiraIssueUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+                Your {workItemType} has been created in Jira.{' '}
+                <a
+                  href={jiraIssueUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
               className="font-medium underline hover:text-forest-800 transition-colors"
-            >
-              View in Jira →
-            </a>
+                >
+                  View in Jira →
+                </a>
           </AlertDescription>
         </Alert>
       )}

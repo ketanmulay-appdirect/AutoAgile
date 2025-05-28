@@ -8,7 +8,6 @@ import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creato
 import { TemplateConfiguration } from '../components/template-configuration'
 import { ContentStudio } from '../components/content-studio'
 import { AppLayout } from '../components/app-layout'
-import { Icons } from '../components/ui/icons'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio'>('create')
@@ -83,6 +82,44 @@ export default function Home() {
     setCurrentView(view as 'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio')
   }
 
+  // Get current view title and description
+  const getViewInfo = () => {
+    switch (currentView) {
+      case 'create':
+        return {
+          title: 'Create & Push',
+          description: 'Create and push work items to Jira with AI-generated content'
+        }
+      case 'content-studio':
+        return {
+          title: 'Content Studio',
+          description: 'Generate content for existing work items'
+        }
+      case 'jira':
+        return {
+          title: 'Jira Connection',
+          description: 'Configure your Jira instance connection'
+        }
+      case 'devs-ai':
+        return {
+          title: 'Devs.ai Connection',
+          description: 'Configure AI content generation settings'
+        }
+      case 'config':
+        return {
+          title: 'Configure Templates',
+          description: 'Manage work item templates and AI prompts'
+        }
+      default:
+        return {
+          title: 'AutoAgile',
+          description: 'Generate and push professional Jira and presentation materials using AI'
+        }
+    }
+  }
+
+  const viewInfo = getViewInfo()
+
   return (
     <AppLayout
       currentView={currentView}
@@ -91,24 +128,21 @@ export default function Home() {
       devsAIConnection={devsAIConnection}
     >
       {/* Header */}
-      <header className="bg-white border-b border-cloud-300 shadow-sm">
-        <div className="container mx-auto px-6 py-6">
-          <div className="text-center">
-            <div className="flex items-center justify-center mb-4">
-              <Icons.Target size="xl" variant="accent" className="mr-3" />
-              <h1 className="text-4xl font-bold text-navy-950">
-                AutoAgile
-              </h1>
-            </div>
-            <p className="text-lg text-cloud-700 max-w-4xl mx-auto">
-              Generate and push professional Jira and presentation materials using AI.
+      <header className="bg-white border-b border-cloud-200 shadow-sm">
+        <div className="px-6 py-4">
+          <div>
+            <h1 className="text-2xl font-bold text-navy-950 mb-1">
+              {viewInfo.title}
+            </h1>
+            <p className="text-sm text-cloud-600">
+              {viewInfo.description}
             </p>
           </div>
         </div>
       </header>
 
       {/* Content */}
-      <div className="flex-1 container mx-auto px-6 py-8">
+      <div className="flex-1 px-6 py-6 overflow-auto">
         <div className="max-w-7xl mx-auto">
           {currentView === 'create' && (
             <EnhancedWorkItemCreator

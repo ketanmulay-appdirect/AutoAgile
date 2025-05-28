@@ -87,27 +87,27 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
             Configure Templates
           </CardTitle>
           <CardDescription>
-            Customize AI instructions and templates for work item creation and content generation.
+          Customize AI instructions and templates for work item creation and content generation.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Section Selector */}
-          <div className="flex space-x-4">
+        {/* Section Selector */}
+        <div className="flex space-x-4">
             <Button
               variant={activeSection === 'work-items' ? 'default' : 'outline'}
-              onClick={() => setActiveSection('work-items')}
-            >
+            onClick={() => setActiveSection('work-items')}
+          >
               <Icons.FileText size="sm" className="mr-2" />
-              Work Item Templates
+            Work Item Templates
             </Button>
             <Button
               variant={activeSection === 'content-generation' ? 'default' : 'outline'}
-              onClick={() => setActiveSection('content-generation')}
-            >
+            onClick={() => setActiveSection('content-generation')}
+          >
               <Icons.FileText size="sm" className="mr-2" />
-              Content Generation Templates
+            Content Generation Templates
             </Button>
-          </div>
+        </div>
         </CardContent>
       </Card>
 
@@ -121,21 +121,21 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
                 Work Item Templates
               </CardTitle>
               <CardDescription>
-                Configure fields and AI prompts for creating different types of Jira work items.
+              Configure fields and AI prompts for creating different types of Jira work items.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex space-x-4 mb-6">
-                {(['epic', 'story', 'initiative'] as WorkItemType[]).map((type) => (
+            <div className="flex space-x-4 mb-6">
+              {(['epic', 'story', 'initiative'] as WorkItemType[]).map((type) => (
                   <Button
-                    key={type}
+                  key={type}
                     variant={selectedWorkItemType === type ? 'default' : 'outline'}
-                    onClick={() => setSelectedWorkItemType(type)}
-                  >
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  onClick={() => setSelectedWorkItemType(type)}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
                   </Button>
-                ))}
-              </div>
+              ))}
+            </div>
             </CardContent>
           </Card>
 
@@ -158,17 +158,17 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
                 Content Generation Templates
               </CardTitle>
               <CardDescription>
-                Configure AI instructions for generating different types of presentation and marketing content.
+              Configure AI instructions for generating different types of presentation and marketing content.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Content Template Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {contentTemplates.map((template) => {
-                  const templateData = contentInstructionService.getTemplate(template.type)
-                  const isCustomized = templateData.isCustomized
-                  
-                  return (
+            {/* Content Template Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {contentTemplates.map((template) => {
+                const templateData = contentInstructionService.getTemplate(template.type)
+                const isCustomized = templateData.isCustomized
+                
+                return (
                     <Card key={template.type} className="hover:shadow-md transition-all duration-200">
                       <CardHeader>
                         <div className="text-3xl mb-2">{template.icon}</div>
@@ -176,29 +176,29 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
                         <CardDescription>{template.description}</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4">
                           <Badge variant="secondary">
-                            {template.phase}
+                        {template.phase}
                           </Badge>
-                          {isCustomized && (
+                      {isCustomized && (
                             <Badge variant="success">
-                              Customized
+                          Customized
                             </Badge>
-                          )}
-                        </div>
+                      )}
+                    </div>
                         <Button
-                          onClick={() => handleEditContentInstructions(template.type)}
+                      onClick={() => handleEditContentInstructions(template.type)}
                           className="w-full"
                           size="sm"
-                        >
+                    >
                           <Icons.Edit size="sm" className="mr-2" />
-                          Edit Instructions
+                      Edit Instructions
                         </Button>
                       </CardContent>
                     </Card>
-                  )
-                })}
-              </div>
+                )
+              })}
+            </div>
             </CardContent>
           </Card>
 

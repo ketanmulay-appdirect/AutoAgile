@@ -859,25 +859,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl flex items-center justify-center">
-            <Icons.FileText size="lg" className="mr-3" />
-            Content Studio
-            {preferencesRestored && (
-              <Badge variant="success" className="ml-3">
-                <Icons.CheckCircle size="xs" className="mr-1" />
-                Previous selections restored
-              </Badge>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Generate presentation and marketing content from your Jira work items
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
       {/* Selection Form */}
       <Card className="relative">
         {/* Section-wide loader overlay */}
@@ -898,16 +879,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
           </div>
         )}
 
-        {preferencesRestored && !isInitializing && (
-          <Alert variant="info" className="mb-6">
-            <Icons.Info size="sm" />
-            <AlertTitle>Preferences Restored</AlertTitle>
-            <AlertDescription>
-              Your previous selections have been restored. Work items are being loaded automatically.
-            </AlertDescription>
-          </Alert>
-        )}
-        
         <CardHeader>
           <CardTitle className="flex items-center">
             <Icons.Search size="md" className="mr-2" />

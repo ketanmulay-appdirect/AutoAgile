@@ -225,66 +225,66 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
       onClick={onClick}
     >
       <div className="p-4">
-        <div className="flex flex-col space-y-3">
+      <div className="flex flex-col space-y-3">
           {/* Header with key, status, and type */}
-          <div className="flex items-center flex-wrap gap-2">
+        <div className="flex items-center flex-wrap gap-2">
             <div className="flex items-center space-x-2">
               {getWorkItemIcon(workItem.issueType)}
               <Badge variant="outline" className="font-mono text-xs">
-                {workItem.key}
+            {workItem.key}
               </Badge>
             </div>
             <div className="flex items-center space-x-1">
               {getStatusIcon(workItem.status)}
               <Badge variant={getStatusVariant(workItem.status) as any} className="text-xs">
-                {workItem.status}
+            {workItem.status}
               </Badge>
             </div>
             <Badge variant="secondary" className="text-xs">
-              {workItem.issueType}
+            {workItem.issueType}
             </Badge>
-          </div>
-
-          {/* Title */}
-          <h3 className="font-medium text-navy-950 text-base leading-snug">
-            {workItem.summary}
-          </h3>
-
-          {/* Description - Now properly formatted */}
-          {workItem.description && (
-            <div className="text-cloud-700 text-sm leading-relaxed">
-              {renderWorkItemDescription(workItem.description, 180)}
-            </div>
-          )}
         </div>
+
+        {/* Title */}
+          <h3 className="font-medium text-navy-950 text-base leading-snug">
+          {workItem.summary}
+        </h3>
+
+        {/* Description - Now properly formatted */}
+        {workItem.description && (
+            <div className="text-cloud-700 text-sm leading-relaxed">
+            {renderWorkItemDescription(workItem.description, 180)}
+          </div>
+        )}
+      </div>
 
         <div className="flex items-center justify-between text-xs text-cloud-600 mt-4 pt-3 border-t border-cloud-200">
-          <div className="flex items-center space-x-4">
-            <span>Project: {workItem.project}</span>
-            {workItem.fixVersions && workItem.fixVersions.length > 0 && (
-              <span>Versions: {workItem.fixVersions.join(', ')}</span>
-            )}
-          </div>
-          
-          {workItem.labels && workItem.labels.length > 0 && (
-            <div className="flex items-center space-x-1">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-              </svg>
-              <span>{workItem.labels.slice(0, 2).join(', ')}</span>
-              {workItem.labels.length > 2 && <span>+{workItem.labels.length - 2}</span>}
-            </div>
+        <div className="flex items-center space-x-4">
+          <span>Project: {workItem.project}</span>
+          {workItem.fixVersions && workItem.fixVersions.length > 0 && (
+            <span>Versions: {workItem.fixVersions.join(', ')}</span>
           )}
         </div>
+        
+        {workItem.labels && workItem.labels.length > 0 && (
+          <div className="flex items-center space-x-1">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            <span>{workItem.labels.slice(0, 2).join(', ')}</span>
+            {workItem.labels.length > 2 && <span>+{workItem.labels.length - 2}</span>}
+          </div>
+        )}
+      </div>
 
-        {isSelected && (
+      {isSelected && (
           <div className="mt-4 pt-4 border-t border-royal-200">
             <div className="flex items-center text-royal-950 text-sm">
               <StatusIcons.Done size="sm" className="mr-2" />
-              Selected for content generation
-            </div>
+            Selected for content generation
           </div>
-        )}
+        </div>
+      )}
       </div>
     </Card>
   )

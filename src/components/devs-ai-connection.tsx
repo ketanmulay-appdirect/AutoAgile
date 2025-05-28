@@ -104,12 +104,12 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
               Configure your Devs.ai API connection for AI-powered content generation
             </CardDescription>
           </div>
-          {isConnected && (
-            <div className="flex items-center space-x-2">
+        {isConnected && (
+          <div className="flex items-center space-x-2">
               <Badge variant="success">Connected</Badge>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
       </CardHeader>
 
       <CardContent className="space-y-6">
@@ -140,7 +140,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
               {testResult.success ? 'Success' : 'Error'}
             </AlertTitle>
             <AlertDescription>
-              {testResult.message}
+            {testResult.message}
             </AlertDescription>
           </Alert>
         )}
@@ -174,9 +174,9 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
               Disconnect
             </Button>
           )}
-        </div>
+      </div>
 
-        {!isConnected && (
+      {!isConnected && (
           <div className="space-y-4">
             <Alert variant="info">
               <Icons.Info size="sm" />
@@ -184,12 +184,12 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
               <AlertDescription>
                 <ol className="list-decimal list-inside space-y-1 mt-2">
                   <li>Create an account at <a href="https://devs.ai" target="_blank" rel="noopener noreferrer" className="text-royal-950 hover:text-royal-900 underline">Devs.ai</a></li>
-                  <li><strong>Log into your Devs.ai dashboard and keep it open</strong></li>
+              <li><strong>Log into your Devs.ai dashboard and keep it open</strong></li>
                   <li>Navigate to <a href="https://devs.ai/api-keys" target="_blank" rel="noopener noreferrer" className="text-royal-950 hover:text-royal-900 underline">API Keys page</a></li>
-                  <li>Click "Create new secret key" and add appropriate scopes</li>
-                  <li>Copy the generated secret key (starts with "sk-")</li>
-                  <li>Paste the key above and test the connection</li>
-                </ol>
+              <li>Click "Create new secret key" and add appropriate scopes</li>
+              <li>Copy the generated secret key (starts with "sk-")</li>
+              <li>Paste the key above and test the connection</li>
+            </ol>
               </AlertDescription>
             </Alert>
 
@@ -198,12 +198,12 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
               <AlertTitle>Important Authentication Notes</AlertTitle>
               <AlertDescription>
                 <ul className="list-disc list-inside space-y-1 mt-2">
-                  <li><strong>You must be logged into Devs.ai in your browser</strong> for API calls to work</li>
-                  <li>Devs.ai uses both session authentication and API keys</li>
-                  <li>Required scopes: ai.read.self, ai.write.self, chats.read.self, chats.write.self</li>
-                  <li>Keep your secret key secure and never share it publicly</li>
-                  <li>If you get authentication errors, ensure you're logged into Devs.ai</li>
-                </ul>
+              <li><strong>You must be logged into Devs.ai in your browser</strong> for API calls to work</li>
+              <li>Devs.ai uses both session authentication and API keys</li>
+              <li>Required scopes: ai.read.self, ai.write.self, chats.read.self, chats.write.self</li>
+              <li>Keep your secret key secure and never share it publicly</li>
+              <li>If you get authentication errors, ensure you're logged into Devs.ai</li>
+            </ul>
               </AlertDescription>
             </Alert>
 
@@ -233,17 +233,17 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
                     <div className="flex items-center space-x-2">
                       <Badge variant="warning">Gemini</Badge>
                       <span className="text-sm text-cloud-700">Pro & 1.5 Pro</span>
-                    </div>
+          </div>
                     <div className="flex items-center space-x-2">
                       <Badge variant="secondary">GPT-3.5</Badge>
                       <span className="text-sm text-cloud-700">Turbo</span>
-                    </div>
-                  </div>
+            </div>
+          </div>
                 </div>
               </CardContent>
             </Card>
-          </div>
-        )}
+        </div>
+      )}
       </CardContent>
     </Card>
   )
