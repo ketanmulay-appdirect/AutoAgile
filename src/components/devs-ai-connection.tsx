@@ -97,7 +97,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
         <div className="flex justify-between items-center">
           <div>
             <CardTitle className="flex items-center">
-              <Icons.Zap size="md" className="mr-2" />
+              <Icons.Zap size="md" autoContrast className="mr-2" />
               Devs.ai Connection
             </CardTitle>
             <CardDescription>
@@ -170,7 +170,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
               onClick={disconnect}
               className="flex-1"
             >
-              <Icons.X size="sm" className="mr-2" />
+              <Icons.X size="sm" autoContrast className="mr-2" />
               Disconnect
             </Button>
           )}
@@ -210,7 +210,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center">
-                  <Icons.Star size="md" className="mr-2" />
+                  <Icons.Star size="md" autoContrast className="mr-2" />
                   Available Models
                 </CardTitle>
                 <CardDescription>

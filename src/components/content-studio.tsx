@@ -568,7 +568,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-jira'))}
             size="lg"
           >
-            <Icons.Link size="sm" className="mr-2" />
+            <Icons.Link size="sm" autoContrast className="mr-2" />
             Setup Jira Connection
           </Button>
         </CardContent>
@@ -881,7 +881,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
 
         <CardHeader>
           <CardTitle className="flex items-center">
-            <Icons.Search size="md" className="mr-2" />
+            <Icons.Search size="md" autoContrast className="mr-2" />
             Find Work Items
           </CardTitle>
           <CardDescription>
@@ -962,7 +962,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     disabled={isInitializing || isLoadingWorkItems || !selectedProject || !workItemType || !quarterInitialized}
                     className="flex-1"
                   >
-                    <Icons.Search size="sm" className="mr-2" />
+                    <Icons.Search size="sm" autoContrast className="mr-2" />
                     Find Work Items
                   </Button>
                   {contentStudioPreferences.hasPreferences() && !isInitializing && (
@@ -996,7 +996,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Icons.List size="md" className="mr-2" />
+              <Icons.List size="md" autoContrast className="mr-2" />
               Work Items ({workItems.length} found)
             </CardTitle>
             <CardDescription>

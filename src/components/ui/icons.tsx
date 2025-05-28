@@ -165,27 +165,48 @@ function useAutoContrast(enabled: boolean) {
 
     const element = ref.current
     let currentElement: Element | null = element
+    let foundBackground = false
 
-    // Walk up the DOM tree to find the first element with a background color
-    while (currentElement) {
+    // Walk up the DOM tree to find the first element with a meaningful background color
+    while (currentElement && !foundBackground) {
       const computedStyle = window.getComputedStyle(currentElement)
       const backgroundColor = computedStyle.backgroundColor
+      
+      // Check if this is a button element (better detection for button contexts)
+      const isButton = currentElement.tagName === 'BUTTON' || 
+                      currentElement.getAttribute('role') === 'button' ||
+                      currentElement.classList.contains('btn') ||
+                      currentElement.closest('button') !== null
 
-      // Skip transparent/inherit backgrounds
+      // Skip transparent/inherit backgrounds, but prioritize button elements
       if (backgroundColor && backgroundColor !== 'rgba(0, 0, 0, 0)' && backgroundColor !== 'transparent') {
         const rgb = getRGBFromComputedStyle(backgroundColor)
         if (rgb) {
           const isDark = isColorDark(rgb)
-          const newContrastClass = isDark ? autoContrastVariants.light : autoContrastVariants.dark
+          // For light backgrounds (like white), use dark text
+          // For dark backgrounds, use light text
+          const newContrastClass = isDark ? autoContrastVariants.dark : autoContrastVariants.light
           setContrastClass(newContrastClass)
+          foundBackground = true
           return
         }
       }
-
+      
       currentElement = currentElement.parentElement
     }
 
-    // Default to light variant if no background found
+    // If no background found, check if we're in a sidebar or navigation context
+    const sidebarElement = element.closest('[class*="sidebar"]') || 
+                           element.closest('nav') || 
+                           element.closest('[role="navigation"]')
+    
+    if (sidebarElement) {
+      // For sidebar contexts, default to dark text (assuming light sidebar background)
+      setContrastClass(autoContrastVariants.light)
+      return
+    }
+
+    // Default fallback - use dark text for light backgrounds
     setContrastClass(autoContrastVariants.light)
   }, [enabled, isClient])
 
@@ -193,30 +214,47 @@ function useAutoContrast(enabled: boolean) {
   useEffect(() => {
     if (!isClient) return
 
-    detectContrast()
+    // Initial detection with a small delay to ensure DOM is ready
+    const timer = setTimeout(detectContrast, 100)
 
     // Set up observers and listeners
-    const observer = new MutationObserver(detectContrast)
+    const observer = new MutationObserver(() => {
+      setTimeout(detectContrast, 50)
+    })
+    
     const resizeHandler = () => setTimeout(detectContrast, 10)
     const visibilityHandler = () => {
-      if (!document.hidden) {
-        setTimeout(detectContrast, 10)
+      if (document.visibilityState === 'visible') {
+        setTimeout(detectContrast, 50)
       }
     }
 
     if (ref.current) {
-      observer.observe(document.body, {
+      observer.observe(ref.current, {
         attributes: true,
         attributeFilter: ['class', 'style'],
-        childList: true,
-        subtree: true
+        subtree: false
       })
+      
+      // Also observe parent elements for background changes
+      let parent = ref.current.parentElement
+      let depth = 0
+      while (parent && depth < 5) {
+        observer.observe(parent, {
+          attributes: true,
+          attributeFilter: ['class', 'style'],
+          subtree: false
+        })
+        parent = parent.parentElement
+        depth++
+      }
     }
 
     window.addEventListener('resize', resizeHandler)
     document.addEventListener('visibilitychange', visibilityHandler)
 
     return () => {
+      clearTimeout(timer)
       observer.disconnect()
       window.removeEventListener('resize', resizeHandler)
       document.removeEventListener('visibilitychange', visibilityHandler)
@@ -246,16 +284,18 @@ function createIcon(LucideIcon: LucideIcon) {
     autoContrast = false,
     ...props 
   }: IconProps & React.ComponentProps<LucideIcon>) {
-    const { ref, contrastClass } = useAutoContrast(autoContrast || variant === 'auto-contrast')
+    // Auto-enable contrast detection if not explicitly set and likely in button context
+    const shouldAutoContrast = autoContrast || variant === 'auto-contrast'
+    const { ref, contrastClass } = useAutoContrast(shouldAutoContrast)
     
-    const finalVariant = autoContrast || variant === 'auto-contrast' ? 'auto-contrast' : variant
+    const finalVariant = shouldAutoContrast ? 'auto-contrast' : variant
     const colorClass = finalVariant === 'auto-contrast' ? contrastClass : iconVariants[finalVariant]
     
     return (
       <LucideIcon
         ref={ref}
         className={cn(iconSizes[size], colorClass, className)}
-        suppressHydrationWarning={autoContrast || variant === 'auto-contrast'}
+        suppressHydrationWarning={shouldAutoContrast}
         {...props}
       />
     )

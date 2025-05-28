@@ -83,7 +83,7 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl flex items-center">
-            <Icons.Settings size="lg" className="mr-3" />
+            <Icons.Settings size="lg" autoContrast className="mr-3" />
             Configure Templates
           </CardTitle>
           <CardDescription>
@@ -97,14 +97,14 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
               variant={activeSection === 'work-items' ? 'default' : 'outline'}
             onClick={() => setActiveSection('work-items')}
           >
-              <Icons.FileText size="sm" className="mr-2" />
+              <Icons.FileText size="sm" autoContrast className="mr-2" />
             Work Item Templates
             </Button>
             <Button
               variant={activeSection === 'content-generation' ? 'default' : 'outline'}
             onClick={() => setActiveSection('content-generation')}
           >
-              <Icons.FileText size="sm" className="mr-2" />
+              <Icons.FileText size="sm" autoContrast className="mr-2" />
             Content Generation Templates
             </Button>
         </div>
@@ -117,7 +117,7 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
-                <Icons.FileText size="md" className="mr-2" />
+                <Icons.FileText size="md" autoContrast className="mr-2" />
                 Work Item Templates
               </CardTitle>
               <CardDescription>
@@ -154,7 +154,7 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
-                <Icons.FileText size="md" className="mr-2" />
+                <Icons.FileText size="md" autoContrast className="mr-2" />
                 Content Generation Templates
               </CardTitle>
               <CardDescription>

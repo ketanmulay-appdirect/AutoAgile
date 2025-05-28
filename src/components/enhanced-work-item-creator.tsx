@@ -746,7 +746,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             onClick={handleReset}
             disabled={isGenerating || isPushing}
           >
-              <Icons.RotateCcw size="sm" className="mr-2" />
+              <Icons.RotateCcw size="sm" autoContrast className="mr-2" />
             Reset Form
             </Button>
           
@@ -782,7 +782,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="flex items-center">
-                <Icons.FileText size="md" className="mr-2" />
+                <Icons.FileText size="md" autoContrast className="mr-2" />
                 Generated Content
               </CardTitle>
               <div className="flex space-x-2">
@@ -792,7 +792,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                     onClick={() => setIsEditing(true)}
                     disabled={isPushing}
                   >
-                    <Icons.Edit size="sm" className="mr-2" />
+                    <Icons.Edit size="sm" autoContrast className="mr-2" />
                     Edit Content
                   </Button>
                 )}
@@ -871,7 +871,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                     variant="outline"
                     size="lg"
                   >
-                    <Icons.Link size="sm" className="mr-2" />
+                    <Icons.Link size="sm" autoContrast className="mr-2" />
                     Connect to Jira
                   </Button>
                 )}

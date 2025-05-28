@@ -79,7 +79,7 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
             className="p-2 flex-shrink-0"
             title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            <Icons.Menu size="sm" />
+            <Icons.Menu size="sm" variant="secondary" />
           </Button>
         </div>
       </div>
@@ -106,7 +106,7 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
                   {!isCollapsed ? (
                     <div className="flex items-start w-full min-w-0">
                       <div className="flex-shrink-0 mr-3 mt-0.5">
-                        <IconComponent size="md" />
+                        <IconComponent size="md" variant={isActive ? "secondary" : "default"} />
                       </div>
                       <div className="flex-1 min-w-0 text-left">
                         <div className="flex items-center justify-between mb-1">
@@ -132,7 +132,7 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
                     </div>
                   ) : (
                     <div className="flex items-center justify-center w-full relative">
-                      <IconComponent size="md" />
+                      <IconComponent size="md" variant={isActive ? "secondary" : "default"} />
                       {hasStatus && (
                         <div 
                           className={cn(

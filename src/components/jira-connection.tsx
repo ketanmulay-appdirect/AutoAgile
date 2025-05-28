@@ -149,7 +149,7 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
         <div className="flex justify-between items-center">
           <div>
             <CardTitle className="flex items-center">
-              <Icons.Link size="md" className="mr-2" />
+              <Icons.Link size="md" autoContrast className="mr-2" />
               Jira Connection
             </CardTitle>
             <CardDescription>
@@ -246,7 +246,7 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
                   </>
                 ) : (
                   <>
-                    <Icons.Search size="sm" className="mr-2" />
+                    <Icons.Search size="sm" autoContrast className="mr-2" />
                     Discover
                   </>
                 )}
