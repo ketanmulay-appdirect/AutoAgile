@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jiraFieldFormatter } from '../../../../lib/jira-field-formatter'
 import { jiraFieldService } from '../../../../lib/jira-field-service'
+import { markdownToADFConverter, ADFDocument } from '../../../../lib/markdown-to-adf-converter'
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,20 +45,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert description to Atlassian Document Format (ADF)
-    const descriptionADF: any = {
-      type: 'doc',
-      version: 1,
-      content: [
-        {
+    // Use the markdown-to-ADF converter to preserve formatting
+    let descriptionADF: ADFDocument
+    
+    if (content.description && content.description.trim()) {
+      // Convert markdown to ADF to preserve formatting (headings, bold, italics, lists, etc.)
+      descriptionADF = markdownToADFConverter.convert(content.description)
+    } else {
+      // Fallback to basic ADF structure
+      descriptionADF = {
+        type: 'doc',
+        version: 1,
+        content: [{
           type: 'paragraph',
-          content: [
-            {
-              type: 'text',
-              text: content.description
-            }
-          ]
-        }
-      ]
+          content: [{
+            type: 'text',
+            text: content.description || ''
+          }]
+        }]
+      }
     }
 
     // Add acceptance criteria if present
