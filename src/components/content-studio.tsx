@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { JiraInstance, JiraProject, JiraWorkItem, WorkItemType, ContentType } from '../types'
 import { jiraContentService } from '../lib/jira-content-service'
 import { ContentGenerator } from './content-generator'
+import { InstructionEditor } from './instruction-editor'
 
 interface ContentStudioProps {
   jiraConnection: JiraInstance | null
@@ -22,6 +23,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   const [loading, setLoading] = useState(false)
   const [loadingQuarters, setLoadingQuarters] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showInstructionEditor, setShowInstructionEditor] = useState(false)
+  const [editingContentType, setEditingContentType] = useState<ContentType | null>(null)
 
   const loadProjects = useCallback(async () => {
     if (!jiraConnection) return
@@ -168,6 +171,16 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   const handleBackToWorkItems = () => {
     setSelectedWorkItem(null)
     setSelectedContentType(null)
+  }
+
+  const handleOpenInstructionEditor = (contentType: ContentType) => {
+    setEditingContentType(contentType)
+    setShowInstructionEditor(true)
+  }
+
+  const handleCloseInstructionEditor = () => {
+    setShowInstructionEditor(false)
+    setEditingContentType(null)
   }
 
   const truncateText = (text: string, maxLength: number = 150) => {
@@ -446,6 +459,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   icon="📊"
                   workItem={selectedWorkItem}
                   onGenerate={(contentType) => handleContentTypeSelect(contentType)}
+                  onConfigure={(contentType) => handleOpenInstructionEditor(contentType)}
                 />
                 <ContentTypeCard
                   type="customer-webinar"
@@ -455,6 +469,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   icon="🎯"
                   workItem={selectedWorkItem}
                   onGenerate={(contentType) => handleContentTypeSelect(contentType)}
+                  onConfigure={(contentType) => handleOpenInstructionEditor(contentType)}
                 />
                 <ContentTypeCard
                   type="feature-newsletter"
@@ -464,6 +479,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   icon="📰"
                   workItem={selectedWorkItem}
                   onGenerate={(contentType) => handleContentTypeSelect(contentType)}
+                  onConfigure={(contentType) => handleOpenInstructionEditor(contentType)}
                 />
               </div>
             </div>
@@ -652,6 +668,14 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
           </ul>
         </div>
       )}
+
+      {/* Instruction Editor Modal */}
+      {showInstructionEditor && editingContentType && (
+        <InstructionEditor
+          initialContentType={editingContentType}
+          onClose={handleCloseInstructionEditor}
+        />
+      )}
     </div>
   )
 }
@@ -664,9 +688,10 @@ interface ContentTypeCardProps {
   icon: string
   workItem: JiraWorkItem | null
   onGenerate: (contentType: ContentType) => void
+  onConfigure: (contentType: ContentType) => void
 }
 
-function ContentTypeCard({ type, title, description, phase, icon, workItem, onGenerate }: ContentTypeCardProps) {
+function ContentTypeCard({ type, title, description, phase, icon, workItem, onGenerate, onConfigure }: ContentTypeCardProps) {
   const handleGenerateClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     onGenerate(type)
@@ -674,11 +699,7 @@ function ContentTypeCard({ type, title, description, phase, icon, workItem, onGe
 
   const handleConfigureClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    // Navigate to template configuration for this specific content type
-    const event = new CustomEvent('navigate-to-config', { 
-      detail: { contentType: type } 
-    })
-    window.dispatchEvent(event)
+    onConfigure(type)
   }
 
   return (

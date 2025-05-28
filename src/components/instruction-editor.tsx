@@ -6,10 +6,11 @@ import { contentInstructionService } from '../lib/content-instruction-service'
 
 interface InstructionEditorProps {
   onClose: () => void
+  initialContentType?: ContentType
 }
 
-export function InstructionEditor({ onClose }: InstructionEditorProps) {
-  const [selectedContentType, setSelectedContentType] = useState<ContentType>('quarterly-presentation')
+export function InstructionEditor({ onClose, initialContentType }: InstructionEditorProps) {
+  const [selectedContentType, setSelectedContentType] = useState<ContentType>(initialContentType || 'quarterly-presentation')
   const [template, setTemplate] = useState<AIInstructionTemplate | null>(null)
   const [customInstructions, setCustomInstructions] = useState('')
   const [isModified, setIsModified] = useState(false)
