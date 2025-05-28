@@ -87,6 +87,12 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [extractedFields, setExtractedFields] = useState<Record<string, any>>({})
   const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, any[]>>({})
   
+  // Store original prompt for chat refiner
+  const [originalPrompt, setOriginalPrompt] = useState<string>('')
+  
+  // Track if mock content is being used
+  const [isUsingMockContent, setIsUsingMockContent] = useState(false)
+
   const { toasts, removeToast, success, error, warning, info } = useToast()
 
   // Load templates on client-side only
@@ -206,7 +212,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
 
   const handleGenerate = async () => {
     if (!description.trim()) {
-      warning('Missing Description', 'Please enter a description for the work item.')
+      error('Missing Description', 'Please provide a description for the work item.')
       return
     }
 
@@ -234,11 +240,18 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       // Generate custom prompt using template
       const customPrompt = templateService.generatePrompt(currentTemplate, description)
       
+      // Store the original prompt for chat refiner
+      setOriginalPrompt(customPrompt)
+      
       // Step 2: Sending to AI
       setGeneratingStep(2)
       
       // Handle Devs.ai separately
       if (aiModel === 'devs-ai') {
+        if (!devsAIConnection?.apiToken) {
+          throw new Error('DevS.ai connection not configured. Please set up your DevS.ai connection first.')
+        }
+
         // Use Devs.ai service to generate content with custom prompt
         const devsAIContent = await devsAIService.generateContent(customPrompt, selectedDevsAIModel)
         
@@ -256,6 +269,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         setGeneratedContent(content)
         
         success('Content Generated', `${workItemType} content has been generated successfully using Devs.ai (${selectedDevsAIModel}) with ${currentTemplate.name}.`)
+        setIsUsingMockContent(false) // Real AI was used
       } else {
         // Handle other AI models with custom prompt
         const response = await fetch('/api/generate-content', {
@@ -264,8 +278,17 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            type: workItemType,
-            description: customPrompt, // Use the template-generated prompt
+            prompt: customPrompt, // Use the template-generated prompt
+            contentType: workItemType, // This should be contentType, not type
+            workItem: {
+              key: 'generated',
+              summary: description.substring(0, 100) + '...',
+              description: description,
+              issueType: workItemType,
+              project: 'Generated Content'
+            },
+            useDevsAI: false, // We're not using DevS.ai in this path
+            apiToken: null, // No API token for this path
             context: {
               preferredModel: aiModel,
               template: currentTemplate.name
@@ -296,7 +319,14 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         setGeneratedContent(content)
         
         const modelInfo = data.metadata?.model || 'AI'
-        success('Content Generated', `${workItemType} content has been generated successfully using ${modelInfo} with ${currentTemplate.name}.`)
+        const isUsingMock = data.metadata?.model === 'mock-ai'
+        setIsUsingMockContent(isUsingMock) // Track if mock content was used
+        
+        if (isUsingMock) {
+          success('Content Generated (Mock)', `${workItemType} content has been generated using enhanced mock content. For real AI generation, configure OpenAI or Anthropic API keys in your environment.`)
+        } else {
+          success('Content Generated', `${workItemType} content has been generated successfully using ${modelInfo} with ${currentTemplate.name}.`)
+        }
       }
     } catch (err) {
       console.error('Error generating content:', err)
@@ -539,7 +569,8 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     setGeneratedContent(null)
     setIsEditing(false)
     setJiraIssueUrl(null)
-    info('Form Reset', 'The form has been reset.')
+    setOriginalPrompt('')
+    setIsUsingMockContent(false) // Reset mock content flag
   }
 
   // Show loading state while templates are loading
@@ -773,17 +804,32 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                   {isPushing ? (
                     <>
                       <LoadingSpinner size="sm" variant="white" className="mr-2" />
-                      Pushing to Jira...
+                      Creating in Jira...
                     </>
                   ) : (
                     <>
-                      <Icons.Upload size="sm" autoContrast={!!jiraConnection} className="mr-2" />
+                      <Icons.Upload size="sm" autoContrast className="mr-2" />
                       Push to Jira
                     </>
                   )}
                 </Button>
               </div>
             </div>
+            
+            {/* Mock Content Indicator */}
+            {isUsingMockContent && (
+              <Alert variant="warning" className="mt-4">
+                <Icons.AlertTriangle size="sm" />
+                <AlertTitle>Enhanced Mock Content</AlertTitle>
+                <AlertDescription>
+                  This content was generated using our enhanced mock AI system. For real AI-powered generation:
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Configure OpenAI or Anthropic API keys in your environment (.env.local file)</li>
+                    <li>Or set up DevS.ai connection for access to multiple premium models</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
           </CardHeader>
 
           <CardContent>
@@ -793,6 +839,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               onSave={handleContentSave}
               onCancel={() => setIsEditing(false)}
               isEditing={isEditing}
+              originalPrompt={originalPrompt}
             />
           </CardContent>
 
@@ -815,25 +862,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                   )}
                 </div>
                 
-                {jiraConnection ? (
-                  <Button
-                    onClick={() => handlePushToJira(generatedContent)}
-                    disabled={isPushing}
-                    size="lg"
-                  >
-                    {isPushing ? (
-                      <>
-                        <LoadingSpinner size="sm" variant="white" className="mr-2" />
-                        Creating in Jira...
-                      </>
-                    ) : (
-                      <>
-                        <Icons.Upload size="sm" autoContrast className="mr-2" />
-                        Create {workItemType.charAt(0).toUpperCase() + workItemType.slice(1)} in Jira
-                      </>
-                    )}
-                  </Button>
-                ) : (
+                {!jiraConnection && (
                   <Button
                     onClick={() => {
                       // Navigate to Jira connection tab

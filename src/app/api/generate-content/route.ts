@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAIService } from '../../../lib/ai-service'
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, contentType, workItem, useDevsAI, apiToken } = await request.json()
+    const { prompt, contentType, workItem, useDevsAI, apiToken, context } = await request.json()
 
     if (!prompt || !contentType) {
       return NextResponse.json(
@@ -14,8 +15,12 @@ export async function POST(request: NextRequest) {
     // If DevS.ai is requested and API token is provided, use real AI
     if (useDevsAI && apiToken) {
       try {
-        // Use DevS.ai API through the proxy
-        const devsAIResponse = await fetch(`${process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : ''}/api/devs-ai-proxy`, {
+        // Use DevS.ai API through the proxy - use relative URL for server-side requests
+        const baseUrl = process.env.NODE_ENV === 'development' 
+          ? 'http://localhost:3000' 
+          : `https://${process.env.VERCEL_URL || 'localhost:3000'}`
+        
+        const devsAIResponse = await fetch(`${baseUrl}/api/devs-ai-proxy`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -61,12 +66,53 @@ export async function POST(request: NextRequest) {
         // Fall back to mock content if DevS.ai fails
       }
     }
+
+    // Try to use real AI service if available (OpenAI/Anthropic)
+    try {
+      const aiService = getAIService()
+      const availableProviders = aiService.getAvailableProviders()
+      
+      if (availableProviders.length > 0) {
+        console.log('Using real AI service with providers:', availableProviders)
+        const preferredModel = context?.preferredModel || 'auto'
+        
+        // Map our AI model types to the AI service types
+        let aiProvider: 'openai' | 'anthropic' | 'devs-ai' = 'openai'
+        if (preferredModel === 'anthropic' && availableProviders.includes('anthropic')) {
+          aiProvider = 'anthropic'
+        } else if (preferredModel === 'openai' && availableProviders.includes('openai')) {
+          aiProvider = 'openai'
+        } else {
+          // Use the first available provider
+          aiProvider = availableProviders[0] as 'openai' | 'anthropic'
+        }
+        
+        const result = await aiService.generateContent(
+          contentType as any, // Cast to WorkItemType
+          prompt,
+          { model: aiProvider }
+        )
+        
+        return NextResponse.json({
+          success: true,
+          content: result.content,
+          metadata: {
+            model: `${result.provider}-${result.model}`,
+            tokensUsed: 0, // Not available from our AI service
+            generatedAt: new Date().toISOString()
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Real AI service error:', error)
+      // Fall back to mock content
+    }
     
     // Simulate API delay for mock content
     await new Promise(resolve => setTimeout(resolve, 1500))
 
-    // Mock content generation based on content type
-    const mockContent = generateMockContent(contentType, workItem)
+    // Mock content generation based on content type and actual user prompt
+    const mockContent = generateMockContent(contentType, workItem, prompt)
 
     return NextResponse.json({
       success: true,
@@ -87,13 +133,16 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generateMockContent(contentType: string, workItem: unknown): string {
+function generateMockContent(contentType: string, workItem: unknown, userPrompt: string): string {
   // Extract work item details
   const workItemKey = typeof workItem === 'string' ? workItem : (workItem as any)?.key || 'Unknown'
   const workItemSummary = typeof workItem === 'object' ? (workItem as any)?.summary || 'Unknown Feature' : 'Unknown Feature'
-  const workItemDescription = typeof workItem === 'object' ? (workItem as any)?.description || 'No description available' : 'No description available'
-  const workItemProject = typeof workItem === 'object' ? (workItem as any)?.project || 'Unknown Project' : 'Unknown Project'
-  const workItemType = typeof workItem === 'object' ? (workItem as any)?.issueType || 'Unknown Type' : 'Unknown Type'
+  const workItemDescription = typeof workItem === 'object' ? (workItem as any)?.description || userPrompt : userPrompt
+  const workItemProject = typeof workItem === 'object' ? (workItem as any)?.project || 'Generated Content' : 'Generated Content'
+  const workItemType = typeof workItem === 'object' ? (workItem as any)?.issueType || contentType : contentType
+  
+  // Use the user's actual prompt as the primary source of information
+  const primaryDescription = userPrompt || workItemDescription || 'No description available'
   
   // Helper function to extract text from Jira ADF (Atlassian Document Format)
   const extractTextFromDescription = (description: unknown): string => {
@@ -186,269 +235,184 @@ function generateMockContent(contentType: string, workItem: unknown): string {
     }
     
     return {
-      problemDescription: problemDescription || 'Current operational challenges require strategic intervention to optimize business processes and enhance customer satisfaction.',
-      solutionDescription: solutionDescription || 'Implementation of advanced capabilities will streamline workflows, reduce operational overhead, and deliver measurable improvements in user experience and business outcomes.'
+      problemDescription: problemDescription || primaryDescription,
+      solutionDescription: solutionDescription || 'Implementation of this feature will address the identified requirements and deliver value to users.'
     }
   }
   
-  const { problemDescription, solutionDescription } = extractProblemAndSolution(workItemDescription)
+  // Use the user's prompt as the primary source for content generation
+  const { problemDescription, solutionDescription } = extractProblemAndSolution(primaryDescription)
+  
+  // Generate a title from the user's prompt
+  const generateTitle = (prompt: string): string => {
+    // Extract key phrases and create a concise title
+    const words = prompt.split(' ').filter(word => word.length > 3)
+    const keyWords = words.slice(0, 6).join(' ')
+    return keyWords.charAt(0).toUpperCase() + keyWords.slice(1)
+  }
+  
+  const generatedTitle = generateTitle(primaryDescription)
   
   switch (contentType) {
-    case 'quarterly-presentation':
-      return `# ${workItemSummary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()}
+    case 'story':
+      return `# ${generatedTitle}
 
-## Executive Summary
+## User Story
+As a user, I want to ${problemDescription.toLowerCase()} so that I can achieve better outcomes and improved efficiency.
 
-This initiative represents a critical advancement in our platform capabilities, directly addressing key customer pain points while positioning us for sustained competitive advantage. The implementation will deliver immediate operational benefits and establish the foundation for future innovation.
-
-## Strategic Context
-
-Market dynamics and customer feedback have highlighted the urgent need for enhanced functionality in this domain. Our analysis indicates that addressing these requirements will significantly improve user satisfaction scores and reduce support overhead by an estimated 35-40%.
-
-## Business Impact
-
-**Revenue Implications**
-- Projected 15-20% improvement in customer retention rates
-- Estimated $2.3M annual cost savings through operational efficiency gains
-- Enhanced upselling opportunities through improved feature adoption
-
-**Operational Benefits**
-- Streamlined workflows reducing manual intervention by 60%
-- Improved system reliability and performance metrics
-- Enhanced data visibility and actionable insights for stakeholders
-
-## Technical Approach
-
-${solutionDescription.replace(/\\n/g, ' ').trim()}
-
-The solution architecture leverages industry best practices and proven technologies to ensure scalability, maintainability, and optimal performance. Integration points have been carefully designed to minimize disruption to existing workflows while maximizing the value delivered to end users.
-
-## Success Metrics & KPIs
-
-- User adoption rate: Target 75% within 30 days of release
-- Customer satisfaction improvement: +25 points on NPS scale
-- System performance: <200ms response time for core operations
-- Support ticket reduction: 40% decrease in related inquiries
-
-## Risk Mitigation
-
-Comprehensive testing protocols and phased rollout strategies will ensure minimal business disruption. Rollback procedures and monitoring systems are in place to address any unforeseen issues promptly.
-
-## Timeline & Next Steps
-
-Development is progressing according to schedule with key milestones aligned to business priorities. Regular stakeholder updates and feedback loops ensure continuous alignment with strategic objectives.`
-
-    case 'customer-webinar':
-      return `# Introducing Our Latest Innovation: ${workItemSummary}
-
-## Welcome & Agenda
-Thank you for joining us today! We're excited to showcase how **${workItemSummary}** (${workItemKey}) will transform your daily workflows and drive better business outcomes.
-
-**Today's Agenda:**
-- The challenge we're solving
-- Feature demonstration
-- Customer success stories
-- Implementation guidance
-- Q&A session
-
-## The Challenge
+## Description
 ${problemDescription}
 
-Based on extensive customer feedback, we identified key pain points in your current workflows that this feature addresses.
+## Solution Approach
+${solutionDescription}
 
-## Solution Overview
-**${workItemSummary}** addresses these challenges through:
-- **Automated Workflows**: Reduce manual effort by up to 50%
-- **Real-time Analytics**: Instant insights into performance
-- **Enhanced Collaboration**: Seamless team coordination
-- **Unified Experience**: Consistent interface across all touchpoints
+## Acceptance Criteria
+- [ ] The feature is accessible to authorized users
+- [ ] All functionality works as described in the requirements
+- [ ] Performance meets established benchmarks
+- [ ] Error handling provides clear user feedback
+- [ ] Integration with existing systems is seamless
 
-## Live Demonstration
-Let's explore the key features that make this solution powerful:
+## Technical Notes
+- Implementation should follow established coding standards
+- Comprehensive testing required before deployment
+- Documentation must be updated to reflect new functionality
+- Security review required for any data handling components
 
-### Core Capabilities
-- Intuitive dashboard with customizable widgets
-- One-click automation for routine tasks
-- Advanced filtering and search functionality
-- Mobile-responsive design for on-the-go access
+## Definition of Done
+- [ ] Code review completed
+- [ ] Unit tests written and passing
+- [ ] Integration tests completed
+- [ ] Documentation updated
+- [ ] Security review passed
+- [ ] Performance testing completed
+- [ ] Stakeholder approval received
 
-### Advanced Features
-- AI-powered recommendations
-- Predictive analytics and forecasting
-- Custom reporting and data export
-- Enterprise-grade security and compliance
-
-## Customer Success Story
-*"Since implementing this solution, our team has seen a 40% reduction in processing time and significantly improved accuracy in our reporting. It's been a game-changer for our operations."*
-— Sarah Johnson, Operations Manager at TechCorp
-
-## Getting Started
-Ready to transform your workflows? Here's how to begin:
-
-1. **Access**: Feature available in your dashboard starting next week
-2. **Setup**: Follow our guided onboarding process
-3. **Training**: Join our live training sessions
-4. **Support**: Dedicated support team ready to assist
-
-## Implementation Best Practices
-- Start with a pilot group for initial rollout
-- Leverage our training resources and documentation
-- Establish success metrics and monitoring
-- Gather feedback for continuous improvement
-
-## What's Coming Next
-This is just the beginning of our innovation journey:
-- Enhanced mobile capabilities
-- Additional integration options
-- Advanced AI features
-- Expanded customization options
-
-## Q&A Session
-We'd love to hear your questions and discuss how this solution can benefit your specific use case.
-
-## Thank You
-Thank you for your time today. We're excited to partner with you on this journey and look forward to seeing the positive impact on your business.
+## Story Points
+Estimated effort: 8 points
 
 ---
-*Generated on ${new Date().toISOString()} for customer webinar presentation*`
+*Generated from user requirements on ${new Date().toISOString()}*`
 
-    case 'feature-newsletter':
-      // Extract a clean title from the work item summary
-      const cleanTitle = workItemSummary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()
-      const shortTitle = cleanTitle.length > 60 ? cleanTitle.substring(0, 57) + '...' : cleanTitle
-      
-      return `${shortTitle}
+    case 'epic':
+      return `# ${generatedTitle}
 
-${problemDescription.length > 0 ? 
-  problemDescription.replace(/\\n/g, ' ').trim() :
-  `Current market demands require enhanced platform capabilities to address evolving customer needs and competitive pressures. Users have consistently requested improved functionality that streamlines their daily workflows and reduces operational complexity. This gap in our offering has created friction points that impact user satisfaction and limit our ability to capture additional market share.`
-}
+## Epic Overview
+${problemDescription}
 
-${solutionDescription.length > 0 ? 
-  solutionDescription.replace(/\\n/g, ' ').trim() :
-  `Our engineering team has developed an innovative solution that leverages cutting-edge technology to deliver seamless user experiences. The implementation introduces intelligent automation, enhanced data processing capabilities, and intuitive interface improvements that significantly reduce time-to-value for our customers. This advancement positions us as the industry leader in providing comprehensive, user-centric solutions that drive measurable business outcomes.`
-}`
+## Business Value
+This epic addresses critical user needs and business requirements that will drive significant value through improved user experience and operational efficiency.
 
-    case 'technical-documentation':
-      return `# ${workItemSummary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()} - Technical Specification
+## Solution Summary
+${solutionDescription}
 
-## Overview
+## User Stories
+This epic encompasses the following user stories:
+- User authentication and authorization
+- Core feature implementation
+- Data management and processing
+- User interface enhancements
+- Integration with external systems
 
-This document outlines the technical implementation details, architecture decisions, and integration requirements for the proposed solution. The design prioritizes scalability, maintainability, and optimal performance while adhering to established security and compliance standards.
+## Acceptance Criteria
+- [ ] All constituent user stories are completed
+- [ ] End-to-end testing validates the complete workflow
+- [ ] Performance requirements are met
+- [ ] Security standards are implemented
+- [ ] Documentation is comprehensive and up-to-date
 
-## Problem Statement
+## Dependencies
+- API infrastructure updates
+- Database schema modifications
+- Third-party service integrations
+- User interface component library updates
 
-${problemDescription.replace(/\\n/g, ' ').trim()}
+## Success Metrics
+- User adoption rate: Target 70% within 60 days
+- Performance improvement: 25% faster task completion
+- Error reduction: 40% fewer support tickets
+- User satisfaction: +20 points on satisfaction surveys
 
-## Solution Architecture
+## Timeline
+- Planning: 2 weeks
+- Development: 8-12 weeks
+- Testing: 3 weeks
+- Deployment: 1 week
 
-${solutionDescription.replace(/\\n/g, ' ').trim()}
+---
+*Generated from user requirements on ${new Date().toISOString()}*`
 
-### Core Components
+    case 'initiative':
+      return `# ${generatedTitle}
 
-**Data Layer**
-- Optimized database schemas with appropriate indexing strategies
-- Caching mechanisms for frequently accessed data
-- Data validation and integrity constraints
+## Initiative Overview
+${problemDescription}
 
-**Business Logic Layer**
-- Modular service architecture enabling independent scaling
-- Comprehensive error handling and logging
-- Asynchronous processing for resource-intensive operations
+## Strategic Alignment
+This initiative directly supports our organizational goals by addressing key market opportunities and customer needs that will drive sustainable competitive advantage.
 
-**Presentation Layer**
-- Responsive user interface with accessibility compliance
-- Real-time updates through WebSocket connections
-- Progressive enhancement for optimal performance
+## Business Case
+${solutionDescription}
 
-### Integration Points
+## Objectives
+- Enhance user experience and satisfaction
+- Improve operational efficiency and reduce costs
+- Strengthen market position and competitive advantage
+- Drive revenue growth through improved capabilities
 
-The solution integrates seamlessly with existing systems through well-defined APIs and standardized data formats. Authentication and authorization mechanisms ensure secure access while maintaining user experience quality.
+## Key Results
+- 25% improvement in user engagement metrics
+- 30% reduction in operational overhead
+- 15% increase in customer retention
+- $2M+ annual revenue impact
 
-### Performance Considerations
+## Epics and Features
+This initiative includes the following major components:
+1. **Core Platform Enhancement** - Foundational improvements
+2. **User Experience Optimization** - Interface and workflow improvements
+3. **Integration and Automation** - System connectivity and process automation
+4. **Analytics and Reporting** - Data insights and business intelligence
 
-- Load balancing strategies for high availability
-- Database optimization and query performance tuning
-- CDN implementation for static asset delivery
-- Monitoring and alerting for proactive issue resolution
+## Success Criteria
+- All planned epics delivered on schedule
+- Performance benchmarks achieved
+- User adoption targets met
+- ROI objectives realized
 
-## Implementation Timeline
-
-Development follows agile methodologies with iterative delivery cycles. Each sprint delivers functional increments that can be independently tested and validated by stakeholders.
-
-## Testing Strategy
-
-Comprehensive testing protocols include unit tests, integration tests, and end-to-end validation scenarios. Performance testing ensures the solution meets specified SLA requirements under various load conditions.`
-
-    case 'stakeholder-update':
-      return `# Project Update: ${workItemSummary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()}
-
-## Current Status: On Track
-
-Development is progressing according to plan with all major milestones achieved on schedule. The team has successfully completed the initial design phase and is now focused on core implementation activities.
-
-## Key Accomplishments
-
-**Technical Progress**
-- Architecture design finalized and approved by technical review board
-- Core infrastructure components deployed to development environment
-- Initial integration testing completed with positive results
-
-**Business Alignment**
-- Stakeholder requirements validated through user research sessions
-- Success metrics defined and measurement frameworks established
-- Risk assessment completed with mitigation strategies in place
-
-## Current Focus Areas
-
-${solutionDescription.replace(/\\n/g, ' ').trim()}
-
-The development team is prioritizing the most critical user-facing features to ensure early value delivery. Parallel workstreams are addressing infrastructure requirements and integration dependencies.
-
-## Upcoming Milestones
-
-- **Week 1-2**: Core feature implementation and unit testing
-- **Week 3**: Integration testing and performance validation
-- **Week 4**: User acceptance testing and feedback incorporation
-- **Week 5**: Production deployment preparation and documentation
-
-## Metrics & Performance
-
-Early indicators suggest the solution will exceed initial performance targets. User feedback from prototype demonstrations has been overwhelmingly positive, with particular praise for the intuitive interface design and improved workflow efficiency.
+## Timeline
+- Q1: Planning and architecture
+- Q2: Core development and testing
+- Q3: Integration and optimization
+- Q4: Deployment and adoption
 
 ## Resource Requirements
+- Engineering: 12-15 FTE
+- Design: 3-4 FTE
+- Product Management: 2-3 FTE
+- QA: 4-5 FTE
 
-The project remains within approved budget parameters. No additional resources are required at this time, though we continue to monitor capacity requirements as development progresses.
-
-## Risk Management
-
-All identified risks remain within acceptable tolerance levels. Contingency plans are in place for potential integration challenges, and the team maintains regular communication with dependent system owners.
-
-## Next Steps
-
-Focus continues on delivering high-quality, user-centric functionality that addresses core business requirements. Regular stakeholder updates will ensure continued alignment with strategic objectives.`
+---
+*Generated from user requirements on ${new Date().toISOString()}*`
 
     default:
-      return `# ${workItemSummary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()}
+      return `# ${generatedTitle}
 
 ## Overview
+${problemDescription}
 
-This initiative addresses critical business requirements through innovative technology solutions that enhance user experience and operational efficiency. The implementation leverages industry best practices to deliver measurable value to stakeholders.
+## Solution
+${solutionDescription}
 
-## Business Context
+## Implementation Notes
+This ${contentType} addresses the specified requirements through a comprehensive approach that balances user needs with technical feasibility and business objectives.
 
-${problemDescription.replace(/\\n/g, ' ').trim()}
+## Next Steps
+- Detailed planning and estimation
+- Technical design and architecture review
+- Implementation roadmap development
+- Stakeholder alignment and approval
 
-## Proposed Solution
-
-${solutionDescription.replace(/\\n/g, ' ').trim()}
-
-## Expected Outcomes
-
-The successful implementation of this solution will result in improved operational metrics, enhanced user satisfaction, and strengthened competitive positioning. Key performance indicators will be monitored to ensure objectives are met and value is delivered as expected.
-
-## Implementation Approach
-
-Development follows proven methodologies with emphasis on quality, security, and maintainability. Regular stakeholder engagement ensures alignment with business priorities throughout the delivery lifecycle.`
+---
+*Generated from user requirements on ${new Date().toISOString()}*`
   }
-} 
+}

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { GeneratedContent, WorkItemType } from '../types'
+import { ContentChatRefiner } from './content-chat-refiner'
 
 interface ContentEditorProps {
   content: GeneratedContent
@@ -9,6 +10,7 @@ interface ContentEditorProps {
   onSave: (content: GeneratedContent) => void
   onCancel: () => void
   isEditing: boolean
+  originalPrompt?: string
 }
 
 export function ContentEditor({ 
@@ -16,10 +18,12 @@ export function ContentEditor({
   workItemType, 
   onSave, 
   onCancel, 
-  isEditing 
+  isEditing,
+  originalPrompt = ''
 }: ContentEditorProps) {
   const [editedContent, setEditedContent] = useState<GeneratedContent>(content)
   const [hasChanges, setHasChanges] = useState(false)
+  const [showChatRefiner, setShowChatRefiner] = useState(false)
 
   useEffect(() => {
     setEditedContent(content)
@@ -68,6 +72,30 @@ export function ContentEditor({
     setHasChanges(false)
   }
 
+  const handleChatRefinerContentSelect = (newDescription: string) => {
+    const updatedContent = { ...editedContent, description: newDescription }
+    setEditedContent(updatedContent)
+    setHasChanges(false)
+    setShowChatRefiner(false)
+    onSave(updatedContent)
+  }
+
+  const handleChatRefinerClose = () => {
+    setShowChatRefiner(false)
+  }
+
+  if (showChatRefiner) {
+    return (
+      <ContentChatRefiner
+        content={editedContent}
+        workItemType={workItemType}
+        originalPrompt={originalPrompt}
+        onContentSelect={handleChatRefinerContentSelect}
+        onClose={handleChatRefinerClose}
+      />
+    )
+  }
+
   if (!isEditing) {
     return (
       <div className="space-y-4">
@@ -77,7 +105,15 @@ export function ContentEditor({
         </div>
 
         <div className="bg-gray-50 rounded-lg p-4 border">
-          <h4 className="font-medium text-gray-900 mb-2">Description</h4>
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="font-medium text-gray-900">Description</h4>
+            <button
+              onClick={() => setShowChatRefiner(true)}
+              className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
+            >
+              Refine Description
+            </button>
+          </div>
           <p className="text-gray-700 whitespace-pre-wrap">{content.description}</p>
         </div>
 
