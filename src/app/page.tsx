@@ -7,10 +7,8 @@ import { DevsAIConnection, type DevsAIConnection as DevsAIConnectionType } from 
 import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creator'
 import { TemplateConfiguration } from '../components/template-configuration'
 import { ContentStudio } from '../components/content-studio'
+import { AppLayout } from '../components/app-layout'
 import { Icons } from '../components/ui/icons'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Badge } from '../components/ui/badge'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio'>('create')
@@ -81,43 +79,17 @@ export default function Home() {
     setDevsAIConnection(null)
   }
 
-  const navigationItems = [
-    {
-      id: 'create',
-      label: 'Create & Push',
-      icon: Icons.Plus,
-      description: 'Create and push work items to Jira'
-    },
-    {
-      id: 'content-studio',
-      label: 'Content Studio',
-      icon: Icons.FileText,
-      description: 'Generate content for existing work items'
-    },
-    {
-      id: 'jira',
-      label: 'Jira Connection',
-      icon: Icons.Link,
-      description: 'Configure Jira instance connection',
-      status: jiraConnection ? 'connected' : 'disconnected'
-    },
-    {
-      id: 'devs-ai',
-      label: 'Devs.ai Connection',
-      icon: Icons.Zap,
-      description: 'Configure AI content generation',
-      status: devsAIConnection ? 'connected' : 'disconnected'
-    },
-    {
-      id: 'config',
-      label: 'Configure Templates',
-      icon: Icons.Settings,
-      description: 'Manage work item templates'
-    }
-  ] as const
+  const handleViewChange = (view: string) => {
+    setCurrentView(view as 'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio')
+  }
 
   return (
-    <div className="min-h-screen bg-cloud-100">
+    <AppLayout
+      currentView={currentView}
+      onViewChange={handleViewChange}
+      jiraConnection={jiraConnection}
+      devsAIConnection={devsAIConnection}
+    >
       {/* Header */}
       <header className="bg-white border-b border-cloud-300 shadow-sm">
         <div className="container mx-auto px-6 py-6">
@@ -135,50 +107,8 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
-        {/* Navigation */}
-        <Card className="mb-8">
-          <CardHeader>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {navigationItems.map((item) => {
-                const IconComponent = item.icon
-                const isActive = currentView === item.id
-                
-                return (
-                  <Button
-                    key={item.id}
-                    variant={isActive ? "default" : "outline"}
-                    className="h-auto p-4 flex flex-col items-center space-y-2 relative"
-                    onClick={() => setCurrentView(item.id as any)}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <IconComponent 
-                        size="md" 
-                        autoContrast={isActive}
-                      />
-                    </div>
-                    <div className="text-center">
-                      <div className="font-medium text-sm">{item.label}</div>
-                      <div className="text-xs opacity-75 mt-1">{item.description}</div>
-                    </div>
-                    {'status' in item && item.status && (
-                      <Badge 
-                        variant={item.status === 'connected' ? 'success' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {item.status === 'connected' ? 'Connected' : 'Not Connected'}
-                      </Badge>
-                    )}
-                  </Button>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Content */}
+      {/* Content */}
+      <div className="flex-1 container mx-auto px-6 py-8">
         <div className="max-w-7xl mx-auto">
           {currentView === 'create' && (
             <EnhancedWorkItemCreator
@@ -215,6 +145,6 @@ export default function Home() {
           )}
         </div>
       </div>
-    </div>
+    </AppLayout>
   )
 } 
