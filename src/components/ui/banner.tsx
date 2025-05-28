@@ -1,149 +1,100 @@
-import React, { useState, useEffect } from 'react'
+'use client'
 
-interface BannerProps {
-  type: 'success' | 'error' | 'warning' | 'info'
-  title: string
-  message?: string
-  action?: {
-    label: string
-    onClick: () => void
+import React from 'react'
+import { cva, type VariantProps } from 'class-variance-authority'
+import { cn } from '../../lib/utils'
+
+const bannerVariants = cva(
+  'relative w-full rounded-lg border p-4',
+  {
+    variants: {
+      variant: {
+        default: 'bg-cloud-50 text-cloud-950 border-cloud-200',
+        destructive: 'bg-coral-50 text-coral-950 border-coral-200',
+        success: 'bg-mint-50 text-mint-950 border-mint-200',
+        warning: 'bg-marigold-50 text-marigold-950 border-marigold-200',
+        info: 'bg-sky-50 text-sky-950 border-sky-200',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+    },
   }
+)
+
+export interface BannerProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof bannerVariants> {
+  title?: string
+  description?: string
   onDismiss?: () => void
-  autoHide?: boolean
-  duration?: number
 }
 
-export function Banner({
-  type,
-  title,
-  message,
-  action,
-  onDismiss,
-  autoHide = false,
-  duration = 5000
-}: BannerProps) {
-  const [isVisible, setIsVisible] = useState(true)
-  const [isAnimating, setIsAnimating] = useState(false)
-
-  useEffect(() => {
-    if (autoHide) {
-      const timer = setTimeout(() => {
-        handleDismiss()
-      }, duration)
-      return () => clearTimeout(timer)
-    }
-  }, [autoHide, duration])
-
-  const handleDismiss = () => {
-    setIsAnimating(true)
-    setTimeout(() => {
-      setIsVisible(false)
-      onDismiss?.()
-    }, 300)
+const getIndicator = (variant: string) => {
+  switch (variant) {
+    case 'success':
+      return '✓'
+    case 'destructive':
+      return '✗'
+    case 'warning':
+      return '⚠'
+    case 'info':
+      return 'ℹ'
+    default:
+      return '•'
   }
+}
 
-  const getIcon = () => {
-    switch (type) {
-      case 'success':
-        return (
-          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-          </svg>
-        )
-      case 'error':
-        return (
-          <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-          </svg>
-        )
-      case 'warning':
-        return (
-          <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-          </svg>
-        )
-      case 'info':
-        return (
-          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-        )
-    }
-  }
-
-  const getBackgroundColor = () => {
-    switch (type) {
-      case 'success': return 'bg-green-50 border-green-200'
-      case 'error': return 'bg-red-50 border-red-200'
-      case 'warning': return 'bg-yellow-50 border-yellow-200'
-      case 'info': return 'bg-blue-50 border-blue-200'
-    }
-  }
-
-  const getTextColor = () => {
-    switch (type) {
-      case 'success': return 'text-green-800'
-      case 'error': return 'text-red-800'
-      case 'warning': return 'text-yellow-800'
-      case 'info': return 'text-blue-800'
-    }
-  }
-
-  const getActionColor = () => {
-    switch (type) {
-      case 'success': return 'text-green-700 hover:text-green-900'
-      case 'error': return 'text-red-700 hover:text-red-900'
-      case 'warning': return 'text-yellow-700 hover:text-yellow-900'
-      case 'info': return 'text-blue-700 hover:text-blue-900'
-    }
-  }
-
-  if (!isVisible) return null
-
-  return (
-    <div
-      className={`
-        transform transition-all duration-300 ease-in-out
-        ${isAnimating ? 'translate-y-[-100%] opacity-0' : 'translate-y-0 opacity-100'}
-        ${getBackgroundColor()}
-        border rounded-lg p-4 mb-4
-      `}
-    >
-      <div className="flex items-start">
-        <div className="flex-shrink-0">
-          {getIcon()}
-        </div>
-        <div className="ml-3 flex-1">
-          <h3 className={`text-sm font-medium ${getTextColor()}`}>
-            {title}
-          </h3>
-          {message && (
-            <p className={`mt-1 text-sm ${getTextColor()} opacity-90`}>
-              {message}
-            </p>
-          )}
-          {action && (
-            <div className="mt-3">
-              <button
-                onClick={action.onClick}
-                className={`text-sm font-medium ${getActionColor()} underline hover:no-underline transition-all`}
-              >
-                {action.label}
-              </button>
-            </div>
+const Banner = React.forwardRef<HTMLDivElement, BannerProps>(
+  ({ className, variant = 'default', title, description, onDismiss, children, ...props }, ref) => {
+    return (
+      <div
+        ref={ref}
+        className={cn(bannerVariants({ variant }), className)}
+        {...props}
+      >
+        <div className="flex items-start space-x-3">
+          <div className="flex-shrink-0 mt-0.5">
+            <span className="text-lg font-semibold">
+              {getIndicator(variant || 'default')}
+            </span>
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            {title && (
+              <h3 className="text-sm font-semibold mb-1">
+                {title}
+              </h3>
+            )}
+            
+            {description && (
+              <div className="text-sm opacity-90">
+                {description}
+              </div>
+            )}
+            
+            {children && (
+              <div className="mt-2">
+                {children}
+              </div>
+            )}
+          </div>
+          
+          {onDismiss && (
+            <button
+              onClick={onDismiss}
+              className="flex-shrink-0 ml-auto pl-3 opacity-70 hover:opacity-100 transition-opacity"
+              aria-label="Dismiss"
+            >
+              <span className="text-lg">×</span>
+            </button>
           )}
         </div>
-        {onDismiss && (
-          <button
-            onClick={handleDismiss}
-            className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        )}
       </div>
-    </div>
-  )
-} 
+    )
+  }
+)
+
+Banner.displayName = 'Banner'
+
+export { Banner, bannerVariants } 

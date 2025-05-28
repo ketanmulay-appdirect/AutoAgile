@@ -1,6 +1,12 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Badge } from './ui/badge'
+import { Alert, AlertDescription, AlertTitle } from './ui/alert'
+import { LoadingSpinner } from './ui/loading-spinner'
 
 export interface DevsAIConnection {
   apiToken: string
@@ -85,111 +91,151 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Devs.ai Connection</h2>
-        {isConnected && (
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span className="text-green-600 font-medium">Connected</span>
+    <Card className="max-w-4xl mx-auto">
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle>
+              Devs.ai Connection
+            </CardTitle>
+            <CardDescription>
+              Configure your Devs.ai API connection for AI-powered content generation
+            </CardDescription>
           </div>
-        )}
-      </div>
+          {isConnected && (
+            <div className="flex items-center space-x-2">
+              <Badge variant="success">Connected</Badge>
+            </div>
+          )}
+        </div>
+      </CardHeader>
 
-      <div className="space-y-4">
+      <CardContent className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-navy-950 mb-2">
             API Token *
           </label>
-          <input
+          <Input
             type="password"
             value={connection.apiToken || ''}
             onChange={(e) => handleInputChange('apiToken', e.target.value)}
             placeholder="Your Devs.ai secret key (starts with sk-)"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isConnected}
           />
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-cloud-600">
             Your Devs.ai secret key from the API Keys page
           </p>
         </div>
 
         {testResult && (
-          <div className={`p-3 rounded-md ${
-            testResult.success 
-              ? 'bg-green-50 border border-green-200 text-green-800' 
-              : 'bg-red-50 border border-red-200 text-red-800'
-          }`}>
-            {testResult.message}
-          </div>
+          <Alert variant={testResult.success ? 'success' : 'destructive'}>
+            {testResult.success ? (
+              '✓'
+            ) : (
+              '✗'
+            )}
+            <AlertTitle>
+              {testResult.success ? 'Success' : 'Error'}
+            </AlertTitle>
+            <AlertDescription>
+              {testResult.message}
+            </AlertDescription>
+          </Alert>
         )}
 
         <div className="flex space-x-3">
           {!isConnected ? (
-            <button 
+            <Button 
               onClick={testConnection}
               disabled={isConnecting || !connection.apiToken}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1"
             >
               {isConnecting ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <LoadingSpinner size="sm" className="mr-2" />
                   Testing Connection...
                 </>
               ) : (
                 'Test & Save Connection'
               )}
-            </button>
+            </Button>
           ) : (
-            <button 
+            <Button 
+              variant="outline"
               onClick={disconnect}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+              className="flex-1"
             >
               Disconnect
-            </button>
+            </Button>
           )}
         </div>
-      </div>
 
-      {!isConnected && (
-        <div className="mt-6 space-y-4">
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">Setup Instructions:</h3>
-            <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
-              <li>Create an account at <a href="https://devs.ai" target="_blank" rel="noopener noreferrer" className="underline">Devs.ai</a></li>
-              <li><strong>Log into your Devs.ai dashboard and keep it open</strong></li>
-              <li>Navigate to <a href="https://devs.ai/api-keys" target="_blank" rel="noopener noreferrer" className="underline">API Keys page</a></li>
-              <li>Click "Create new secret key" and add appropriate scopes</li>
-              <li>Copy the generated secret key (starts with "sk-")</li>
-              <li>Paste the key above and test the connection</li>
-            </ol>
-          </div>
+        {!isConnected && (
+          <div className="space-y-4">
+            <Alert variant="info">
+              <AlertTitle>Setup Instructions</AlertTitle>
+              <AlertDescription>
+                <ol className="list-decimal list-inside space-y-1 mt-2">
+                  <li>Create an account at <a href="https://devs.ai" target="_blank" rel="noopener noreferrer" className="text-royal-950 hover:text-royal-900 underline">Devs.ai</a></li>
+                  <li><strong>Log into your Devs.ai dashboard and keep it open</strong></li>
+                  <li>Navigate to <a href="https://devs.ai/api-keys" target="_blank" rel="noopener noreferrer" className="text-royal-950 hover:text-royal-900 underline">API Keys page</a></li>
+                  <li>Click "Create new secret key" and add appropriate scopes</li>
+                  <li>Copy the generated secret key (starts with "sk-")</li>
+                  <li>Paste the key above and test the connection</li>
+                </ol>
+              </AlertDescription>
+            </Alert>
 
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
-            <h3 className="text-sm font-medium text-amber-800 mb-2">Important Authentication Notes:</h3>
-            <ul className="text-sm text-amber-700 space-y-1 list-disc list-inside">
-              <li><strong>You must be logged into Devs.ai in your browser</strong> for API calls to work</li>
-              <li>Devs.ai uses both session authentication and API keys</li>
-              <li>Required scopes: ai.read.self, ai.write.self, chats.read.self, chats.write.self</li>
-              <li>Keep your secret key secure and never share it publicly</li>
-              <li>If you get authentication errors, ensure you're logged into Devs.ai</li>
-            </ul>
-          </div>
+            <Alert variant="warning">
+              <AlertTitle>Important Authentication Notes</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc list-inside space-y-1 mt-2">
+                  <li><strong>You must be logged into Devs.ai in your browser</strong> for API calls to work</li>
+                  <li>Devs.ai uses both session authentication and API keys</li>
+                  <li>Required scopes: ai.read.self, ai.write.self, chats.read.self, chats.write.self</li>
+                  <li>Keep your secret key secure and never share it publicly</li>
+                  <li>If you get authentication errors, ensure you're logged into Devs.ai</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
 
-          <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-            <h3 className="text-sm font-medium text-green-800 mb-2">Available Models:</h3>
-            <div className="text-sm text-green-700 grid grid-cols-2 gap-2">
-              <div>• GPT-4 & GPT-4 Turbo</div>
-              <div>• Claude 3 (Opus, Sonnet, Haiku)</div>
-              <div>• Gemini Pro & 1.5 Pro</div>
-              <div>• GPT-3.5 Turbo</div>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  Available Models
+                </CardTitle>
+                <CardDescription>
+                  Access to premium AI models through Devs.ai
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="default">GPT-4</Badge>
+                      <span className="text-sm text-cloud-700">& GPT-4 Turbo</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="info">Claude 3</Badge>
+                      <span className="text-sm text-cloud-700">Opus, Sonnet, Haiku</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="warning">Gemini</Badge>
+                      <span className="text-sm text-cloud-700">Pro & 1.5 Pro</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="secondary">GPT-3.5</Badge>
+                      <span className="text-sm text-cloud-700">Turbo</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </CardContent>
+    </Card>
   )
 } 

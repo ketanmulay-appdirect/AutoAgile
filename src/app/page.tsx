@@ -3,11 +3,14 @@
 import React, { useState } from 'react'
 import { JiraInstance } from '../types'
 import { JiraConnection } from '../components/jira-connection'
-import { DevsAIConnection, type DevsAIConnection as DevsAIConnectionType } from '../components/devs-ai-connection'
+import { DevsAIConnection } from '../components/devs-ai-connection'
 import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creator'
 import { TemplateConfiguration } from '../components/template-configuration'
 import { ContentStudio } from '../components/content-studio'
-import { templateService, type WorkItemTemplate } from '../lib/template-service'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
+import { DevsAIConnection as DevsAIConnectionType } from '../components/devs-ai-connection'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio'>('create')
@@ -78,95 +81,103 @@ export default function Home() {
     setDevsAIConnection(null)
   }
 
-  const handleTemplateSaved = (template: WorkItemTemplate) => {
-    try {
-      templateService.saveTemplate(template)
-      setCurrentView('create')
-      // Show success message (you could add a toast notification here)
-      console.log('Template saved successfully:', template.name)
-    } catch (error) {
-      console.error('Failed to save template:', error)
-      // Show error message (you could add a toast notification here)
+  const navigationItems = [
+    {
+      id: 'create-push',
+      label: 'Create & Push',
+      description: 'Create and push work items to Jira',
+      status: jiraConnection ? 'connected' : 'not-connected'
+    },
+    {
+      id: 'content-studio',
+      label: 'Content Studio',
+      description: 'Generate content for existing work items'
+    },
+    {
+      id: 'jira-connection',
+      label: 'Jira Connection',
+      description: 'Configure Jira instance connection',
+      status: jiraConnection ? 'connected' : 'not-connected'
+    },
+    {
+      id: 'devs-ai-connection',
+      label: 'Devs.ai Connection',
+      description: 'Configure AI service connection',
+      status: devsAIConnection ? 'connected' : 'not-connected'
+    },
+    {
+      id: 'template-configuration',
+      label: 'Template Configuration',
+      description: 'Customize AI instructions and templates'
     }
-  }
+  ] as const
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Jira AI Content Generator
-          </h1>
-          <p className="text-xl text-gray-600 max-w-4xl mx-auto">
-            Generate professional Jira initiatives, epics, and stories using AI. 
-            Create content, push directly to your Jira instance, and generate presentation materials for PMs and EMs.
-          </p>
-        </div>
-
-        {/* Navigation */}
-        <div className="max-w-6xl mx-auto mb-8">
-          <div className="flex justify-center space-x-4 flex-wrap">
-            <button
-              onClick={() => setCurrentView('create')}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                currentView === 'create'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-              }`}
-            >
-              Create & Push
-            </button>
-            <button
-              onClick={() => setCurrentView('content-studio')}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                currentView === 'content-studio'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-              }`}
-            >
-              Content Studio
-            </button>
-            <button
-              onClick={() => setCurrentView('jira')}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                currentView === 'jira'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-              }`}
-            >
-              Jira Connection
-              {jiraConnection && (
-                <span className="ml-2 w-2 h-2 bg-green-500 rounded-full inline-block"></span>
-              )}
-            </button>
-            <button
-              onClick={() => setCurrentView('devs-ai')}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                currentView === 'devs-ai'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-              }`}
-            >
-              Devs.ai Connection
-              {devsAIConnection && (
-                <span className="ml-2 w-2 h-2 bg-green-500 rounded-full inline-block"></span>
-              )}
-            </button>
-            <button
-              onClick={() => setCurrentView('config')}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                currentView === 'config'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-              }`}
-            >
-              Configure Templates
-            </button>
+    <div className="min-h-screen bg-cloud-100">
+      {/* Header */}
+      <header className="bg-white border-b border-cloud-300 shadow-sm">
+        <div className="container mx-auto px-6 py-6">
+          <div className="text-center">
+            <div className="flex items-center justify-center mb-4">
+              <h1 className="text-3xl font-bold text-navy-950">AutoAgile</h1>
+            </div>
+            <p className="text-lg text-cloud-700 max-w-4xl mx-auto">
+              Generate and push professional Jira and presentation materials items using AI.
+            </p>
           </div>
         </div>
+      </header>
+
+      <div className="container mx-auto px-6 py-8">
+        {/* Navigation */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentView('create')}
+                className="md:hidden"
+              >
+                Navigation
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              Choose a section to get started with your Jira AI workflow
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {navigationItems.map((item) => {
+                const isActive = currentView === item.id
+                
+                return (
+                  <Button
+                    key={item.id}
+                    variant={isActive ? "default" : "outline"}
+                    className="h-auto p-4 flex flex-col items-center space-y-2 relative"
+                    onClick={() => setCurrentView(item.id as any)}
+                  >
+                    <div className="text-center">
+                      <div className="font-medium text-sm">{item.label}</div>
+                      <div className="text-xs opacity-75 mt-1">{item.description}</div>
+                    </div>
+                    {'status' in item && item.status && (
+                      <Badge 
+                        variant={item.status === 'connected' ? 'success' : 'secondary'}
+                        className="text-xs"
+                      >
+                        {item.status === 'connected' ? 'Connected' : 'Not Connected'}
+                      </Badge>
+                    )}
+                  </Button>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Content */}
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           {currentView === 'create' && (
             <EnhancedWorkItemCreator
               jiraConnection={jiraConnection}
@@ -197,8 +208,7 @@ export default function Home() {
 
           {currentView === 'config' && (
             <TemplateConfiguration
-              onTemplateSaved={handleTemplateSaved}
-              onCancel={() => setCurrentView('create')}
+              onClose={() => setCurrentView('create')}
             />
           )}
         </div>

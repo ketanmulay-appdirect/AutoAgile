@@ -46,6 +46,24 @@ export function ContentGenerator({
           description: 'Newsletter content for feature announcement',
           icon: '📰'
         }
+      case 'technical-documentation':
+        return {
+          title: 'Technical Documentation',
+          description: 'Technical documentation and specifications',
+          icon: '📋'
+        }
+      case 'stakeholder-update':
+        return {
+          title: 'Stakeholder Update',
+          description: 'Progress update for stakeholders',
+          icon: '📈'
+        }
+      default:
+        return {
+          title: 'Content Generation',
+          description: 'Generate content for this work item',
+          icon: '📄'
+        }
     }
   }
 
@@ -53,7 +71,7 @@ export function ContentGenerator({
     if (!workItem) return
     
     setIsGenerating(true)
-    setGeneratedContent(null)
+    setGeneratedContent('')
     
     try {
       const instructions = contentInstructionService.getActiveInstructions(contentType)
@@ -176,6 +194,12 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
 
       // Use Devs.ai API if available, otherwise use a mock response
       if (devsAIConnection) {
+        // Get the API token from the DevS.ai connection
+        const apiToken = (devsAIConnection as any)?.apiToken || 
+                        (typeof window !== 'undefined' ? 
+                          JSON.parse(localStorage.getItem('devs-ai-connection') || '{}')?.apiToken : 
+                          null)
+
         const response = await fetch('/api/generate-content', {
           method: 'POST',
           headers: {
@@ -184,7 +208,9 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
           body: JSON.stringify({
             prompt,
             contentType,
-            workItem: workItem
+            workItem: workItem,
+            useDevsAI: true,
+            apiToken: apiToken
           })
         })
 
@@ -208,8 +234,6 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
   }, [devsAIConnection, contentType, workItem.key, workItem.summary, workItem.issueType, workItem.status, workItem.project, deliveryQuarter, workItem.description])
 
   const generateMockContent = (type: ContentType, item: JiraWorkItem): string => {
-    const timestamp = new Date().toLocaleString()
-    
     // Helper function to extract Problem Description and Solution Description sections
     const extractProblemAndSolution = (description: any): { problemDescription: string; solutionDescription: string } => {
       let fullText = ''
@@ -294,8 +318,8 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
       }
       
       return {
-        problemDescription: problemDescription || 'No problem description available',
-        solutionDescription: solutionDescription || 'No solution description available'
+        problemDescription: problemDescription || 'Current operational challenges require strategic intervention to optimize business processes and enhance customer satisfaction.',
+        solutionDescription: solutionDescription || 'Implementation of advanced capabilities will streamline workflows, reduce operational overhead, and deliver measurable improvements in user experience and business outcomes.'
       }
     }
     
@@ -303,39 +327,48 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
 
     switch (type) {
       case 'quarterly-presentation':
-        return `# ${item.summary} - Quarterly Review
+        return `# ${item.summary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()}
 
 ## Executive Summary
-${item.summary} represents a strategic initiative for ${deliveryQuarter} that will deliver significant value to our customers and business objectives.
+
+This initiative represents a critical advancement in our platform capabilities, directly addressing key customer pain points while positioning us for sustained competitive advantage. The implementation will deliver immediate operational benefits and establish the foundation for future innovation.
+
+## Strategic Context
+
+Market dynamics and customer feedback have highlighted the urgent need for enhanced functionality in this domain. Our analysis indicates that addressing these requirements will significantly improve user satisfaction scores and reduce support overhead by an estimated 35-40%.
 
 ## Business Impact
-- **Customer Value**: Enhanced user experience and functionality
-- **Revenue Impact**: Expected to drive user engagement and retention
-- **Strategic Alignment**: Supports our core product vision
 
-## Key Deliverables
-- Feature development and testing
-- User documentation and training materials
-- Performance monitoring and analytics setup
+**Revenue Implications**
+- Projected 15-20% improvement in customer retention rates
+- Estimated $2.3M annual cost savings through operational efficiency gains
+- Enhanced upselling opportunities through improved feature adoption
 
-## Success Metrics
-- User adoption rate: Target 70% within first month
-- Customer satisfaction score improvement
-- Performance benchmarks achievement
+**Operational Benefits**
+- Streamlined workflows reducing manual intervention by 60%
+- Improved system reliability and performance metrics
+- Enhanced data visibility and actionable insights for stakeholders
 
-## Timeline & Milestones
-- **${deliveryQuarter} Planning**: Requirements finalization
-- **Development Phase**: Core feature implementation
-- **Testing & QA**: Comprehensive quality assurance
-- **Release**: Production deployment and monitoring
+## Technical Approach
+
+${solutionDescription.replace(/\\n/g, ' ').trim()}
+
+The solution architecture leverages industry best practices and proven technologies to ensure scalability, maintainability, and optimal performance. Integration points have been carefully designed to minimize disruption to existing workflows while maximizing the value delivered to end users.
+
+## Success Metrics & KPIs
+
+- User adoption rate: Target 75% within 30 days of release
+- Customer satisfaction improvement: +25 points on NPS scale
+- System performance: <200ms response time for core operations
+- Support ticket reduction: 40% decrease in related inquiries
 
 ## Risk Mitigation
-- Regular stakeholder check-ins
-- Phased rollout approach
-- Rollback procedures in place
 
-## Next Quarter Outlook
-Building on this foundation, we plan to expand functionality and explore additional use cases.`
+Comprehensive testing protocols and phased rollout strategies will ensure minimal business disruption. Rollback procedures and monitoring systems are in place to address any unforeseen issues promptly.
+
+## Timeline & Next Steps
+
+Development is progressing according to schedule with key milestones aligned to business priorities. Regular stakeholder updates and feedback loops ensure continuous alignment with strategic objectives.`
 
       case 'customer-webinar':
         return `# Introducing ${item.summary}
@@ -387,23 +420,142 @@ Thank you for joining us today. We're excited to see how you'll use this new cap
 
       case 'feature-newsletter':
         // Extract a clean title from the work item summary
-        const cleanTitle = item.summary.replace(/^\d{4}Q\d\s*-\s*\[[^\]]+\]\s*-\s*/, '').trim()
+        const cleanTitle = item.summary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()
         const shortTitle = cleanTitle.length > 60 ? cleanTitle.substring(0, 57) + '...' : cleanTitle
         
         return `${shortTitle}
 
 ${problemDescription.length > 0 ? 
-  `${problemDescription.substring(0, 300).replace(/\n/g, ' ').trim()}${problemDescription.length > 300 ? '...' : ''}` :
-  `This feature addresses critical business pain points and user friction that have been limiting productivity and efficiency in daily operations. Our customers have been requesting enhanced capabilities to streamline workflows and reduce manual overhead in their core business processes.`
+  problemDescription.replace(/\\n/g, ' ').trim() :
+  `Current market demands require enhanced platform capabilities to address evolving customer needs and competitive pressures. Users have consistently requested improved functionality that streamlines their daily workflows and reduces operational complexity. This gap in our offering has created friction points that impact user satisfaction and limit our ability to capture additional market share.`
 }
 
 ${solutionDescription.length > 0 ? 
-  `${solutionDescription.substring(0, 300).replace(/\n/g, ' ').trim()}${solutionDescription.length > 300 ? '...' : ''}` :
-  `${shortTitle} solves these challenges by providing an integrated solution that streamlines workflows, enhances data visibility, and improves collaboration across teams. The feature seamlessly integrates into our existing platform, giving customers immediate value while maintaining the familiar user experience they trust, enabling teams to focus on strategic initiatives rather than manual tasks.`
+  solutionDescription.replace(/\\n/g, ' ').trim() :
+  `Our engineering team has developed an innovative solution that leverages cutting-edge technology to deliver seamless user experiences. The implementation introduces intelligent automation, enhanced data processing capabilities, and intuitive interface improvements that significantly reduce time-to-value for our customers. This advancement positions us as the industry leader in providing comprehensive, user-centric solutions that drive measurable business outcomes.`
 }`
 
+      case 'technical-documentation':
+        return `# ${item.summary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()} - Technical Specification
+
+## Overview
+
+This document outlines the technical implementation details, architecture decisions, and integration requirements for the proposed solution. The design prioritizes scalability, maintainability, and optimal performance while adhering to established security and compliance standards.
+
+## Problem Statement
+
+${problemDescription.replace(/\\n/g, ' ').trim()}
+
+## Solution Architecture
+
+${solutionDescription.replace(/\\n/g, ' ').trim()}
+
+### Core Components
+
+**Data Layer**
+- Optimized database schemas with appropriate indexing strategies
+- Caching mechanisms for frequently accessed data
+- Data validation and integrity constraints
+
+**Business Logic Layer**
+- Modular service architecture enabling independent scaling
+- Comprehensive error handling and logging
+- Asynchronous processing for resource-intensive operations
+
+**Presentation Layer**
+- Responsive user interface with accessibility compliance
+- Real-time updates through WebSocket connections
+- Progressive enhancement for optimal performance
+
+### Integration Points
+
+The solution integrates seamlessly with existing systems through well-defined APIs and standardized data formats. Authentication and authorization mechanisms ensure secure access while maintaining user experience quality.
+
+### Performance Considerations
+
+- Load balancing strategies for high availability
+- Database optimization and query performance tuning
+- CDN implementation for static asset delivery
+- Monitoring and alerting for proactive issue resolution
+
+## Implementation Timeline
+
+Development follows agile methodologies with iterative delivery cycles. Each sprint delivers functional increments that can be independently tested and validated by stakeholders.
+
+## Testing Strategy
+
+Comprehensive testing protocols include unit tests, integration tests, and end-to-end validation scenarios. Performance testing ensures the solution meets specified SLA requirements under various load conditions.`
+
+      case 'stakeholder-update':
+        return `# Project Update: ${item.summary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()}
+
+## Current Status: On Track
+
+Development is progressing according to plan with all major milestones achieved on schedule. The team has successfully completed the initial design phase and is now focused on core implementation activities.
+
+## Key Accomplishments
+
+**Technical Progress**
+- Architecture design finalized and approved by technical review board
+- Core infrastructure components deployed to development environment
+- Initial integration testing completed with positive results
+
+**Business Alignment**
+- Stakeholder requirements validated through user research sessions
+- Success metrics defined and measurement frameworks established
+- Risk assessment completed with mitigation strategies in place
+
+## Current Focus Areas
+
+${solutionDescription.replace(/\\n/g, ' ').trim()}
+
+The development team is prioritizing the most critical user-facing features to ensure early value delivery. Parallel workstreams are addressing infrastructure requirements and integration dependencies.
+
+## Upcoming Milestones
+
+- **Week 1-2**: Core feature implementation and unit testing
+- **Week 3**: Integration testing and performance validation
+- **Week 4**: User acceptance testing and feedback incorporation
+- **Week 5**: Production deployment preparation and documentation
+
+## Metrics & Performance
+
+Early indicators suggest the solution will exceed initial performance targets. User feedback from prototype demonstrations has been overwhelmingly positive, with particular praise for the intuitive interface design and improved workflow efficiency.
+
+## Resource Requirements
+
+The project remains within approved budget parameters. No additional resources are required at this time, though we continue to monitor capacity requirements as development progresses.
+
+## Risk Management
+
+All identified risks remain within acceptable tolerance levels. Contingency plans are in place for potential integration challenges, and the team maintains regular communication with dependent system owners.
+
+## Next Steps
+
+Focus continues on delivering high-quality, user-centric functionality that addresses core business requirements. Regular stakeholder updates will ensure continued alignment with strategic objectives.`
+
       default:
-        return 'Content generation not implemented for this type.'
+        return `# ${item.summary.replace(/^\\d{4}Q\\d\\s*-\\s*\\[[^\\]]+\\]\\s*-\\s*/, '').trim()}
+
+## Overview
+
+This initiative addresses critical business requirements through innovative technology solutions that enhance user experience and operational efficiency. The implementation leverages industry best practices to deliver measurable value to stakeholders.
+
+## Business Context
+
+${problemDescription.replace(/\\n/g, ' ').trim()}
+
+## Proposed Solution
+
+${solutionDescription.replace(/\\n/g, ' ').trim()}
+
+## Expected Outcomes
+
+The successful implementation of this solution will result in improved operational metrics, enhanced user satisfaction, and strengthened competitive positioning. Key performance indicators will be monitored to ensure objectives are met and value is delivered as expected.
+
+## Implementation Approach
+
+Development follows proven methodologies with emphasis on quality, security, and maintainability. Regular stakeholder engagement ensures alignment with business priorities throughout the delivery lifecycle.`
     }
   }
 
@@ -445,6 +597,34 @@ ${solutionDescription.length > 0 ?
           Configure Templates
         </button>
       </div>
+
+      {!devsAIConnection && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-amber-800">
+                Using Enhanced Mock Content
+              </h3>
+              <div className="mt-2 text-sm text-amber-700">
+                <p>
+                  You're seeing high-quality mock content. To enable real AI generation with DevS.ai:
+                </p>
+                <ol className="mt-2 list-decimal list-inside space-y-1">
+                  <li>Set up your DevS.ai connection in the main dashboard</li>
+                  <li><strong>Log into your DevS.ai account in your browser</strong></li>
+                  <li>Test the connection to ensure it's working</li>
+                  <li>Return here to generate AI-powered content</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content Type Info */}
       <div className="bg-white rounded-lg shadow-lg p-6">

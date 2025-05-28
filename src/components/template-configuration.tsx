@@ -1,20 +1,25 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { WorkItemType, ContentType } from '../types'
 import { WorkTypeFormatConfig } from './work-type-format-config'
 import { templateService, type WorkItemTemplate } from '../lib/template-service'
 import { contentInstructionService } from '../lib/content-instruction-service'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Badge } from './ui/badge'
+import { Alert, AlertDescription, AlertTitle } from './ui/alert'
+import { LoadingSpinner } from './ui/loading-spinner'
 
 interface TemplateConfigurationProps {
-  onTemplateSaved: (template: WorkItemTemplate) => void
-  onCancel: () => void
+  onClose: () => void
 }
 
 type ConfigSection = 'work-items' | 'content-generation'
 type ContentTemplateType = 'quarterly-presentation' | 'customer-webinar' | 'feature-newsletter'
 
-export function TemplateConfiguration({ onTemplateSaved, onCancel }: TemplateConfigurationProps) {
+export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
   const [activeSection, setActiveSection] = useState<ConfigSection>('work-items')
   const [selectedWorkItemType, setSelectedWorkItemType] = useState<WorkItemType>('epic')
   const [selectedContentType, setSelectedContentType] = useState<ContentTemplateType>('quarterly-presentation')
@@ -76,68 +81,66 @@ export function TemplateConfiguration({ onTemplateSaved, onCancel }: TemplateCon
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure Templates</h2>
-        <p className="text-gray-600 mb-6">
-          Customize AI instructions and templates for work item creation and content generation.
-        </p>
-
-        {/* Section Selector */}
-        <div className="flex space-x-4">
-          <button
-            onClick={() => setActiveSection('work-items')}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'work-items'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Work Item Templates
-          </button>
-          <button
-            onClick={() => setActiveSection('content-generation')}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'content-generation'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Content Generation Templates
-          </button>
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">
+            Configure Templates
+          </CardTitle>
+          <CardDescription>
+            Customize AI instructions and templates for work item creation and content generation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Section Selector */}
+          <div className="flex space-x-4">
+            <Button
+              variant={activeSection === 'work-items' ? 'default' : 'outline'}
+              onClick={() => setActiveSection('work-items')}
+            >
+              Work Item Templates
+            </Button>
+            <Button
+              variant={activeSection === 'content-generation' ? 'default' : 'outline'}
+              onClick={() => setActiveSection('content-generation')}
+            >
+              Content Generation Templates
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Work Item Templates Section */}
       {activeSection === 'work-items' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Work Item Templates</h3>
-            <p className="text-gray-600 mb-6">
-              Configure fields and AI prompts for creating different types of Jira work items.
-            </p>
-            
-            <div className="flex space-x-4 mb-6">
-              {(['epic', 'story', 'initiative'] as WorkItemType[]).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedWorkItemType(type)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    selectedWorkItemType === type
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                Work Item Templates
+              </CardTitle>
+              <CardDescription>
+                Configure fields and AI prompts for creating different types of Jira work items.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex space-x-4 mb-6">
+                {(['epic', 'story', 'initiative'] as WorkItemType[]).map((type) => (
+                  <Button
+                    key={type}
+                    variant={selectedWorkItemType === type ? 'default' : 'outline'}
+                    onClick={() => setSelectedWorkItemType(type)}
+                  >
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
           <WorkTypeFormatConfig
             workItemType={selectedWorkItemType}
             template={templateService.getDefaultTemplate(selectedWorkItemType)}
-            onSave={onTemplateSaved}
-            onCancel={onCancel}
+            onSave={onClose}
+            onCancel={onClose}
           />
         </div>
       )}
@@ -145,44 +148,53 @@ export function TemplateConfiguration({ onTemplateSaved, onCancel }: TemplateCon
       {/* Content Generation Templates Section */}
       {activeSection === 'content-generation' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Content Generation Templates</h3>
-            <p className="text-gray-600 mb-6">
-              Configure AI instructions for generating different types of presentation and marketing content.
-            </p>
-
-            {/* Content Template Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {contentTemplates.map((template) => {
-                const templateData = contentInstructionService.getTemplate(template.type)
-                const isCustomized = templateData.isCustomized
-                
-                return (
-                  <div key={template.type} className="border border-gray-200 rounded-lg p-6 hover:border-blue-300 hover:shadow-md transition-all duration-200">
-                    <div className="text-3xl mb-4">{template.icon}</div>
-                    <h4 className="font-semibold text-gray-900 mb-2">{template.title}</h4>
-                    <p className="text-gray-600 text-sm mb-3">{template.description}</p>
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                        {template.phase}
-                      </span>
-                      {isCustomized && (
-                        <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                          Customized
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleEditContentInstructions(template.type)}
-                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                    >
-                      Edit Instructions
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                Content Generation Templates
+              </CardTitle>
+              <CardDescription>
+                Configure AI instructions for generating different types of presentation and marketing content.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Content Template Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {contentTemplates.map((template) => {
+                  const templateData = contentInstructionService.getTemplate(template.type)
+                  const isCustomized = templateData.isCustomized
+                  
+                  return (
+                    <Card key={template.type} className="hover:shadow-md transition-all duration-200">
+                      <CardHeader>
+                        <CardTitle className="text-lg">{template.title}</CardTitle>
+                        <CardDescription>{template.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center justify-between mb-4">
+                          <Badge variant="secondary">
+                            {template.phase}
+                          </Badge>
+                          {isCustomized && (
+                            <Badge variant="success">
+                              Customized
+                            </Badge>
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => handleEditContentInstructions(template.type)}
+                          className="w-full"
+                          size="sm"
+                        >
+                          Edit Instructions
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Content Instructions Editor Modal */}
           {editingContentInstructions && (

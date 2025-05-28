@@ -6,6 +6,13 @@ import { jiraContentService } from '../lib/jira-content-service'
 import { ContentGenerator } from './content-generator'
 import { contentInstructionService } from '../lib/content-instruction-service'
 import { contentStudioPreferences } from '../lib/content-studio-preferences'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Badge } from './ui/badge'
+import { Alert, AlertDescription, AlertTitle } from './ui/alert'
+import { LoadingSpinner } from './ui/loading-spinner'
+import { WorkItemCard } from './work-item-card'
 
 interface ContentStudioProps {
   jiraConnection: JiraInstance | null
@@ -547,23 +554,22 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
 
   if (!jiraConnection) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-          </svg>
-        </div>
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">Jira Connection Required</h3>
-        <p className="text-gray-600 mb-6">
-          Connect to your Jira instance to access the Content Studio features.
-        </p>
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-jira'))}
-          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Setup Jira Connection
-        </button>
-      </div>
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader className="text-center">
+          <CardTitle>Jira Connection Required</CardTitle>
+          <CardDescription>
+            Connect to your Jira instance to access the Content Studio features.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <Button
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-jira'))}
+            size="lg"
+          >
+            Setup Jira Connection
+          </Button>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -800,7 +806,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     title="Quarterly Presentation"
                     description="Executive slide deck for quarterly business reviews"
                     phase="Planning Phase"
-                    icon="📊"
                     workItem={detailedWorkItem}
                     onGenerate={(contentType) => handleContentTypeSelect(contentType)}
                     onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
@@ -810,7 +815,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     title="Customer Webinar"
                     description="Customer-facing presentation content"
                     phase="Planning Phase"
-                    icon="🎯"
                     workItem={detailedWorkItem}
                     onGenerate={(contentType) => handleContentTypeSelect(contentType)}
                     onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
@@ -820,7 +824,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     title="Feature Newsletter"
                     description="Newsletter content for feature announcement"
                     phase="Post-Completion"
-                    icon="📰"
                     workItem={detailedWorkItem}
                     onGenerate={(contentType) => handleContentTypeSelect(contentType)}
                     onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
@@ -851,34 +854,33 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="text-center">
-        <div className="flex items-center justify-center space-x-3 mb-2">
-          <h2 className="text-3xl font-bold text-gray-900">Content Studio</h2>
-          {preferencesRestored && (
-            <div className="flex items-center bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Previous selections restored
-            </div>
-          )}
-        </div>
-        <p className="text-gray-600">
-          Generate presentation and marketing content from your Jira work items
-        </p>
-      </div>
+      <Card>
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">
+            Content Studio
+            {preferencesRestored && (
+              <Badge variant="success" className="ml-3">
+                Previous selections restored
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Generate presentation and marketing content from your Jira work items
+          </CardDescription>
+        </CardHeader>
+      </Card>
 
       {/* Selection Form */}
-      <div className="bg-white rounded-lg shadow-lg p-6 relative">
+      <Card className="relative">
         {/* Section-wide loader overlay */}
         {(isInitializing || isLoadingWorkItems) && (
           <div className="absolute inset-0 bg-white bg-opacity-90 rounded-lg flex flex-col items-center justify-center z-10">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <LoadingSpinner size="lg" className="mb-4" />
             <div className="text-center">
-              <p className="text-lg font-medium text-blue-600">
+              <p className="text-lg font-medium text-navy-950">
                 {isInitializing ? 'Initializing Content Studio...' : 'Loading Work Items...'}
               </p>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-cloud-600 mt-1">
                 {isInitializing 
                   ? 'Setting up projects and preferences' 
                   : 'Searching for work items in your project'
@@ -889,192 +891,183 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         )}
 
         {preferencesRestored && !isInitializing && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-sm text-blue-800 font-medium">
-                  Your previous selections have been restored. Work items are being loaded automatically.
-                </span>
-              </div>
-              <button
-                onClick={() => setPreferencesRestored(false)}
-                className="text-blue-600 hover:text-blue-800 transition-colors"
-                title="Dismiss notification"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
+          <Alert variant="info" className="mb-6">
+            <AlertTitle>Preferences Restored</AlertTitle>
+            <AlertDescription>
+              Your previous selections have been restored. Work items are being loaded automatically.
+            </AlertDescription>
+          </Alert>
         )}
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Project Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Project
-            </label>
-            <select
-              value={selectedProject}
-              onChange={(e) => handleProjectSelect(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={isInitializing || isLoadingWorkItems}
-            >
-              <option value="">Select Project</option>
-              {projects.map((project) => (
-                <option key={project.key} value={project.key}>
-                  {project.name} ({project.key})
-                </option>
-              ))}
-            </select>
-          </div>
+        <CardHeader>
+          <CardTitle>
+            Find Work Items
+          </CardTitle>
+          <CardDescription>
+            Select your project, work type, and delivery quarter to find work items
+          </CardDescription>
+        </CardHeader>
 
-          {/* Work Type Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Work Type
-            </label>
-            <select
-              value={workItemType}
-              onChange={(e) => handleWorkTypeSelect(e.target.value as WorkItemType)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={isInitializing || isLoadingWorkItems || !selectedProject}
-            >
-              <option value="epic">Epic</option>
-              <option value="story">Story</option>
-              <option value="initiative">Initiative</option>
-              <option value="task">Task</option>
-              <option value="bug">Bug</option>
-            </select>
-          </div>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {/* Project Selection */}
+            <div>
+              <label className="block text-sm font-medium text-navy-950 mb-2">
+                Project
+              </label>
+              <select
+                value={selectedProject}
+                onChange={(e) => handleProjectSelect(e.target.value)}
+                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                disabled={isInitializing || isLoadingWorkItems}
+              >
+                <option value="">Select Project</option>
+                {projects.map((project) => (
+                  <option key={project.key} value={project.key}>
+                    {project.name} ({project.key})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Quarter Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Delivery Quarter (Fix Version)
-            </label>
-            <select
-              value={selectedQuarter}
-              onChange={(e) => handleQuarterSelect(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={isInitializing || isLoadingWorkItems || !selectedProject || loadingQuarters}
-            >
-              <option value="">All Quarters (Optional)</option>
-              {quarters.map((quarter) => (
-                <option key={quarter} value={quarter}>
-                  {quarter}
-                </option>
-              ))}
-            </select>
-            {quarters.length === 0 && !loadingQuarters && selectedProject && !isInitializing && (
-              <p className="text-xs text-gray-500 mt-1">No fix versions found for this project</p>
-            )}
-          </div>
+            {/* Work Type Selection */}
+            <div>
+              <label className="block text-sm font-medium text-navy-950 mb-2">
+                Work Type
+              </label>
+              <select
+                value={workItemType}
+                onChange={(e) => handleWorkTypeSelect(e.target.value as WorkItemType)}
+                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                disabled={isInitializing || isLoadingWorkItems || !selectedProject}
+              >
+                <option value="epic">Epic</option>
+                <option value="story">Story</option>
+                <option value="initiative">Initiative</option>
+                <option value="task">Task</option>
+                <option value="bug">Bug</option>
+              </select>
+            </div>
 
-          {/* Search Button */}
-          <div className="flex items-end">
-            <div className="w-full space-y-2">
-              <div className="flex space-x-2">
-                <button
-                  onClick={handleManualLoadWorkItems}
-                  disabled={isInitializing || isLoadingWorkItems || !selectedProject || !workItemType || !quarterInitialized}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                >
-                  Find Work Items
-                </button>
-                {contentStudioPreferences.hasPreferences() && !isInitializing && (
-                  <div className="relative group">
-                    <button
+            {/* Quarter Selection */}
+            <div>
+              <label className="block text-sm font-medium text-navy-950 mb-2">
+                Delivery Quarter (Fix Version)
+              </label>
+              <select
+                value={selectedQuarter}
+                onChange={(e) => handleQuarterSelect(e.target.value)}
+                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                disabled={isInitializing || isLoadingWorkItems || !selectedProject || loadingQuarters}
+              >
+                <option value="">All Quarters (Optional)</option>
+                {quarters.map((quarter) => (
+                  <option key={quarter} value={quarter}>
+                    {quarter}
+                  </option>
+                ))}
+              </select>
+              {quarters.length === 0 && !loadingQuarters && selectedProject && !isInitializing && (
+                <p className="text-xs text-cloud-500 mt-1">No fix versions found for this project</p>
+              )}
+            </div>
+
+            {/* Search Button */}
+            <div className="flex items-end">
+              <div className="w-full space-y-2">
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={handleManualLoadWorkItems}
+                    disabled={isInitializing || isLoadingWorkItems || !selectedProject || !workItemType || !quarterInitialized}
+                    className="flex-1"
+                  >
+                    Find Work Items
+                  </Button>
+                  {contentStudioPreferences.hasPreferences() && !isInitializing && (
+                    <Button
+                      variant="outline"
                       onClick={handleClearPreferences}
                       disabled={isInitializing || isLoadingWorkItems}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Clear saved preferences"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1H8a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                      Clear saved preferences
-                    </div>
-                  </div>
-                )}
+                      Clear
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex">
-            <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-red-700">{error}</p>
-          </div>
-        </div>
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Work Items List */}
       {workItems.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">
-            Work Items ({workItems.length} found)
-          </h3>
-          <div className="grid grid-cols-1 gap-4">
-            {workItems.map((workItem) => (
-              <div
-                key={workItem.id}
-                onClick={() => handleWorkItemSelect(workItem)}
-                className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="font-semibold text-blue-600">{workItem.key}</span>
-                      <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-                        workItem.status === 'Done' ? 'bg-green-100 text-green-700' :
-                        workItem.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {workItem.status}
-                      </span>
-                      <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
-                        {workItem.issueType}
-                      </span>
-                    </div>
-                    <h4 className="font-medium text-gray-900 mb-2">{workItem.summary}</h4>
-                    <p className="text-sm text-gray-500 italic">Click to view details and description</p>
-                    {(workItem.labels && workItem.labels.length > 0) && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {workItem.labels.slice(0, 3).map((label, index) => (
-                          <span key={index} className="inline-block px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded">
-                            {label}
-                          </span>
-                        ))}
-                        {workItem.labels.length > 3 && (
-                          <span className="inline-block px-2 py-1 text-xs bg-gray-50 text-gray-500 rounded">
-                            +{workItem.labels.length - 3} more
-                          </span>
-                        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Work Items ({workItems.length} found)
+            </CardTitle>
+            <CardDescription>
+              Click on a work item to generate content
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4">
+              {workItems.map((workItem) => (
+                <div
+                  key={workItem.id}
+                  onClick={() => handleWorkItemSelect(workItem)}
+                  className="border border-cloud-300 rounded-lg p-4 hover:border-royal-500 hover:shadow-md transition-all duration-200 cursor-pointer"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="font-semibold text-blue-600">{workItem.key}</span>
+                        <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+                          workItem.status === 'Done' ? 'bg-green-100 text-green-700' :
+                          workItem.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {workItem.status}
+                        </span>
+                        <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
+                          {workItem.issueType}
+                        </span>
                       </div>
-                    )}
+                      <h4 className="font-medium text-gray-900 mb-2">{workItem.summary}</h4>
+                      <p className="text-sm text-gray-500 italic">Click to view details and description</p>
+                      {(workItem.labels && workItem.labels.length > 0) && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {workItem.labels.slice(0, 3).map((label, index) => (
+                            <span key={index} className="inline-block px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded">
+                              {label}
+                            </span>
+                          ))}
+                          {workItem.labels.length > 3 && (
+                            <span className="inline-block px-2 py-1 text-xs bg-gray-50 text-gray-500 rounded">
+                              +{workItem.labels.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <svg className="w-5 h-5 text-gray-400 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </div>
-                  <svg className="w-5 h-5 text-gray-400 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* No Work Items Found */}
@@ -1105,13 +1098,12 @@ interface ContentTypeCardProps {
   title: string
   description: string
   phase: string
-  icon: string
   workItem: JiraWorkItem | null
   onGenerate: (contentType: ContentType) => void
   onConfigure: (contentType: ContentType) => void
 }
 
-function ContentTypeCard({ type, title, description, phase, icon, workItem: _, onGenerate, onConfigure }: ContentTypeCardProps) {
+function ContentTypeCard({ type, title, description, phase, workItem: _, onGenerate, onConfigure }: ContentTypeCardProps) {
   const handleGenerateClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     onGenerate(type)
@@ -1127,7 +1119,6 @@ function ContentTypeCard({ type, title, description, phase, icon, workItem: _, o
       <div className="p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center">
-            <span className="text-xl mr-3">{icon}</span>
             <h4 className="font-semibold text-gray-900 text-sm">
               {title}
             </h4>

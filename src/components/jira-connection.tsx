@@ -2,6 +2,12 @@
 
 import React, { useState, useEffect } from 'react'
 import { JiraInstance } from '../types'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Badge } from './ui/badge'
+import { Alert, AlertDescription, AlertTitle } from './ui/alert'
+import { LoadingSpinner } from './ui/loading-spinner'
 
 interface JiraConnectionProps {
   onConnectionSaved: (connection: JiraInstance) => void
@@ -137,177 +143,197 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Jira Connection</h2>
-        {isConnected && (
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span className="text-green-600 font-medium">Connected</span>
+    <Card className="max-w-4xl mx-auto">
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle>
+              Jira Connection
+            </CardTitle>
+            <CardDescription>
+              Configure your Jira instance connection to create and manage work items
+            </CardDescription>
           </div>
-        )}
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Jira Instance URL *
-          </label>
-          <input
-            type="url"
-            value={connection.url || ''}
-            onChange={(e) => handleInputChange('url', e.target.value)}
-            placeholder="https://your-domain.atlassian.net"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isConnected}
-          />
-          <p className="mt-1 text-sm text-gray-500">
-            Your Jira Cloud instance URL
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Email Address *
-          </label>
-          <input
-            type="email"
-            value={connection.email || ''}
-            onChange={(e) => handleInputChange('email', e.target.value)}
-            placeholder="your-email@company.com"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isConnected}
-          />
-          <p className="mt-1 text-sm text-gray-500">
-            Your Jira account email address
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            API Token *
-          </label>
-          <input
-            type="password"
-            value={connection.apiToken || ''}
-            onChange={(e) => handleInputChange('apiToken', e.target.value)}
-            placeholder="Your Jira API token"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isConnected}
-          />
-          <p className="mt-1 text-sm text-gray-500">
-            <a 
-              href="https://id.atlassian.com/manage-profile/security/api-tokens" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 underline"
-            >
-              Create an API token here
-            </a>
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Default Project Key
-          </label>
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={connection.projectKey || ''}
-              onChange={(e) => handleInputChange('projectKey', e.target.value)}
-              placeholder="PROJ"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isConnected}
-            />
-            {!isConnected && (
-              <button
-                onClick={discoverProjects}
-                disabled={isDiscoveringProjects || !connection.url || !connection.email || !connection.apiToken}
-                className="px-3 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-              >
-                {isDiscoveringProjects ? 'Finding...' : 'Find Projects'}
-              </button>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-gray-500">
-            Default project key for creating issues (optional)
-          </p>
-          
-          {showProjectList && availableProjects.length > 0 && (
-            <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Available Projects:</h4>
-              <div className="max-h-40 overflow-y-auto space-y-1">
-                {availableProjects.map((project) => (
-                  <button
-                    key={project.key}
-                    onClick={() => selectProject(project.key)}
-                    className="w-full text-left px-2 py-1 text-sm hover:bg-blue-100 rounded border border-transparent hover:border-blue-300 transition-colors"
-                  >
-                    <span className="font-medium text-blue-600">{project.key}</span>
-                    <span className="text-gray-600 ml-2">- {project.name}</span>
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setShowProjectList(false)}
-                className="mt-2 text-xs text-gray-500 hover:text-gray-700"
-              >
-                Hide project list
-              </button>
+          {isConnected && (
+            <div className="flex items-center space-x-2">
+              <Badge variant="success">Connected</Badge>
             </div>
           )}
         </div>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-navy-950 mb-2">
+              Jira Instance URL *
+            </label>
+            <Input
+              type="url"
+              value={connection.url || ''}
+              onChange={(e) => handleInputChange('url', e.target.value)}
+              placeholder="https://your-domain.atlassian.net"
+              disabled={isConnected}
+            />
+            <p className="mt-1 text-sm text-cloud-600">
+              Your Jira Cloud instance URL
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-navy-950 mb-2">
+              Email Address *
+            </label>
+            <Input
+              type="email"
+              value={connection.email || ''}
+              onChange={(e) => handleInputChange('email', e.target.value)}
+              placeholder="your-email@company.com"
+              disabled={isConnected}
+            />
+            <p className="mt-1 text-sm text-cloud-600">
+              Your Jira account email address
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-navy-950 mb-2">
+              API Token *
+            </label>
+            <Input
+              type="password"
+              value={connection.apiToken || ''}
+              onChange={(e) => handleInputChange('apiToken', e.target.value)}
+              placeholder="Your Jira API token"
+              disabled={isConnected}
+            />
+            <p className="mt-1 text-sm text-cloud-600">
+              <a 
+                href="https://id.atlassian.com/manage-profile/security/api-tokens" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-royal-950 hover:text-royal-900 underline"
+              >
+                Create an API token here
+              </a>
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-navy-950 mb-2">
+              Default Project Key
+            </label>
+            <div className="flex space-x-2">
+              <Input
+                type="text"
+                value={connection.projectKey || ''}
+                onChange={(e) => handleInputChange('projectKey', e.target.value)}
+                placeholder="e.g., PROJ"
+                disabled={isConnected}
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                onClick={discoverProjects}
+                disabled={isConnecting || isDiscoveringProjects || isConnected || !connection.url || !connection.email || !connection.apiToken}
+              >
+                {isDiscoveringProjects ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Discovering...
+                  </>
+                ) : (
+                  'Discover'
+                )}
+              </Button>
+            </div>
+            <p className="mt-1 text-sm text-cloud-600">
+              Optional: Default project for creating work items
+            </p>
+          </div>
+        </div>
 
         {testResult && (
-          <div className={`p-3 rounded-md ${
-            testResult.success 
-              ? 'bg-green-50 border border-green-200 text-green-800' 
-              : 'bg-red-50 border border-red-200 text-red-800'
-          }`}>
-            {testResult.message}
-          </div>
+          <Alert variant={testResult.success ? 'success' : 'destructive'}>
+            <AlertTitle>
+              {testResult.success ? 'Success' : 'Error'}
+            </AlertTitle>
+            <AlertDescription>
+              {testResult.message}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {showProjectList && availableProjects.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Available Projects</CardTitle>
+              <CardDescription>
+                Click on a project to select it as your default
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
+                {availableProjects.map((project) => (
+                  <Button
+                    key={project.key}
+                    variant="outline"
+                    className="justify-start h-auto p-3"
+                    onClick={() => selectProject(project.key)}
+                  >
+                    <div className="text-left">
+                      <div className="font-medium">{project.key}</div>
+                      <div className="text-xs text-cloud-600 truncate">{project.name}</div>
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         <div className="flex space-x-3">
           {!isConnected ? (
-            <button 
+            <Button 
               onClick={testConnection}
               disabled={isConnecting || !connection.url || !connection.email || !connection.apiToken}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1"
             >
               {isConnecting ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                  <span>Testing Connection...</span>
-                </div>
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Testing Connection...
+                </>
               ) : (
-                'Test & Save Connection'
+                'Test Connection'
               )}
-            </button>
+            </Button>
           ) : (
-            <button 
+            <Button 
+              variant="outline"
               onClick={disconnect}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+              className="flex-1"
             >
               Disconnect
-            </button>
+            </Button>
           )}
         </div>
-      </div>
 
-      {!isConnected && (
-        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">Setup Instructions:</h3>
-          <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
-            <li>Go to your Jira Cloud instance</li>
-            <li>Navigate to Account Settings → Security → API tokens</li>
-            <li>Create a new API token</li>
-            <li>Copy the token and paste it above</li>
-            <li>Test the connection to verify it works</li>
-          </ol>
-        </div>
-      )}
-    </div>
+        {!isConnected && (
+          <Alert variant="info">
+            <AlertTitle>Setup Instructions</AlertTitle>
+            <AlertDescription>
+              <ol className="list-decimal list-inside space-y-1 mt-2">
+                <li>Enter your Jira Cloud instance URL (e.g., https://company.atlassian.net)</li>
+                <li>Enter your Jira account email address</li>
+                <li>Create an API token from your Atlassian account security settings</li>
+                <li>Optionally discover and select a default project</li>
+                <li>Test the connection to verify everything works</li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
   )
 } 
