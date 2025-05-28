@@ -17,6 +17,7 @@ import { Badge } from './ui/badge'
 import { Alert, AlertDescription, AlertTitle } from './ui/alert'
 import { LoadingSpinner } from './ui/loading-spinner'
 import { Icons, StatusIcons } from './ui/icons'
+import { PageLoader } from './ui/page-loader'
 
 interface EnhancedWorkItemCreatorProps {
   jiraConnection: JiraInstance | null
@@ -62,7 +63,9 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [description, setDescription] = useState('')
   const [aiModel, setAiModel] = useState<AIModel>('auto')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generatingStep, setGeneratingStep] = useState(0)
   const [isPushing, setIsPushing] = useState(false)
+  const [pushingStep, setPushingStep] = useState(0)
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [jiraIssueUrl, setJiraIssueUrl] = useState<string | null>(null)
@@ -219,20 +222,37 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     }
 
     setIsGenerating(true)
+    setGeneratingStep(0)
     setGeneratedContent(null)
     setJiraIssueUrl(null)
 
     try {
+      // Step 1: Preparing request
+      setGeneratingStep(1)
+      await new Promise(resolve => setTimeout(resolve, 300))
+
       // Generate custom prompt using template
       const customPrompt = templateService.generatePrompt(currentTemplate, description)
+      
+      // Step 2: Sending to AI
+      setGeneratingStep(2)
       
       // Handle Devs.ai separately
       if (aiModel === 'devs-ai') {
         // Use Devs.ai service to generate content with custom prompt
         const devsAIContent = await devsAIService.generateContent(customPrompt, selectedDevsAIModel)
         
+        // Step 3: Processing response
+        setGeneratingStep(3)
+        await new Promise(resolve => setTimeout(resolve, 200))
+        
         // Parse the generated content into the expected format
         const content = parseGeneratedContent(devsAIContent, workItemType)
+        
+        // Step 4: Finalizing content
+        setGeneratingStep(4)
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
         setGeneratedContent(content)
         
         success('Content Generated', `${workItemType} content has been generated successfully using Devs.ai (${selectedDevsAIModel}) with ${currentTemplate.name}.`)
@@ -257,11 +277,19 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           throw new Error(`HTTP error! status: ${response.status}`)
         }
 
+        // Step 3: Processing response
+        setGeneratingStep(3)
+        await new Promise(resolve => setTimeout(resolve, 200))
+
         const data = await response.json()
         
         if (!data.success) {
           throw new Error(data.error || 'Failed to generate content')
         }
+        
+        // Step 4: Finalizing content
+        setGeneratingStep(4)
+        await new Promise(resolve => setTimeout(resolve, 300))
         
         // Parse the generated content into the expected format
         const content = parseGeneratedContent(data.content, workItemType)
@@ -275,6 +303,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       error('Generation Failed', 'Failed to generate content. Please try again.')
     } finally {
       setIsGenerating(false)
+      setGeneratingStep(0)
     }
   }
 
@@ -375,8 +404,26 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     }
 
     setIsPushing(true)
+    setPushingStep(0)
+
+    const pushSteps = [
+      'Validating content and fields',
+      'Converting markdown to Jira format',
+      'Creating issue in Jira',
+      'Finalizing and generating link'
+    ]
 
     try {
+      // Step 1: Validation
+      setPushingStep(1)
+      await new Promise(resolve => setTimeout(resolve, 500)) // Brief pause for UX
+
+      // Step 2: Format conversion
+      setPushingStep(2)
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      // Step 3: Create issue
+      setPushingStep(3)
       const response = await fetch('/api/jira/create-issue', {
         method: 'POST',
         headers: {
@@ -438,9 +485,13 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
+      // Step 4: Finalize
+      setPushingStep(4)
       const data = await response.json()
       const issueUrl = `${jiraConnection.url}/browse/${data.issue.key}`
       setJiraIssueUrl(issueUrl)
+      
+      await new Promise(resolve => setTimeout(resolve, 500)) // Brief pause to show completion
       
       success(
         'Issue Created Successfully!', 
@@ -451,6 +502,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       error('Jira Creation Failed', err instanceof Error ? err.message : 'Failed to create issue in Jira.')
     } finally {
       setIsPushing(false)
+      setPushingStep(0)
     }
   }
 
@@ -497,6 +549,36 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   return (
     <div className="space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      {/* Page Loader for Content Generation */}
+      <PageLoader
+        isVisible={isGenerating}
+        variant="ai"
+        title="Generating Content"
+        subtitle="Creating your work item with AI assistance..."
+        steps={[
+          'Preparing your request',
+          'Sending to AI service',
+          'Processing AI response',
+          'Finalizing content'
+        ]}
+        currentStep={generatingStep}
+      />
+
+      {/* Page Loader for Jira Push */}
+      <PageLoader
+        isVisible={isPushing}
+        variant="jira"
+        title="Pushing to Jira"
+        subtitle="Creating your work item with rich formatting..."
+        steps={[
+          'Validating content and fields',
+          'Converting markdown to Jira format',
+          'Creating issue in Jira',
+          'Finalizing and generating link'
+        ]}
+        currentStep={pushingStep}
+      />
 
       {/* Input Form - Simplified */}
       <Card>

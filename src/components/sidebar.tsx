@@ -68,7 +68,7 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
             </div>
           )}
           {isCollapsed && (
-            <div className="flex items-center justify-center w-full">
+            <div className="flex items-center justify-center flex-1">
               <Icons.Target size="md" variant="accent" />
             </div>
           )}
@@ -76,7 +76,8 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
             variant="ghost"
             size="sm"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className={cn("p-2", isCollapsed && "absolute top-4 right-2")}
+            className="p-2 flex-shrink-0"
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <Icons.Menu size="sm" />
           </Button>
