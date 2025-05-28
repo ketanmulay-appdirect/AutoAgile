@@ -635,7 +635,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           >
             {isGenerating ? (
               <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                 <span>Generating...</span>
               </div>
             ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
@@ -674,7 +674,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                 >
                   {isPushing ? (
                     <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       <span>Pushing to Jira...</span>
                     </div>
                   ) : (
@@ -721,7 +721,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                   >
                     {isPushing ? (
                       <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                         <span>Creating in Jira...</span>
                       </div>
                     ) : (

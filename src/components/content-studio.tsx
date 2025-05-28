@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { JiraInstance, JiraProject, JiraWorkItem, WorkItemType, ContentType } from '../types'
 import { jiraContentService } from '../lib/jira-content-service'
 import { ContentGenerator } from './content-generator'
 import { contentInstructionService } from '../lib/content-instruction-service'
+import { contentStudioPreferences } from '../lib/content-studio-preferences'
 
 interface ContentStudioProps {
   jiraConnection: JiraInstance | null
@@ -23,15 +24,38 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   const [loading, setLoading] = useState(false)
   const [loadingQuarters, setLoadingQuarters] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showInstructionSection, setShowInstructionSection] = useState(false)
+  const [currentView, setCurrentView] = useState<'main' | 'edit-instructions'>('main')
   const [editingContentType, setEditingContentType] = useState<ContentType | null>(null)
   const [instructionText, setInstructionText] = useState('')
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false)
+  const [preferencesRestored, setPreferencesRestored] = useState(false)
+  
+  // New consolidated loading states
+  const [isInitializing, setIsInitializing] = useState(true)
+  const [isLoadingWorkItems, setIsLoadingWorkItems] = useState(false)
+  const [quarterInitialized, setQuarterInitialized] = useState(false)
+  
+  // Track if work items have been loaded for current state to prevent loops
+  const lastLoadedStateRef = useRef<string>('')
+
+  // Save preferences whenever dropdown values change
+  const saveCurrentPreferences = useCallback(() => {
+    if (preferencesLoaded && selectedProject && workItemType) {
+      contentStudioPreferences.savePreferences({
+        selectedProject,
+        workItemType,
+        selectedQuarter
+      })
+    }
+  }, [selectedProject, workItemType, selectedQuarter, preferencesLoaded])
+
+  // Save preferences when values change
+  useEffect(() => {
+    saveCurrentPreferences()
+  }, [saveCurrentPreferences])
 
   const loadProjects = useCallback(async () => {
     if (!jiraConnection) return
-    
-    setLoading(true)
-    setError(null)
     
     try {
       const projectList = await jiraContentService.getProjects(jiraConnection)
@@ -39,8 +63,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     } catch (err) {
       setError('Failed to load projects. Please check your Jira connection.')
       console.error(err)
-    } finally {
-      setLoading(false)
     }
   }, [jiraConnection])
 
@@ -48,15 +70,26 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     if (!jiraConnection || !selectedProject) return
     
     setLoadingQuarters(true)
+    setQuarterInitialized(false)
     
     try {
       const { quarters: quarterList, defaultQuarter } = await jiraContentService.getDeliveryQuarters(jiraConnection, selectedProject)
       setQuarters(quarterList)
       
-      // Auto-select the default quarter (current quarter)
-      if (defaultQuarter && quarterList.includes(defaultQuarter)) {
+      // Handle quarter selection based on preferences or default
+      const savedPreferences = contentStudioPreferences.loadPreferences()
+      if (savedPreferences && savedPreferences.selectedQuarter && quarterList.includes(savedPreferences.selectedQuarter)) {
+        // Use saved preference if it exists and is valid
+        setSelectedQuarter(savedPreferences.selectedQuarter)
+      } else if (defaultQuarter && quarterList.includes(defaultQuarter)) {
+        // Use default quarter if no saved preference
         setSelectedQuarter(defaultQuarter)
+      } else {
+        // No valid quarter found
+        setSelectedQuarter('')
       }
+      
+      setQuarterInitialized(true)
     } catch (err) {
       console.error('Failed to load delivery quarters:', err)
       // Set default quarters as fallback
@@ -78,7 +111,16 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       ]
       
       setQuarters(fallbackQuarters)
-      setSelectedQuarter(`Q${currentQuarter} ${currentYear}`)
+      
+      // Handle quarter selection for fallback
+      const savedPreferences = contentStudioPreferences.loadPreferences()
+      if (savedPreferences && savedPreferences.selectedQuarter && fallbackQuarters.includes(savedPreferences.selectedQuarter)) {
+        setSelectedQuarter(savedPreferences.selectedQuarter)
+      } else {
+        setSelectedQuarter(`Q${currentQuarter} ${currentYear}`)
+      }
+      
+      setQuarterInitialized(true)
     } finally {
       setLoadingQuarters(false)
     }
@@ -100,7 +142,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       quarterToPass: selectedQuarter || undefined
     })
     
-    setLoading(true)
+    setIsLoadingWorkItems(true)
     setError(null)
     
     try {
@@ -116,44 +158,123 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       setError('Failed to load work items.')
       console.error(err)
     } finally {
-      setLoading(false)
+      setIsLoadingWorkItems(false)
     }
   }, [jiraConnection, selectedProject, workItemType, selectedQuarter])
 
+  // New initialization function that handles the complete sequence
+  const initializeContentStudio = useCallback(async () => {
+    if (!jiraConnection) {
+      setIsInitializing(false)
+      return
+    }
+
+    setIsInitializing(true)
+    setError(null)
+
+    try {
+      // Step 1: Load projects
+      await loadProjects()
+
+      // Step 2: Load saved preferences
+      const savedPreferences = contentStudioPreferences.loadPreferences()
+      if (savedPreferences) {
+        setSelectedProject(savedPreferences.selectedProject)
+        setWorkItemType(savedPreferences.workItemType)
+        setPreferencesRestored(true)
+      }
+      setPreferencesLoaded(true)
+
+      // Step 3: If we have a saved project, load quarters for it
+      const projectToUse = savedPreferences?.selectedProject || ''
+      if (projectToUse) {
+        // Wait for quarters to load and initialize
+        await loadQuarters()
+      }
+
+    } catch (err) {
+      setError('Failed to initialize Content Studio. Please check your Jira connection.')
+      console.error(err)
+    } finally {
+      setIsInitializing(false)
+    }
+  }, [jiraConnection, loadProjects, loadQuarters])
+
   // Load projects when Jira connection is available
   useEffect(() => {
-    if (jiraConnection) {
-      loadProjects()
-    }
-  }, [jiraConnection, loadProjects])
+    initializeContentStudio()
+  }, [jiraConnection, initializeContentStudio])
 
-  // Load quarters when project is selected
+  // Load quarters when project is selected (but not during initialization)
   useEffect(() => {
-    if (jiraConnection && selectedProject) {
+    if (!isInitializing && jiraConnection && selectedProject && preferencesLoaded) {
       loadQuarters()
-    } else {
+    } else if (!selectedProject) {
       setQuarters([])
       setSelectedQuarter('')
+      setQuarterInitialized(false)
     }
-  }, [jiraConnection, selectedProject, loadQuarters])
+  }, [jiraConnection, selectedProject, loadQuarters, isInitializing, preferencesLoaded])
+
+  // Auto-load work items when all conditions are met
+  useEffect(() => {
+    if (
+      !isInitializing && 
+      !isLoadingWorkItems && 
+      quarterInitialized && 
+      jiraConnection && 
+      selectedProject && 
+      workItemType
+    ) {
+      // Create a state key to track if we've already loaded for this combination
+      const stateKey = `${selectedProject}-${workItemType}-${selectedQuarter || 'all'}`
+      
+      // Only load if we haven't loaded for this exact state combination
+      if (lastLoadedStateRef.current !== stateKey) {
+        lastLoadedStateRef.current = stateKey
+        
+        // Small delay to ensure UI is stable
+        const timer = setTimeout(() => {
+          loadWorkItems()
+        }, 100)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [
+    isInitializing, 
+    isLoadingWorkItems, 
+    quarterInitialized, 
+    jiraConnection, 
+    selectedProject, 
+    workItemType, 
+    selectedQuarter
+  ])
 
   const handleProjectSelect = (projectKey: string) => {
     setSelectedProject(projectKey)
     // Reset dependent selections
     setWorkItemType('epic')
-    // Don't reset selectedQuarter here - it will be auto-selected by loadQuarters
-    setWorkItems([])
-    setSelectedWorkItem(null)
-    setSelectedContentType(null)
-  }
-
-  const handleWorkTypeSelect = (type: WorkItemType) => {
-    setWorkItemType(type)
-    // Reset dependent selections
     setSelectedQuarter('')
     setWorkItems([])
     setSelectedWorkItem(null)
     setSelectedContentType(null)
+    setQuarterInitialized(false)
+    // Reset loaded state to allow fresh loading
+    lastLoadedStateRef.current = ''
+  }
+
+  const handleWorkTypeSelect = (type: WorkItemType) => {
+    setWorkItemType(type)
+    // Reset dependent selections but preserve quarter if it was saved in preferences
+    const savedPreferences = contentStudioPreferences.loadPreferences()
+    if (!savedPreferences || !savedPreferences.selectedQuarter) {
+      setSelectedQuarter('')
+    }
+    setWorkItems([])
+    setSelectedWorkItem(null)
+    setSelectedContentType(null)
+    // Reset loaded state to allow fresh loading
+    lastLoadedStateRef.current = ''
   }
 
   const handleWorkItemSelect = (workItem: JiraWorkItem) => {
@@ -176,14 +297,14 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
 
   const handleOpenInstructionSection = (contentType: ContentType) => {
     setEditingContentType(contentType)
-    setShowInstructionSection(true)
+    setCurrentView('edit-instructions')
     // Load current instruction for this content type
     const currentInstruction = contentInstructionService.getActiveInstructions(contentType)
     setInstructionText(currentInstruction)
   }
 
-  const handleCloseInstructionSection = () => {
-    setShowInstructionSection(false)
+  const handleBackToMain = () => {
+    setCurrentView('main')
     setEditingContentType(null)
     setInstructionText('')
   }
@@ -197,8 +318,19 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         isCustomized: true
       }
       contentInstructionService.saveTemplate(updatedTemplate)
-      handleCloseInstructionSection()
+      handleBackToMain()
     }
+  }
+
+  const handleClearPreferences = () => {
+    contentStudioPreferences.clearPreferences()
+    setSelectedProject('')
+    setWorkItemType('epic')
+    setSelectedQuarter('')
+    setWorkItems([])
+    setSelectedWorkItem(null)
+    setSelectedContentType(null)
+    setPreferencesRestored(false)
   }
 
   const getContentTypeDisplayName = (contentType: ContentType): string => {
@@ -368,6 +500,18 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     }
   }
 
+  const handleQuarterSelect = (quarter: string) => {
+    setSelectedQuarter(quarter)
+    // Reset loaded state to allow fresh loading
+    lastLoadedStateRef.current = ''
+  }
+
+  const handleManualLoadWorkItems = () => {
+    // Reset loaded state to allow manual reload
+    lastLoadedStateRef.current = ''
+    loadWorkItems()
+  }
+
   if (!jiraConnection) {
     return (
       <div className="bg-white rounded-lg shadow-lg p-8 text-center">
@@ -386,6 +530,87 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         >
           Setup Jira Connection
         </button>
+      </div>
+    )
+  }
+
+  // Instruction editing view
+  if (currentView === 'edit-instructions' && editingContentType) {
+    return (
+      <div className="space-y-6">
+        {/* Header with back button */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={handleBackToMain}
+            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Content Studio
+          </button>
+        </div>
+
+        {/* Instruction editing section */}
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          <div className="mb-6">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              Configure Instructions
+            </h2>
+            <p className="text-gray-600">
+              Customize the AI instructions for generating {getContentTypeDisplayName(editingContentType).toLowerCase()} content
+            </p>
+          </div>
+          
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              AI Instructions for {getContentTypeDisplayName(editingContentType)}
+            </label>
+            <textarea
+              value={instructionText}
+              onChange={(e) => setInstructionText(e.target.value)}
+              rows={12}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical font-mono text-sm"
+              placeholder="Enter detailed instructions for AI content generation..."
+            />
+            <div className="mt-3 p-4 bg-blue-50 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-900 mb-2">💡 Tips for Writing Instructions</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Be specific about the desired format and structure</li>
+                <li>• Include examples of the tone and style you want</li>
+                <li>• Specify what information should be included or excluded</li>
+                <li>• Use placeholders like {'{workItem.summary}'} to reference work item data</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => {
+                const defaultTemplate = contentInstructionService.resetToDefault(editingContentType)
+                setInstructionText(defaultTemplate.defaultInstructions)
+              }}
+              className="text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium"
+            >
+              Reset to Default
+            </button>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={handleBackToMain}
+                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveInstruction}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Save Instructions
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -524,14 +749,66 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Content Studio</h2>
+        <div className="flex items-center justify-center space-x-3 mb-2">
+          <h2 className="text-3xl font-bold text-gray-900">Content Studio</h2>
+          {preferencesRestored && (
+            <div className="flex items-center bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Previous selections restored
+            </div>
+          )}
+        </div>
         <p className="text-gray-600">
           Generate presentation and marketing content from your Jira work items
         </p>
       </div>
 
       {/* Selection Form */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-white rounded-lg shadow-lg p-6 relative">
+        {/* Section-wide loader overlay */}
+        {(isInitializing || isLoadingWorkItems) && (
+          <div className="absolute inset-0 bg-white bg-opacity-90 rounded-lg flex flex-col items-center justify-center z-10">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <div className="text-center">
+              <p className="text-lg font-medium text-blue-600">
+                {isInitializing ? 'Initializing Content Studio...' : 'Loading Work Items...'}
+              </p>
+              <p className="text-sm text-gray-600 mt-1">
+                {isInitializing 
+                  ? 'Setting up projects and preferences' 
+                  : 'Searching for work items in your project'
+                }
+              </p>
+            </div>
+          </div>
+        )}
+
+        {preferencesRestored && !isInitializing && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm text-blue-800 font-medium">
+                  Your previous selections have been restored. Work items are being loaded automatically.
+                </span>
+              </div>
+              <button
+                onClick={() => setPreferencesRestored(false)}
+                className="text-blue-600 hover:text-blue-800 transition-colors"
+                title="Dismiss notification"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Project Selection */}
           <div>
@@ -542,7 +819,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
               value={selectedProject}
               onChange={(e) => handleProjectSelect(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
+              disabled={isInitializing || isLoadingWorkItems}
             >
               <option value="">Select Project</option>
               {projects.map((project) => (
@@ -562,7 +839,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
               value={workItemType}
               onChange={(e) => handleWorkTypeSelect(e.target.value as WorkItemType)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={!selectedProject}
+              disabled={isInitializing || isLoadingWorkItems || !selectedProject}
             >
               <option value="epic">Epic</option>
               <option value="story">Story</option>
@@ -579,9 +856,9 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             </label>
             <select
               value={selectedQuarter}
-              onChange={(e) => setSelectedQuarter(e.target.value)}
+              onChange={(e) => handleQuarterSelect(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={!selectedProject || loadingQuarters}
+              disabled={isInitializing || isLoadingWorkItems || !selectedProject || loadingQuarters}
             >
               <option value="">All Quarters (Optional)</option>
               {quarters.map((quarter) => (
@@ -590,23 +867,42 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                 </option>
               ))}
             </select>
-            {loadingQuarters && (
-              <p className="text-xs text-gray-500 mt-1">Loading quarters...</p>
-            )}
-            {quarters.length === 0 && !loadingQuarters && selectedProject && (
+            {quarters.length === 0 && !loadingQuarters && selectedProject && !isInitializing && (
               <p className="text-xs text-gray-500 mt-1">No fix versions found for this project</p>
             )}
           </div>
 
           {/* Search Button */}
           <div className="flex items-end">
-            <button
-              onClick={loadWorkItems}
-              disabled={!selectedProject || !workItemType || loading}
-              className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? 'Loading...' : 'Find Work Items'}
-            </button>
+            <div className="w-full space-y-2">
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleManualLoadWorkItems}
+                  disabled={isInitializing || isLoadingWorkItems || !selectedProject || !workItemType || !quarterInitialized}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                >
+                  Find Work Items
+                </button>
+                {contentStudioPreferences.hasPreferences() && !isInitializing && (
+                  <div className="relative group">
+                    <button
+                      onClick={handleClearPreferences}
+                      disabled={isInitializing || isLoadingWorkItems}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Clear saved preferences"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1H8a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                    {/* Tooltip */}
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                      Clear saved preferences
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -681,7 +977,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       )}
 
       {/* No Work Items Found */}
-      {!loading && selectedProject && workItemType && workItems.length === 0 && (
+      {!isInitializing && !isLoadingWorkItems && selectedProject && workItemType && workItems.length === 0 && quarterInitialized && (
         <div className="bg-white rounded-lg shadow-lg p-6 text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -699,68 +995,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
           </ul>
         </div>
       )}
-
-      {/* Instruction Section */}
-      {showInstructionSection && editingContentType && (
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold text-gray-900">
-              Configure Instructions: {getContentTypeDisplayName(editingContentType)}
-            </h3>
-            <button
-              onClick={handleCloseInstructionSection}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              AI Instructions for Content Generation
-            </label>
-            <textarea
-              value={instructionText}
-              onChange={(e) => setInstructionText(e.target.value)}
-              rows={8}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical"
-              placeholder="Enter detailed instructions for AI content generation..."
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              These instructions will guide the AI in generating content for {getContentTypeDisplayName(editingContentType).toLowerCase()}.
-            </p>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => {
-                const defaultTemplate = contentInstructionService.resetToDefault(editingContentType)
-                setInstructionText(defaultTemplate.defaultInstructions)
-              }}
-              className="text-gray-600 hover:text-gray-800 transition-colors text-sm"
-            >
-              Reset to Default
-            </button>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={handleCloseInstructionSection}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveInstruction}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Save Instructions
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -776,7 +1010,7 @@ interface ContentTypeCardProps {
   onConfigure: (contentType: ContentType) => void
 }
 
-function ContentTypeCard({ type, title, description, phase, icon, workItem, onGenerate, onConfigure }: ContentTypeCardProps) {
+function ContentTypeCard({ type, title, description, phase, icon, workItem: _, onGenerate, onConfigure }: ContentTypeCardProps) {
   const handleGenerateClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     onGenerate(type)

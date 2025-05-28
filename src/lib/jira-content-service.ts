@@ -131,7 +131,25 @@ class JiraContentService {
       }
 
       const data = await response.json()
-      return data.workItems || []
+      if (!data.workItems || !Array.isArray(data.workItems)) {
+        console.error('Invalid response format:', data)
+        return []
+      }
+
+      // Ensure each work item has the required fields
+      const workItems = data.workItems.map((item: any): JiraWorkItem => ({
+        id: item.id || '',
+        key: item.key || '',
+        summary: item.summary || '',
+        description: item.description || '',
+        issueType: item.issueType || '',
+        status: item.status || '',
+        project: item.project || '',
+        fixVersions: Array.isArray(item.fixVersions) ? item.fixVersions : [],
+        labels: Array.isArray(item.labels) ? item.labels : []
+      }))
+
+      return workItems
     } catch (error) {
       console.error('Failed to fetch work items:', error)
       return [] // Return empty array instead of throwing

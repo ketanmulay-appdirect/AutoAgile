@@ -40,8 +40,9 @@ export interface JiraWorkItem {
   issueType: string
   status: string
   project: string
-  fixVersions?: string[]
-  labels?: string[]
+  fixVersions: string[]
+  labels: string[]
+  deliveryQuarter?: string
 }
 
 export interface AIInstructionTemplate {
