@@ -176,6 +176,154 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     return text.substring(0, maxLength) + '...'
   }
 
+  // Function to format Jira description with proper HTML formatting
+  const formatJiraDescription = (description: any): React.ReactElement => {
+    if (!description) {
+      return <p className="text-gray-500 italic">No description available</p>
+    }
+
+    // If it's a string, format it with basic line breaks
+    if (typeof description === 'string') {
+      return (
+        <div className="prose prose-sm max-w-none">
+          {description.split('\n').map((line, index) => (
+            <p key={index} className="mb-2 last:mb-0">
+              {line || '\u00A0'} {/* Non-breaking space for empty lines */}
+            </p>
+          ))}
+        </div>
+      )
+    }
+
+    // If it's ADF (Atlassian Document Format), parse it
+    if (description.content && Array.isArray(description.content)) {
+      return (
+        <div className="prose prose-sm max-w-none">
+          {description.content.map((node: any, index: number) => 
+            renderADFNode(node, index.toString())
+          )}
+        </div>
+      )
+    }
+
+    return <p className="text-gray-500 italic">Description format not supported</p>
+  }
+
+  // Function to render individual ADF nodes
+  const renderADFNode = (node: any, key: string): React.ReactElement => {
+    switch (node.type) {
+      case 'paragraph':
+        return (
+          <p key={key} className="mb-3 last:mb-0">
+            {node.content ? node.content.map((child: any, childIndex: number) => 
+              renderADFNode(child, `${key}-${childIndex}`)
+            ) : '\u00A0'}
+          </p>
+        )
+      
+      case 'heading':
+        const level = Math.min(node.attrs?.level || 1, 6)
+        const headingProps = {
+          key,
+          className: "font-bold text-gray-900 mt-4 mb-2 first:mt-0",
+          children: node.content ? node.content.map((child: any, childIndex: number) => 
+            renderADFNode(child, `${key}-${childIndex}`)
+          ) : ''
+        }
+        
+        switch (level) {
+          case 1: return <h1 {...headingProps} />
+          case 2: return <h2 {...headingProps} />
+          case 3: return <h3 {...headingProps} />
+          case 4: return <h4 {...headingProps} />
+          case 5: return <h5 {...headingProps} />
+          case 6: return <h6 {...headingProps} />
+          default: return <h1 {...headingProps} />
+        }
+      
+      case 'bulletList':
+        return (
+          <ul key={key} className="list-disc list-inside mb-3 space-y-1">
+            {node.content ? node.content.map((child: any, childIndex: number) => 
+              renderADFNode(child, `${key}-${childIndex}`)
+            ) : null}
+          </ul>
+        )
+      
+      case 'orderedList':
+        return (
+          <ol key={key} className="list-decimal list-inside mb-3 space-y-1">
+            {node.content ? node.content.map((child: any, childIndex: number) => 
+              renderADFNode(child, `${key}-${childIndex}`)
+            ) : null}
+          </ol>
+        )
+      
+      case 'listItem':
+        return (
+          <li key={key}>
+            {node.content ? node.content.map((child: any, childIndex: number) => 
+              renderADFNode(child, `${key}-${childIndex}`)
+            ) : ''}
+          </li>
+        )
+      
+      case 'text':
+        let textElement: React.ReactNode = node.text || ''
+        
+        // Apply text formatting
+        if (node.marks) {
+          node.marks.forEach((mark: any) => {
+            switch (mark.type) {
+              case 'strong':
+                textElement = <strong>{textElement}</strong>
+                break
+              case 'em':
+                textElement = <em>{textElement}</em>
+                break
+              case 'code':
+                textElement = <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">{textElement}</code>
+                break
+              case 'link':
+                textElement = (
+                  <a href={mark.attrs?.href} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
+                    {textElement}
+                  </a>
+                )
+                break
+            }
+          })
+        }
+        
+        return <span key={key}>{textElement}</span>
+      
+      case 'codeBlock':
+        return (
+          <pre key={key} className="bg-gray-100 p-3 rounded-lg overflow-x-auto mb-3">
+            <code>
+              {node.content ? node.content.map((child: any) => child.text).join('') : ''}
+            </code>
+          </pre>
+        )
+      
+      case 'hardBreak':
+        return <br key={key} />
+      
+      default:
+        // For unknown node types, try to render content if available
+        if (node.content) {
+          return (
+            <div key={key}>
+              {node.content.map((child: any, childIndex: number) => 
+                renderADFNode(child, `${key}-${childIndex}`)
+              )}
+            </div>
+          )
+        }
+        return <span key={key}>{node.text || ''}</span>
+    }
+  }
+
   if (!jiraConnection) {
     return (
       <div className="bg-white rounded-lg shadow-lg p-8 text-center">
@@ -224,12 +372,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             Back to Work Items
-          </button>
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-config'))}
-            className="text-blue-600 hover:text-blue-700 transition-colors text-sm font-medium"
-          >
-            Configure Templates
           </button>
         </div>
 
@@ -285,11 +427,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
               <div>
                 <span className="text-sm font-medium text-gray-500">Description:</span>
                 <div className="mt-2 p-4 bg-gray-50 rounded-lg">
-                  <p className="text-gray-700 whitespace-pre-wrap">
-                    {selectedWorkItem.description && typeof selectedWorkItem.description === 'string' 
-                      ? selectedWorkItem.description 
-                      : 'No description available'}
-                  </p>
+                  {formatJiraDescription(selectedWorkItem.description)}
                 </div>
               </div>
             </div>
@@ -298,7 +436,15 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
           {/* Right column - Content type selection */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Choose Content Type</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-900">Choose Content Type</h3>
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-config'))}
+                  className="text-blue-600 hover:text-blue-700 transition-colors text-sm font-medium"
+                >
+                  Configure Templates
+                </button>
+              </div>
               <div className="space-y-4">
                 <ContentTypeCard
                   type="quarterly-presentation"
@@ -306,7 +452,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   description="Executive slide deck for quarterly business reviews"
                   phase="Planning Phase"
                   icon="📊"
-                  onClick={() => handleContentTypeSelect('quarterly-presentation')}
+                  workItem={selectedWorkItem}
+                  onGenerate={(contentType) => handleContentTypeSelect(contentType)}
                 />
                 <ContentTypeCard
                   type="customer-webinar"
@@ -314,7 +461,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   description="Customer-facing presentation content"
                   phase="Planning Phase"
                   icon="🎯"
-                  onClick={() => handleContentTypeSelect('customer-webinar')}
+                  workItem={selectedWorkItem}
+                  onGenerate={(contentType) => handleContentTypeSelect(contentType)}
                 />
                 <ContentTypeCard
                   type="feature-newsletter"
@@ -322,7 +470,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   description="Newsletter content for feature announcement"
                   phase="Post-Completion"
                   icon="📰"
-                  onClick={() => handleContentTypeSelect('feature-newsletter')}
+                  workItem={selectedWorkItem}
+                  onGenerate={(contentType) => handleContentTypeSelect(contentType)}
                 />
               </div>
             </div>
@@ -521,40 +670,37 @@ interface ContentTypeCardProps {
   description: string
   phase: string
   icon: string
-  onClick: () => void
+  workItem: JiraWorkItem | null
+  onGenerate: (contentType: ContentType) => void
 }
 
-function ContentTypeCard({ type, title, description, phase, icon, onClick }: ContentTypeCardProps) {
-  const handleConfigureClick = (e: React.MouseEvent) => {
+function ContentTypeCard({ type, title, description, phase, icon, workItem, onGenerate }: ContentTypeCardProps) {
+  const handleGenerateClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    window.dispatchEvent(new CustomEvent('navigate-to-config'))
+    onGenerate(type)
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200 group">
-      <button
-        onClick={onClick}
-        className="w-full p-4 text-left"
-      >
+    <div className="border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200">
+      <div className="p-4">
         <div className="flex items-center mb-2">
           <span className="text-xl mr-3">{icon}</span>
-          <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors text-sm">
+          <h4 className="font-semibold text-gray-900 text-sm">
             {title}
           </h4>
         </div>
-        <p className="text-gray-600 text-xs mb-2">{description}</p>
-        <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-          {phase}
-        </span>
-      </button>
-      
-      <div className="px-4 pb-3">
-        <button
-          onClick={handleConfigureClick}
-          className="w-full text-xs text-gray-500 hover:text-blue-600 transition-colors border-t border-gray-100 pt-2 mt-2"
-        >
-          Configure Instructions →
-        </button>
+        <p className="text-gray-600 text-xs mb-3">{description}</p>
+        <div className="flex items-center justify-between">
+          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+            {phase}
+          </span>
+          <button
+            onClick={handleGenerateClick}
+            className="bg-blue-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-blue-700 transition-colors"
+          >
+            Generate
+          </button>
+        </div>
       </div>
     </div>
   )
