@@ -495,7 +495,18 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       
       success(
         'Issue Created Successfully!', 
-        `${workItemType.charAt(0).toUpperCase() + workItemType.slice(1)} ${data.issue.key} has been created in Jira.`
+        <span>
+          {workItemType.charAt(0).toUpperCase() + workItemType.slice(1)} {' '}
+          <a 
+            href={issueUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium underline hover:text-forest-800 transition-colors"
+          >
+            {data.issue.key}
+          </a>
+          {' '} has been created in Jira. Click the link to view it.
+        </span>
       )
     } catch (err) {
       console.error('Error creating Jira issue:', err)

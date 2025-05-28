@@ -7,7 +7,7 @@ export interface Toast {
   id: string
   type: 'success' | 'error' | 'warning' | 'info'
   title: string
-  message?: string
+  message?: string | React.ReactNode
   duration?: number
 }
 
@@ -76,7 +76,13 @@ export function Toast({ toast, onRemove }: ToastProps) {
         <div className="ml-3 flex-1">
           <h3 className="text-sm font-medium text-navy-950">{toast.title}</h3>
           {toast.message && (
-            <p className="mt-1 text-sm text-cloud-700">{toast.message}</p>
+            <div className="mt-1 text-sm text-cloud-700">
+              {typeof toast.message === 'string' ? (
+                <p>{toast.message}</p>
+              ) : (
+                toast.message
+              )}
+            </div>
           )}
         </div>
         <button

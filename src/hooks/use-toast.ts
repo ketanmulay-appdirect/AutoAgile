@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef } from 'react'
 import { Toast } from '../components/ui/toast'
 
 let toastCounter = 0
@@ -17,19 +17,19 @@ export function useToast() {
     setToasts(prev => prev.filter(toast => toast.id !== id))
   }, [])
 
-  const success = useCallback((title: string, message?: string) => {
+  const success = useCallback((title: string, message?: string | React.ReactNode) => {
     addToast({ type: 'success', title, message })
   }, [addToast])
 
-  const error = useCallback((title: string, message?: string) => {
+  const error = useCallback((title: string, message?: string | React.ReactNode) => {
     addToast({ type: 'error', title, message })
   }, [addToast])
 
-  const warning = useCallback((title: string, message?: string) => {
+  const warning = useCallback((title: string, message?: string | React.ReactNode) => {
     addToast({ type: 'warning', title, message })
   }, [addToast])
 
-  const info = useCallback((title: string, message?: string) => {
+  const info = useCallback((title: string, message?: string | React.ReactNode) => {
     addToast({ type: 'info', title, message })
   }, [addToast])
 
