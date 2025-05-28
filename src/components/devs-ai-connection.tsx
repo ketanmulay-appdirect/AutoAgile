@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Badge } from './ui/badge'
 import { Alert, AlertDescription, AlertTitle } from './ui/alert'
 import { LoadingSpinner } from './ui/loading-spinner'
+import { Icons } from './ui/icons'
 
 export interface DevsAIConnection {
   apiToken: string
@@ -95,7 +96,8 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>
+            <CardTitle className="flex items-center">
+              <Icons.Zap size="md" className="mr-2" />
               Devs.ai Connection
             </CardTitle>
             <CardDescription>
@@ -130,9 +132,9 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
         {testResult && (
           <Alert variant={testResult.success ? 'success' : 'destructive'}>
             {testResult.success ? (
-              '✓'
+              <Icons.CheckCircle size="sm" />
             ) : (
-              '✗'
+              <Icons.AlertCircle size="sm" />
             )}
             <AlertTitle>
               {testResult.success ? 'Success' : 'Error'}
@@ -152,11 +154,14 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
             >
               {isConnecting ? (
                 <>
-                  <LoadingSpinner size="sm" className="mr-2" />
+                  <LoadingSpinner size="sm" variant="white" className="mr-2" />
                   Testing Connection...
                 </>
               ) : (
-                'Test & Save Connection'
+                <>
+                  <Icons.CheckCircle size="sm" autoContrast className="mr-2" />
+                  Test & Save Connection
+                </>
               )}
             </Button>
           ) : (
@@ -165,6 +170,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
               onClick={disconnect}
               className="flex-1"
             >
+              <Icons.X size="sm" className="mr-2" />
               Disconnect
             </Button>
           )}
@@ -173,6 +179,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
         {!isConnected && (
           <div className="space-y-4">
             <Alert variant="info">
+              <Icons.Info size="sm" />
               <AlertTitle>Setup Instructions</AlertTitle>
               <AlertDescription>
                 <ol className="list-decimal list-inside space-y-1 mt-2">
@@ -187,6 +194,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
             </Alert>
 
             <Alert variant="warning">
+              <Icons.AlertTriangle size="sm" />
               <AlertTitle>Important Authentication Notes</AlertTitle>
               <AlertDescription>
                 <ul className="list-disc list-inside space-y-1 mt-2">
@@ -201,7 +209,8 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">
+                <CardTitle className="text-lg flex items-center">
+                  <Icons.Star size="md" className="mr-2" />
                   Available Models
                 </CardTitle>
                 <CardDescription>

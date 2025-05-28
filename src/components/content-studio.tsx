@@ -8,11 +8,10 @@ import { contentInstructionService } from '../lib/content-instruction-service'
 import { contentStudioPreferences } from '../lib/content-studio-preferences'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
-import { Input } from './ui/input'
 import { Badge } from './ui/badge'
 import { Alert, AlertDescription, AlertTitle } from './ui/alert'
 import { LoadingSpinner } from './ui/loading-spinner'
-import { WorkItemCard } from './work-item-card'
+import { Icons } from './ui/icons'
 
 interface ContentStudioProps {
   jiraConnection: JiraInstance | null
@@ -556,6 +555,9 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     return (
       <Card className="max-w-2xl mx-auto">
         <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <Icons.Link size="xl" variant="accent" />
+          </div>
           <CardTitle>Jira Connection Required</CardTitle>
           <CardDescription>
             Connect to your Jira instance to access the Content Studio features.
@@ -566,6 +568,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
             onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-jira'))}
             size="lg"
           >
+            <Icons.Link size="sm" className="mr-2" />
             Setup Jira Connection
           </Button>
         </CardContent>
@@ -806,6 +809,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     title="Quarterly Presentation"
                     description="Executive slide deck for quarterly business reviews"
                     phase="Planning Phase"
+                    icon="📊"
                     workItem={detailedWorkItem}
                     onGenerate={(contentType) => handleContentTypeSelect(contentType)}
                     onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
@@ -815,6 +819,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     title="Customer Webinar"
                     description="Customer-facing presentation content"
                     phase="Planning Phase"
+                    icon="🎯"
                     workItem={detailedWorkItem}
                     onGenerate={(contentType) => handleContentTypeSelect(contentType)}
                     onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
@@ -824,6 +829,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     title="Feature Newsletter"
                     description="Newsletter content for feature announcement"
                     phase="Post-Completion"
+                    icon="📰"
                     workItem={detailedWorkItem}
                     onGenerate={(contentType) => handleContentTypeSelect(contentType)}
                     onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
@@ -856,10 +862,12 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       {/* Header */}
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">
+          <CardTitle className="text-2xl flex items-center justify-center">
+            <Icons.FileText size="lg" className="mr-3" />
             Content Studio
             {preferencesRestored && (
               <Badge variant="success" className="ml-3">
+                <Icons.CheckCircle size="xs" className="mr-1" />
                 Previous selections restored
               </Badge>
             )}
@@ -892,6 +900,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
 
         {preferencesRestored && !isInitializing && (
           <Alert variant="info" className="mb-6">
+            <Icons.Info size="sm" />
             <AlertTitle>Preferences Restored</AlertTitle>
             <AlertDescription>
               Your previous selections have been restored. Work items are being loaded automatically.
@@ -900,7 +909,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         )}
         
         <CardHeader>
-          <CardTitle>
+          <CardTitle className="flex items-center">
+            <Icons.Search size="md" className="mr-2" />
             Find Work Items
           </CardTitle>
           <CardDescription>
@@ -981,6 +991,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     disabled={isInitializing || isLoadingWorkItems || !selectedProject || !workItemType || !quarterInitialized}
                     className="flex-1"
                   >
+                    <Icons.Search size="sm" className="mr-2" />
                     Find Work Items
                   </Button>
                   {contentStudioPreferences.hasPreferences() && !isInitializing && (
@@ -990,7 +1001,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                       disabled={isInitializing || isLoadingWorkItems}
                       title="Clear saved preferences"
                     >
-                      Clear
+                      <Icons.Trash2 size="sm" />
                     </Button>
                   )}
                 </div>
@@ -1003,6 +1014,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       {/* Error Message */}
       {error && (
         <Alert variant="destructive">
+          <Icons.AlertCircle size="sm" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -1012,7 +1024,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       {workItems.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>
+            <CardTitle className="flex items-center">
+              <Icons.List size="md" className="mr-2" />
               Work Items ({workItems.length} found)
             </CardTitle>
             <CardDescription>
@@ -1098,12 +1111,13 @@ interface ContentTypeCardProps {
   title: string
   description: string
   phase: string
+  icon: string
   workItem: JiraWorkItem | null
   onGenerate: (contentType: ContentType) => void
   onConfigure: (contentType: ContentType) => void
 }
 
-function ContentTypeCard({ type, title, description, phase, workItem: _, onGenerate, onConfigure }: ContentTypeCardProps) {
+function ContentTypeCard({ type, title, description, phase, icon, workItem: _, onGenerate, onConfigure }: ContentTypeCardProps) {
   const handleGenerateClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     onGenerate(type)
@@ -1119,6 +1133,7 @@ function ContentTypeCard({ type, title, description, phase, workItem: _, onGener
       <div className="p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center">
+            <span className="text-xl mr-3">{icon}</span>
             <h4 className="font-semibold text-gray-900 text-sm">
               {title}
             </h4>

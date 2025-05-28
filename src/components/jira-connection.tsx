@@ -8,6 +8,7 @@ import { Input } from './ui/input'
 import { Badge } from './ui/badge'
 import { Alert, AlertDescription, AlertTitle } from './ui/alert'
 import { LoadingSpinner } from './ui/loading-spinner'
+import { Icons } from './ui/icons'
 
 interface JiraConnectionProps {
   onConnectionSaved: (connection: JiraInstance) => void
@@ -147,7 +148,8 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>
+            <CardTitle className="flex items-center">
+              <Icons.Link size="md" className="mr-2" />
               Jira Connection
             </CardTitle>
             <CardDescription>
@@ -243,7 +245,10 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
                     Discovering...
                   </>
                 ) : (
-                  'Discover'
+                  <>
+                    <Icons.Search size="sm" className="mr-2" />
+                    Discover
+                  </>
                 )}
               </Button>
             </div>
@@ -255,6 +260,11 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
 
         {testResult && (
           <Alert variant={testResult.success ? 'success' : 'destructive'}>
+            {testResult.success ? (
+              <Icons.CheckCircle size="sm" />
+            ) : (
+              <Icons.AlertCircle size="sm" />
+            )}
             <AlertTitle>
               {testResult.success ? 'Success' : 'Error'}
             </AlertTitle>
@@ -301,11 +311,14 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
             >
               {isConnecting ? (
                 <>
-                  <LoadingSpinner size="sm" className="mr-2" />
+                  <LoadingSpinner size="sm" variant="white" className="mr-2" />
                   Testing Connection...
                 </>
               ) : (
-                'Test Connection'
+                <>
+                  <Icons.CheckCircle size="sm" autoContrast className="mr-2" />
+                  Test & Save Connection
+                </>
               )}
             </Button>
           ) : (
@@ -314,6 +327,7 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
               onClick={disconnect}
               className="flex-1"
             >
+              <Icons.X size="sm" className="mr-2" />
               Disconnect
             </Button>
           )}
@@ -321,6 +335,7 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
 
         {!isConnected && (
           <Alert variant="info">
+            <Icons.Info size="sm" />
             <AlertTitle>Setup Instructions</AlertTitle>
             <AlertDescription>
               <ol className="list-decimal list-inside space-y-1 mt-2">

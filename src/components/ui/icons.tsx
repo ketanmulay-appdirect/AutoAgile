@@ -153,9 +153,15 @@ function getRGBFromComputedStyle(color: string): { r: number; g: number; b: numb
 function useAutoContrast(enabled: boolean) {
   const ref = useRef<SVGSVGElement>(null)
   const [contrastClass, setContrastClass] = useState(autoContrastVariants.light)
+  const [isClient, setIsClient] = useState(false)
+
+  // Ensure we only run contrast detection on the client
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   const detectContrast = useCallback(() => {
-    if (!enabled || !ref.current) return
+    if (!enabled || !ref.current || !isClient) return
 
     const element = ref.current
     let currentElement: Element | null = element
@@ -165,78 +171,70 @@ function useAutoContrast(enabled: boolean) {
       const computedStyle = window.getComputedStyle(currentElement)
       const backgroundColor = computedStyle.backgroundColor
 
+      // Skip transparent/inherit backgrounds
       if (backgroundColor && backgroundColor !== 'rgba(0, 0, 0, 0)' && backgroundColor !== 'transparent') {
         const rgb = getRGBFromComputedStyle(backgroundColor)
         if (rgb) {
           const isDark = isColorDark(rgb)
-          const newContrastClass = isDark ? autoContrastVariants.dark : autoContrastVariants.light
+          const newContrastClass = isDark ? autoContrastVariants.light : autoContrastVariants.dark
           setContrastClass(newContrastClass)
-          break
+          return
         }
       }
 
       currentElement = currentElement.parentElement
     }
-  }, [enabled])
 
+    // Default to light variant if no background found
+    setContrastClass(autoContrastVariants.light)
+  }, [enabled, isClient])
+
+  // Run detection when component mounts and becomes visible (client-side only)
   useEffect(() => {
-    if (!enabled || !ref.current) return
+    if (!isClient) return
 
-    // Initial detection
     detectContrast()
 
-    // Set up MutationObserver to watch for DOM changes
-    const observer = new MutationObserver(() => {
-      // Use a small delay to allow DOM changes to settle
-      setTimeout(detectContrast, 10)
-    })
-
-    // Observe changes to the entire document tree
-    observer.observe(document.body, {
-      attributes: true,
-      attributeFilter: ['class', 'style'],
-      subtree: true,
-      childList: true
-    })
-
-    // Also listen for resize events which might trigger layout changes
-    const handleResize = () => {
-      setTimeout(detectContrast, 10)
-    }
-    window.addEventListener('resize', handleResize)
-
-    // Listen for visibility changes (tab switching)
-    const handleVisibilityChange = () => {
+    // Set up observers and listeners
+    const observer = new MutationObserver(detectContrast)
+    const resizeHandler = () => setTimeout(detectContrast, 10)
+    const visibilityHandler = () => {
       if (!document.hidden) {
-        // Tab became visible again, re-detect contrast
-        setTimeout(detectContrast, 50)
+        setTimeout(detectContrast, 10)
       }
     }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // Cleanup
+    if (ref.current) {
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style'],
+        childList: true,
+        subtree: true
+      })
+    }
+
+    window.addEventListener('resize', resizeHandler)
+    document.addEventListener('visibilitychange', visibilityHandler)
+
     return () => {
       observer.disconnect()
-      window.removeEventListener('resize', handleResize)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('resize', resizeHandler)
+      document.removeEventListener('visibilitychange', visibilityHandler)
     }
-  }, [enabled, detectContrast])
+  }, [detectContrast, isClient])
 
-  // Also re-run detection when enabled state changes
+  // Also re-run detection when enabled state changes (client-side only)
   useEffect(() => {
-    if (enabled) {
+    if (enabled && isClient) {
       setTimeout(detectContrast, 10)
     }
-  }, [enabled, detectContrast])
+  }, [enabled, detectContrast, isClient])
 
-  // Run detection on every render to catch any missed changes
-  useEffect(() => {
-    if (enabled) {
-      detectContrast()
-    }
-  })
-
-  return { ref, contrastClass }
+  // Return consistent class for server-side rendering
+  return { 
+    ref, 
+    contrastClass: isClient ? contrastClass : autoContrastVariants.light 
+  }
 }
 
 // Base icon wrapper component
@@ -257,6 +255,7 @@ function createIcon(LucideIcon: LucideIcon) {
       <LucideIcon
         ref={ref}
         className={cn(iconSizes[size], colorClass, className)}
+        suppressHydrationWarning={autoContrast || variant === 'auto-contrast'}
         {...props}
       />
     )
@@ -340,35 +339,35 @@ export const StatusIcons = {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-cloud-500'
     return (
-      <Circle ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <Circle ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   InProgress: ({ size = 'sm', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-royal-950'
     return (
-      <Circle ref={ref} className={cn(iconSizes[size], colorClass, 'fill-current', className)} />
+      <Circle ref={ref} className={cn(iconSizes[size], colorClass, 'fill-current', className)} suppressHydrationWarning />
     )
   },
   InReview: ({ size = 'sm', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-marigold-500'
     return (
-      <Circle ref={ref} className={cn(iconSizes[size], colorClass, 'fill-current', className)} />
+      <Circle ref={ref} className={cn(iconSizes[size], colorClass, 'fill-current', className)} suppressHydrationWarning />
     )
   },
   Done: ({ size = 'sm', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-forest-900'
     return (
-      <CheckCircle ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <CheckCircle ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   Error: ({ size = 'sm', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-coral-500'
     return (
-      <AlertCircle ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <AlertCircle ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
 }
@@ -379,35 +378,35 @@ export const PriorityIcons = {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-coral-500'
     return (
-      <ArrowUp ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <ArrowUp ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   High: ({ size = 'sm', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-marigold-500'
     return (
-      <ArrowUp ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <ArrowUp ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   Medium: ({ size = 'sm', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-royal-950'
     return (
-      <ArrowRight ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <ArrowRight ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   Low: ({ size = 'sm', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-forest-900'
     return (
-      <ArrowDown ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <ArrowDown ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   Lowest: ({ size = 'sm', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-cloud-500'
     return (
-      <ArrowDown ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <ArrowDown ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
 }
@@ -418,35 +417,35 @@ export const WorkItemIcons = {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-purple-900'
     return (
-      <Zap ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <Zap ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   Story: ({ size = 'md', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-forest-900'
     return (
-      <FileText ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <FileText ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   Task: ({ size = 'md', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-royal-950'
     return (
-      <CheckCircle ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <CheckCircle ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   Bug: ({ size = 'md', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-coral-500'
     return (
-      <Bug ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <Bug ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
   Subtask: ({ size = 'md', className, autoContrast = false }: { size?: IconSize; className?: string; autoContrast?: boolean }) => {
     const { ref, contrastClass } = useAutoContrast(autoContrast)
     const colorClass = autoContrast ? contrastClass : 'text-cloud-600'
     return (
-      <List ref={ref} className={cn(iconSizes[size], colorClass, className)} />
+      <List ref={ref} className={cn(iconSizes[size], colorClass, className)} suppressHydrationWarning />
     )
   },
 } 

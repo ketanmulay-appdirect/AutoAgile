@@ -3,14 +3,14 @@
 import React, { useState } from 'react'
 import { JiraInstance } from '../types'
 import { JiraConnection } from '../components/jira-connection'
-import { DevsAIConnection } from '../components/devs-ai-connection'
+import { DevsAIConnection, type DevsAIConnection as DevsAIConnectionType } from '../components/devs-ai-connection'
 import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creator'
 import { TemplateConfiguration } from '../components/template-configuration'
 import { ContentStudio } from '../components/content-studio'
+import { Icons } from '../components/ui/icons'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
-import { DevsAIConnection as DevsAIConnectionType } from '../components/devs-ai-connection'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio'>('create')
@@ -83,32 +83,36 @@ export default function Home() {
 
   const navigationItems = [
     {
-      id: 'create-push',
+      id: 'create',
       label: 'Create & Push',
-      description: 'Create and push work items to Jira',
-      status: jiraConnection ? 'connected' : 'not-connected'
+      icon: Icons.Plus,
+      description: 'Create and push work items to Jira'
     },
     {
       id: 'content-studio',
       label: 'Content Studio',
+      icon: Icons.FileText,
       description: 'Generate content for existing work items'
     },
     {
-      id: 'jira-connection',
+      id: 'jira',
       label: 'Jira Connection',
+      icon: Icons.Link,
       description: 'Configure Jira instance connection',
-      status: jiraConnection ? 'connected' : 'not-connected'
+      status: jiraConnection ? 'connected' : 'disconnected'
     },
     {
-      id: 'devs-ai-connection',
+      id: 'devs-ai',
       label: 'Devs.ai Connection',
-      description: 'Configure AI service connection',
-      status: devsAIConnection ? 'connected' : 'not-connected'
+      icon: Icons.Zap,
+      description: 'Configure AI content generation',
+      status: devsAIConnection ? 'connected' : 'disconnected'
     },
     {
-      id: 'template-configuration',
-      label: 'Template Configuration',
-      description: 'Customize AI instructions and templates'
+      id: 'config',
+      label: 'Configure Templates',
+      icon: Icons.Settings,
+      description: 'Manage work item templates'
     }
   ] as const
 
@@ -119,10 +123,13 @@ export default function Home() {
         <div className="container mx-auto px-6 py-6">
           <div className="text-center">
             <div className="flex items-center justify-center mb-4">
-              <h1 className="text-3xl font-bold text-navy-950">AutoAgile</h1>
+              <Icons.Target size="xl" variant="accent" className="mr-3" />
+              <h1 className="text-4xl font-bold text-navy-950">
+                AutoAgile
+              </h1>
             </div>
             <p className="text-lg text-cloud-700 max-w-4xl mx-auto">
-              Generate and push professional Jira and presentation materials items using AI.
+              Generate and push professional Jira and presentation materials using AI.
             </p>
           </div>
         </div>
@@ -132,22 +139,11 @@ export default function Home() {
         {/* Navigation */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Button
-                variant="outline"
-                onClick={() => setCurrentView('create')}
-                className="md:hidden"
-              >
-                Navigation
-              </Button>
-            </CardTitle>
-            <CardDescription>
-              Choose a section to get started with your Jira AI workflow
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {navigationItems.map((item) => {
+                const IconComponent = item.icon
                 const isActive = currentView === item.id
                 
                 return (
@@ -157,6 +153,12 @@ export default function Home() {
                     className="h-auto p-4 flex flex-col items-center space-y-2 relative"
                     onClick={() => setCurrentView(item.id as any)}
                   >
+                    <div className="flex items-center space-x-2">
+                      <IconComponent 
+                        size="md" 
+                        autoContrast={isActive}
+                      />
+                    </div>
                     <div className="text-center">
                       <div className="font-medium text-sm">{item.label}</div>
                       <div className="text-xs opacity-75 mt-1">{item.description}</div>

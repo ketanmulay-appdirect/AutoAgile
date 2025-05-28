@@ -16,8 +16,7 @@ import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Alert, AlertDescription, AlertTitle } from './ui/alert'
 import { LoadingSpinner } from './ui/loading-spinner'
-import { Input } from './ui/input'
-import { WorkItemCard } from './work-item-card'
+import { Icons, StatusIcons } from './ui/icons'
 
 interface EnhancedWorkItemCreatorProps {
   jiraConnection: JiraInstance | null
@@ -503,6 +502,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
+            <Icons.Settings size="md" className="mr-2" />
             Configuration
           </CardTitle>
           <CardDescription>
@@ -607,6 +607,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           {/* Template Preview */}
           {currentTemplate && (
             <Alert variant="info">
+              <Icons.FileText size="sm" />
               <AlertTitle>Template: {currentTemplate.name}</AlertTitle>
               <AlertDescription>
                 <div className="space-y-2 mt-2">
@@ -630,6 +631,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               onClick={handleReset}
               disabled={isGenerating || isPushing}
             >
+              <Icons.RotateCcw size="sm" className="mr-2" />
               Reset Form
             </Button>
             
@@ -645,10 +647,12 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                 </>
               ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
                 <>
+                  <Icons.Settings size="sm" autoContrast className="mr-2" />
                   Setup Devs.ai API Key
                 </>
               ) : (
                 <>
+                  <Icons.Sparkles size="sm" autoContrast className="mr-2" />
                   Generate Content
                 </>
               )}
@@ -663,6 +667,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="flex items-center">
+                <Icons.FileText size="md" className="mr-2" />
                 Generated Content
               </CardTitle>
               <div className="flex space-x-2">
@@ -672,6 +677,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                     onClick={() => setIsEditing(true)}
                     disabled={isPushing}
                   >
+                    <Icons.Edit size="sm" className="mr-2" />
                     Edit Content
                   </Button>
                 )}
@@ -687,6 +693,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                     </>
                   ) : (
                     <>
+                      <Icons.Upload size="sm" autoContrast={!!jiraConnection} className="mr-2" />
                       Push to Jira
                     </>
                   )}
@@ -712,11 +719,13 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                 <div className="flex items-center space-x-3">
                   {jiraConnection ? (
                     <>
+                      <StatusIcons.Done size="sm" />
                       <Badge variant="success">Jira Connected</Badge>
                       <span className="text-xs text-cloud-600">({jiraConnection.url})</span>
                     </>
                   ) : (
                     <>
+                      <StatusIcons.Error size="sm" />
                       <Badge variant="destructive">Jira Not Connected</Badge>
                     </>
                   )}
@@ -735,6 +744,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                       </>
                     ) : (
                       <>
+                        <Icons.Upload size="sm" autoContrast className="mr-2" />
                         Create {workItemType.charAt(0).toUpperCase() + workItemType.slice(1)} in Jira
                       </>
                     )}
@@ -748,6 +758,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                     variant="outline"
                     size="lg"
                   >
+                    <Icons.Link size="sm" className="mr-2" />
                     Connect to Jira
                   </Button>
                 )}
@@ -760,6 +771,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       {/* Success Message with Jira Link */}
       {jiraIssueUrl && (
         <Alert variant="success">
+          <Icons.CheckCircle size="sm" />
           <AlertTitle>Issue Created Successfully!</AlertTitle>
           <AlertDescription>
             Your {workItemType} has been created in Jira.{' '}
@@ -778,6 +790,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       {/* Connection Status */}
       {!jiraConnection && (
         <Alert variant="warning">
+          <Icons.AlertTriangle size="sm" />
           <AlertTitle>Jira Not Connected</AlertTitle>
           <AlertDescription>
             Connect to Jira in the "Jira Connection" tab to push generated content directly to your instance.

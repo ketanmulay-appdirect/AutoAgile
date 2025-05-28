@@ -7,10 +7,9 @@ import { templateService, type WorkItemTemplate } from '../lib/template-service'
 import { contentInstructionService } from '../lib/content-instruction-service'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
-import { Input } from './ui/input'
 import { Badge } from './ui/badge'
 import { Alert, AlertDescription, AlertTitle } from './ui/alert'
-import { LoadingSpinner } from './ui/loading-spinner'
+import { Icons } from './ui/icons'
 
 interface TemplateConfigurationProps {
   onClose: () => void
@@ -83,7 +82,8 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
       {/* Header */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">
+          <CardTitle className="text-2xl flex items-center">
+            <Icons.Settings size="lg" className="mr-3" />
             Configure Templates
           </CardTitle>
           <CardDescription>
@@ -97,12 +97,14 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
               variant={activeSection === 'work-items' ? 'default' : 'outline'}
               onClick={() => setActiveSection('work-items')}
             >
+              <Icons.FileText size="sm" className="mr-2" />
               Work Item Templates
             </Button>
             <Button
               variant={activeSection === 'content-generation' ? 'default' : 'outline'}
               onClick={() => setActiveSection('content-generation')}
             >
+              <Icons.FileText size="sm" className="mr-2" />
               Content Generation Templates
             </Button>
           </div>
@@ -114,7 +116,8 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>
+              <CardTitle className="flex items-center">
+                <Icons.FileText size="md" className="mr-2" />
                 Work Item Templates
               </CardTitle>
               <CardDescription>
@@ -150,7 +153,8 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>
+              <CardTitle className="flex items-center">
+                <Icons.FileText size="md" className="mr-2" />
                 Content Generation Templates
               </CardTitle>
               <CardDescription>
@@ -167,6 +171,7 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
                   return (
                     <Card key={template.type} className="hover:shadow-md transition-all duration-200">
                       <CardHeader>
+                        <div className="text-3xl mb-2">{template.icon}</div>
                         <CardTitle className="text-lg">{template.title}</CardTitle>
                         <CardDescription>{template.description}</CardDescription>
                       </CardHeader>
@@ -186,6 +191,7 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
                           className="w-full"
                           size="sm"
                         >
+                          <Icons.Edit size="sm" className="mr-2" />
                           Edit Instructions
                         </Button>
                       </CardContent>

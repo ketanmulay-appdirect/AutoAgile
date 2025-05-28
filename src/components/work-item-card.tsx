@@ -3,7 +3,8 @@
 import React from 'react'
 import { JiraWorkItem } from '../types'
 import { Badge } from './ui/badge'
-import { Card, CardContent } from './ui/card'
+import { WorkItemIcons, StatusIcons } from './ui/icons'
+import { Card } from './ui/card'
 
 interface WorkItemCardProps {
   workItem: JiraWorkItem
@@ -184,6 +185,36 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
     }
   };
 
+  const getWorkItemIcon = (issueType: string) => {
+    switch (issueType.toLowerCase()) {
+      case 'epic':
+        return <WorkItemIcons.Epic size="sm" autoContrast={isSelected} />
+      case 'story':
+        return <WorkItemIcons.Story size="sm" autoContrast={isSelected} />
+      case 'task':
+        return <WorkItemIcons.Task size="sm" autoContrast={isSelected} />
+      case 'bug':
+        return <WorkItemIcons.Bug size="sm" autoContrast={isSelected} />
+      case 'subtask':
+        return <WorkItemIcons.Subtask size="sm" autoContrast={isSelected} />
+      default:
+        return <WorkItemIcons.Task size="sm" autoContrast={isSelected} />
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'done':
+        return <StatusIcons.Done size="xs" autoContrast={isSelected} />
+      case 'in progress':
+        return <StatusIcons.InProgress size="xs" autoContrast={isSelected} />
+      case 'in review':
+        return <StatusIcons.InReview size="xs" autoContrast={isSelected} />
+      default:
+        return <StatusIcons.Todo size="xs" autoContrast={isSelected} />
+    }
+  }
+
   return (
     <Card
       className={`cursor-pointer transition-all duration-200 hover:shadow-md jira-hover-lift ${
@@ -198,11 +229,13 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
           {/* Header with key, status, and type */}
           <div className="flex items-center flex-wrap gap-2">
             <div className="flex items-center space-x-2">
+              {getWorkItemIcon(workItem.issueType)}
               <Badge variant="outline" className="font-mono text-xs">
                 {workItem.key}
               </Badge>
             </div>
             <div className="flex items-center space-x-1">
+              {getStatusIcon(workItem.status)}
               <Badge variant={getStatusVariant(workItem.status) as any} className="text-xs">
                 {workItem.status}
               </Badge>
@@ -247,6 +280,7 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
         {isSelected && (
           <div className="mt-4 pt-4 border-t border-royal-200">
             <div className="flex items-center text-royal-950 text-sm">
+              <StatusIcons.Done size="sm" className="mr-2" />
               Selected for content generation
             </div>
           </div>

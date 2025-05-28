@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { Icons } from './icons'
 
 export interface Toast {
   id: string
@@ -35,16 +36,16 @@ export function Toast({ toast, onRemove }: ToastProps) {
     }, 300)
   }
 
-  const getIndicator = () => {
+  const getIcon = () => {
     switch (toast.type) {
       case 'success':
-        return '✓'
+        return <Icons.CheckCircle size="md" variant="success" />
       case 'error':
-        return '✗'
+        return <Icons.AlertCircle size="md" variant="danger" />
       case 'warning':
-        return '⚠'
+        return <Icons.AlertTriangle size="md" variant="warning" />
       case 'info':
-        return 'ℹ'
+        return <Icons.Info size="md" variant="info" />
     }
   }
 
@@ -70,9 +71,7 @@ export function Toast({ toast, onRemove }: ToastProps) {
     >
       <div className="flex items-start">
         <div className="flex-shrink-0">
-          <span className="text-lg font-semibold">
-            {getIndicator()}
-          </span>
+          {getIcon()}
         </div>
         <div className="ml-3 flex-1">
           <h3 className="text-sm font-medium text-navy-950">{toast.title}</h3>
@@ -84,7 +83,7 @@ export function Toast({ toast, onRemove }: ToastProps) {
           onClick={handleRemove}
           className="ml-4 flex-shrink-0 text-cloud-500 hover:text-cloud-700 transition-colors"
         >
-          <span className="text-lg">×</span>
+          <Icons.X size="sm" />
         </button>
       </div>
     </div>

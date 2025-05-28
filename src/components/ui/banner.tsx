@@ -1,100 +1,132 @@
-'use client'
+import React, { useState, useEffect } from 'react'
+import { Icons } from './icons'
 
-import React from 'react'
-import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from '../../lib/utils'
-
-const bannerVariants = cva(
-  'relative w-full rounded-lg border p-4',
-  {
-    variants: {
-      variant: {
-        default: 'bg-cloud-50 text-cloud-950 border-cloud-200',
-        destructive: 'bg-coral-50 text-coral-950 border-coral-200',
-        success: 'bg-mint-50 text-mint-950 border-mint-200',
-        warning: 'bg-marigold-50 text-marigold-950 border-marigold-200',
-        info: 'bg-sky-50 text-sky-950 border-sky-200',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-    },
+interface BannerProps {
+  type: 'success' | 'error' | 'warning' | 'info'
+  title: string
+  message?: string
+  action?: {
+    label: string
+    onClick: () => void
   }
-)
-
-export interface BannerProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof bannerVariants> {
-  title?: string
-  description?: string
   onDismiss?: () => void
+  autoHide?: boolean
+  duration?: number
 }
 
-const getIndicator = (variant: string) => {
-  switch (variant) {
-    case 'success':
-      return '✓'
-    case 'destructive':
-      return '✗'
-    case 'warning':
-      return '⚠'
-    case 'info':
-      return 'ℹ'
-    default:
-      return '•'
+export function Banner({
+  type,
+  title,
+  message,
+  action,
+  onDismiss,
+  autoHide = false,
+  duration = 5000
+}: BannerProps) {
+  const [isVisible, setIsVisible] = useState(true)
+  const [isAnimating, setIsAnimating] = useState(false)
+
+  useEffect(() => {
+    if (autoHide) {
+      const timer = setTimeout(() => {
+        handleDismiss()
+      }, duration)
+      return () => clearTimeout(timer)
+    }
+  }, [autoHide, duration])
+
+  const handleDismiss = () => {
+    setIsAnimating(true)
+    setTimeout(() => {
+      setIsVisible(false)
+      onDismiss?.()
+    }, 300)
   }
-}
 
-const Banner = React.forwardRef<HTMLDivElement, BannerProps>(
-  ({ className, variant = 'default', title, description, onDismiss, children, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={cn(bannerVariants({ variant }), className)}
-        {...props}
-      >
-        <div className="flex items-start space-x-3">
-          <div className="flex-shrink-0 mt-0.5">
-            <span className="text-lg font-semibold">
-              {getIndicator(variant || 'default')}
-            </span>
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            {title && (
-              <h3 className="text-sm font-semibold mb-1">
-                {title}
-              </h3>
-            )}
-            
-            {description && (
-              <div className="text-sm opacity-90">
-                {description}
-              </div>
-            )}
-            
-            {children && (
-              <div className="mt-2">
-                {children}
-              </div>
-            )}
-          </div>
-          
-          {onDismiss && (
-            <button
-              onClick={onDismiss}
-              className="flex-shrink-0 ml-auto pl-3 opacity-70 hover:opacity-100 transition-opacity"
-              aria-label="Dismiss"
-            >
-              <span className="text-lg">×</span>
-            </button>
+  const getIcon = () => {
+    switch (type) {
+      case 'success':
+        return <Icons.CheckCircle size="md" variant="success" />
+      case 'error':
+        return <Icons.AlertCircle size="md" variant="danger" />
+      case 'warning':
+        return <Icons.AlertTriangle size="md" variant="warning" />
+      case 'info':
+        return <Icons.Info size="md" variant="info" />
+    }
+  }
+
+  const getBackgroundColor = () => {
+    switch (type) {
+      case 'success': return 'bg-mint-50 border-forest-900'
+      case 'error': return 'bg-coral-50 border-coral-500'
+      case 'warning': return 'bg-marigold-50 border-marigold-500'
+      case 'info': return 'bg-sky-50 border-sky-300'
+    }
+  }
+
+  const getTextColor = () => {
+    switch (type) {
+      case 'success': return 'text-forest-900'
+      case 'error': return 'text-coral-900'
+      case 'warning': return 'text-marigold-900'
+      case 'info': return 'text-navy-950'
+    }
+  }
+
+  const getActionColor = () => {
+    switch (type) {
+      case 'success': return 'text-forest-900 hover:text-forest-800'
+      case 'error': return 'text-coral-900 hover:text-coral-800'
+      case 'warning': return 'text-marigold-900 hover:text-marigold-800'
+      case 'info': return 'text-royal-950 hover:text-royal-900'
+    }
+  }
+
+  if (!isVisible) return null
+
+  return (
+    <div
+      className={`
+        transform transition-all duration-300 ease-in-out
+        ${isAnimating ? 'translate-y-[-100%] opacity-0' : 'translate-y-0 opacity-100'}
+        ${getBackgroundColor()}
+        border-l-4 rounded-lg p-4 mb-4
+      `}
+    >
+      <div className="flex items-start">
+        <div className="flex-shrink-0">
+          {getIcon()}
+        </div>
+        <div className="ml-3 flex-1">
+          <h3 className={`text-sm font-medium ${getTextColor()}`}>
+            {title}
+          </h3>
+          {message && (
+            <p className={`mt-1 text-sm ${getTextColor()} opacity-90`}>
+              {message}
+            </p>
+          )}
+          {action && (
+            <div className="mt-3">
+              <button
+                onClick={action.onClick}
+                className={`text-sm font-medium ${getActionColor()} underline hover:no-underline transition-all`}
+              >
+                {action.label}
+              </button>
+            </div>
           )}
         </div>
+        {onDismiss && (
+          <button
+            onClick={handleDismiss}
+            className="ml-4 flex-shrink-0 text-cloud-500 hover:text-cloud-700 transition-colors"
+          >
+            <Icons.X size="sm" />
+          </button>
+        )}
       </div>
-    )
-  }
-)
-
-Banner.displayName = 'Banner'
-
-export { Banner, bannerVariants } 
+    </div>
+  )
+} 
