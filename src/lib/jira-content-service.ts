@@ -161,6 +161,72 @@ class JiraContentService {
     issueKey: string
   ): Promise<JiraWorkItem> {
     try {
+      const response = await fetch('/api/jira/get-work-item-details', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          jiraInstance, 
+          issueKey
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        const errorMessage = errorData.error || `HTTP ${response.status}`
+        
+        console.error('Work item details API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorMessage,
+          issueKey
+        })
+        
+        // Provide specific error messages based on status code
+        if (response.status === 404) {
+          throw new Error(`Work item ${issueKey} not found or you don't have permission to access it`)
+        } else if (response.status === 401) {
+          throw new Error('Authentication failed. Please check your Jira credentials.')
+        } else if (response.status === 403) {
+          throw new Error(`Access denied to work item ${issueKey}. Please check your permissions.`)
+        } else if (response.status === 400) {
+          throw new Error(errorMessage)
+        }
+        
+        throw new Error(`Failed to fetch work item details: ${errorMessage}`)
+      }
+
+      const data = await response.json()
+      if (!data.workItem) {
+        throw new Error('Work item not found in response')
+      }
+
+      return data.workItem
+    } catch (error) {
+      console.error('Failed to fetch work item details:', error)
+      
+      // Re-throw the error with the original message if it's already a user-friendly message
+      if (error instanceof Error && (
+        error.message.includes('not found') ||
+        error.message.includes('Authentication failed') ||
+        error.message.includes('Access denied') ||
+        error.message.includes('Missing')
+      )) {
+        throw error
+      }
+      
+      // Generic fallback error
+      throw new Error(`Unable to fetch work item details for ${issueKey}. Please check your connection and try again.`)
+    }
+  }
+
+  // Legacy method - keeping for backward compatibility but updating implementation
+  async getWorkItemLegacy(
+    jiraInstance: JiraInstance,
+    issueKey: string
+  ): Promise<JiraWorkItem> {
+    try {
       const response = await fetch('/api/jira/get-work-items', {
         method: 'POST',
         headers: {

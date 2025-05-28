@@ -28,14 +28,14 @@ export default function Home() {
       }
     }
 
-    // Load DevS.ai connection
+    // Load Devs.ai connection
     const savedDevsAIConnection = localStorage.getItem('devs-ai-connection')
     if (savedDevsAIConnection) {
       try {
         const parsed = JSON.parse(savedDevsAIConnection)
         setDevsAIConnection(parsed)
       } catch (error) {
-        console.error('Failed to parse saved DevS.ai connection:', error)
+        console.error('Failed to parse saved Devs.ai connection:', error)
         localStorage.removeItem('devs-ai-connection')
       }
     }
@@ -125,7 +125,6 @@ export default function Home() {
               }`}
             >
               Content Studio
-              <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">NEW</span>
             </button>
             <button
               onClick={() => setCurrentView('jira')}
@@ -148,7 +147,7 @@ export default function Home() {
                   : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
               }`}
             >
-              DevS.ai Connection
+              Devs.ai Connection
               {devsAIConnection && (
                 <span className="ml-2 w-2 h-2 bg-green-500 rounded-full inline-block"></span>
               )}

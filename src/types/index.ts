@@ -36,13 +36,17 @@ export interface JiraWorkItem {
   id: string
   key: string
   summary: string
-  description: string
+  description: string | any // Can be string or ADF object
   issueType: string
   status: string
   project: string
   fixVersions: string[]
   labels: string[]
   deliveryQuarter?: string
+  assignee?: string | null
+  reporter?: string | null
+  created?: string | null
+  updated?: string | null
 }
 
 export interface AIInstructionTemplate {

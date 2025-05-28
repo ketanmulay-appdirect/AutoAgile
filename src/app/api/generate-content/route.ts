@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     await new Promise(resolve => setTimeout(resolve, 1500))
 
     // Mock content generation based on content type
-    const mockContent = generateMockContent(contentType, workItem, prompt)
+    const mockContent = generateMockContent(contentType, workItem)
 
     return NextResponse.json({
       success: true,
@@ -39,15 +39,128 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generateMockContent(contentType: string, workItem: string, _prompt: string): string {
+function generateMockContent(contentType: string, workItem: unknown): string {
   const timestamp = new Date().toLocaleString()
+  
+  // Extract work item details
+  const workItemKey = typeof workItem === 'string' ? workItem : (workItem as any)?.key || 'Unknown'
+  const workItemSummary = typeof workItem === 'object' ? (workItem as any)?.summary || 'Unknown Feature' : 'Unknown Feature'
+  const workItemDescription = typeof workItem === 'object' ? (workItem as any)?.description || 'No description available' : 'No description available'
+  const workItemProject = typeof workItem === 'object' ? (workItem as any)?.project || 'Unknown Project' : 'Unknown Project'
+  const workItemType = typeof workItem === 'object' ? (workItem as any)?.issueType || 'Unknown Type' : 'Unknown Type'
+  
+  // Helper function to extract text from Jira ADF (Atlassian Document Format)
+  const extractTextFromDescription = (description: unknown): string => {
+    if (typeof description === 'string') {
+      return description
+    }
+    
+    if (description && typeof description === 'object' && (description as any).content) {
+      const extractText = (node: any): string => {
+        if (node.text) {
+          return node.text
+        }
+        if (node.content && Array.isArray(node.content)) {
+          return node.content.map(extractText).join(' ')
+        }
+        return ''
+      }
+      
+      return (description as any).content.map(extractText).join('\n').trim()
+    }
+    
+    return 'No description available'
+  }
+  
+  // Helper function to extract Problem Description and Solution Description sections
+  const extractProblemAndSolution = (description: unknown): { problemDescription: string; solutionDescription: string } => {
+    const fullText = extractTextFromDescription(description)
+    
+    // Initialize result
+    let problemDescription = ''
+    let solutionDescription = ''
+    
+    // Split text into lines for processing
+    const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+    
+    let currentSection = ''
+    let problemLines: string[] = []
+    let solutionLines: string[] = []
+    
+    for (const line of lines) {
+      // Check for section headings (case insensitive)
+      const lowerLine = line.toLowerCase()
+      
+      if (lowerLine.includes('problem description') || 
+          lowerLine.includes('problem statement') ||
+          lowerLine.includes('the problem') ||
+          (lowerLine.startsWith('problem') && lowerLine.includes(':'))) {
+        currentSection = 'problem'
+        continue
+      }
+      
+      if (lowerLine.includes('solution description') || 
+          lowerLine.includes('solution statement') ||
+          lowerLine.includes('the solution') ||
+          lowerLine.includes('proposed solution') ||
+          (lowerLine.startsWith('solution') && lowerLine.includes(':'))) {
+        currentSection = 'solution'
+        continue
+      }
+      
+      // Skip obvious headings (lines that are very short and might be section headers)
+      if (line.length < 10 && (line.includes('#') || line.includes('###'))) {
+        continue
+      }
+      
+      // Add content to appropriate section
+      if (currentSection === 'problem' && line.length > 10) {
+        problemLines.push(line)
+      } else if (currentSection === 'solution' && line.length > 10) {
+        solutionLines.push(line)
+      }
+    }
+    
+    // Join the lines and clean up
+    problemDescription = problemLines.join(' ').trim()
+    solutionDescription = solutionLines.join(' ').trim()
+    
+    // If we didn't find specific sections, try to extract from the beginning of the description
+    if (!problemDescription && !solutionDescription && fullText.length > 50) {
+      // Take first half as problem, second half as solution (fallback)
+      const sentences = fullText.split(/[.!?]+/).filter(s => s.trim().length > 10)
+      if (sentences.length >= 2) {
+        const midPoint = Math.ceil(sentences.length / 2)
+        problemDescription = sentences.slice(0, midPoint).join('. ').trim() + '.'
+        solutionDescription = sentences.slice(midPoint).join('. ').trim() + '.'
+      } else {
+        // If very short, use the whole thing as problem description
+        problemDescription = fullText
+      }
+    }
+    
+    return {
+      problemDescription: problemDescription || 'No problem description available',
+      solutionDescription: solutionDescription || 'No solution description available'
+    }
+  }
+  
+  const { problemDescription, solutionDescription } = extractProblemAndSolution(workItemDescription)
   
   switch (contentType) {
     case 'quarterly-presentation':
-      return `# Quarterly Business Review - ${workItem}
+      return `# Quarterly Business Review - ${workItemSummary}
 
 ## Executive Summary
-This quarter's focus on ${workItem} represents a strategic investment in our platform capabilities, designed to deliver measurable business value and enhanced customer experience.
+This quarter's focus on **${workItemSummary}** (${workItemKey}) represents a strategic investment in our platform capabilities, designed to deliver measurable business value and enhanced customer experience.
+
+### Project Context
+- **Project**: ${workItemProject}
+- **Work Item Type**: ${workItemType}
+- **Key**: ${workItemKey}
+
+## Feature Overview
+${problemDescription}
 
 ## Key Achievements
 - ✅ Requirements gathering and stakeholder alignment completed
@@ -59,7 +172,7 @@ This quarter's focus on ${workItem} represents a strategic investment in our pla
 - **Customer Satisfaction**: Target 85% positive feedback
 - **User Adoption**: Projected 60% uptake within 30 days
 - **Performance**: 25% improvement in key workflows
-- **Revenue Impact**: Estimated $X increase in quarterly revenue
+- **Revenue Impact**: Estimated positive impact on quarterly revenue
 
 ## Technical Highlights
 - Scalable architecture supporting future growth
@@ -82,10 +195,10 @@ This quarter's focus on ${workItem} represents a strategic investment in our pla
 *Generated on ${timestamp} using AI-powered content generation*`
 
     case 'customer-webinar':
-      return `# Introducing Our Latest Innovation: ${workItem}
+      return `# Introducing Our Latest Innovation: ${workItemSummary}
 
 ## Welcome & Agenda
-Thank you for joining us today! We're excited to showcase how ${workItem} will transform your daily workflows and drive better business outcomes.
+Thank you for joining us today! We're excited to showcase how **${workItemSummary}** (${workItemKey}) will transform your daily workflows and drive better business outcomes.
 
 **Today's Agenda:**
 - The challenge we're solving
@@ -95,14 +208,12 @@ Thank you for joining us today! We're excited to showcase how ${workItem} will t
 - Q&A session
 
 ## The Challenge
-Based on extensive customer feedback, we identified key pain points in your current workflows:
-- Time-consuming manual processes
-- Limited visibility into performance metrics
-- Difficulty in collaboration across teams
-- Inconsistent user experiences
+${problemDescription}
+
+Based on extensive customer feedback, we identified key pain points in your current workflows that this feature addresses.
 
 ## Solution Overview
-${workItem} addresses these challenges through:
+**${workItemSummary}** addresses these challenges through:
 - **Automated Workflows**: Reduce manual effort by up to 50%
 - **Real-time Analytics**: Instant insights into performance
 - **Enhanced Collaboration**: Seamless team coordination
@@ -158,93 +269,31 @@ Thank you for your time today. We're excited to partner with you on this journey
 *Generated on ${timestamp} for customer webinar presentation*`
 
     case 'feature-newsletter':
-      return `# 🚀 Exciting Update: ${workItem} is Now Live!
+      // Extract a clean title from the work item summary
+      const cleanTitle = workItemSummary.replace(/^\d{4}Q\d\s*-\s*\[[^\]]+\]\s*-\s*/, '').trim()
+      const shortTitle = cleanTitle.length > 60 ? cleanTitle.substring(0, 57) + '...' : cleanTitle
+      
+      return `${shortTitle}
 
-## What's New
-We're thrilled to announce the launch of ${workItem}, a powerful new addition to our platform that will revolutionize how you work and collaborate.
+${problemDescription.length > 0 ? 
+  `${problemDescription.substring(0, 300).replace(/\n/g, ' ').trim()}${problemDescription.length > 300 ? '...' : ''}` :
+  `This feature addresses critical business pain points and user friction that have been limiting productivity and efficiency in daily operations. Our customers have been requesting enhanced capabilities to streamline workflows and reduce manual overhead in their core business processes.`
+}
 
-## Why This Matters
-This feature was developed in direct response to your feedback and represents our commitment to continuously improving your experience. It addresses key challenges while opening up new possibilities for efficiency and growth.
-
-## Key Benefits at a Glance
-🎯 **Increased Productivity**: Streamline workflows and reduce manual tasks
-📊 **Better Insights**: Access real-time data and analytics
-🤝 **Enhanced Collaboration**: Work seamlessly with your team
-🔒 **Improved Security**: Enterprise-grade protection for your data
-⚡ **Faster Performance**: Optimized for speed and reliability
-
-## How to Get Started
-Getting started is simple:
-
-1. **Log into your dashboard** - The feature is available now
-2. **Look for the new section** - Find it in your main navigation
-3. **Follow the setup wizard** - We'll guide you through configuration
-4. **Explore the tutorials** - Learn best practices and advanced tips
-
-## Feature Highlights
-
-### Intuitive Design
-The interface has been carefully crafted to be both powerful and easy to use, ensuring you can be productive from day one.
-
-### Smart Automation
-Leverage AI-powered automation to handle routine tasks, freeing up your time for more strategic work.
-
-### Comprehensive Analytics
-Gain insights into your performance with detailed reporting and customizable dashboards.
-
-### Seamless Integration
-Works perfectly with your existing tools and workflows - no disruption to your current processes.
-
-## Customer Spotlight
-*"This feature has completely transformed our workflow. What used to take hours now takes minutes, and the insights we're getting are invaluable for our decision-making."*
-— Alex Chen, Product Manager
-
-## Resources to Help You Succeed
-📚 **Documentation**: Comprehensive guides and API references
-🎥 **Video Tutorials**: Step-by-step walkthroughs
-💬 **Community Forum**: Connect with other users and share tips
-🎧 **Support Team**: Expert help when you need it
-
-## Training & Support
-- **Live Training Sessions**: Join our weekly onboarding calls
-- **Office Hours**: Drop-in sessions with our product experts
-- **Help Center**: Updated with new articles and FAQs
-- **In-App Guidance**: Contextual tips and tutorials
-
-## Share Your Feedback
-Your input is crucial for our continued improvement:
-- **Feature Requests**: Tell us what you'd like to see next
-- **Bug Reports**: Help us maintain quality and reliability
-- **Success Stories**: Share how the feature is helping your team
-- **General Feedback**: We value all your thoughts and suggestions
-
-## What's Coming Next
-We're already working on exciting enhancements:
-- Advanced customization options
-- Additional integration partnerships
-- Mobile app improvements
-- Enhanced reporting capabilities
-
-## Stay Connected
-Don't miss future updates and announcements:
-- Follow us on social media
-- Subscribe to our product newsletter
-- Join our user community
-- Attend our monthly product showcases
-
-## Thank You
-Thank you for being part of our community and for your continued trust in our platform. We're excited to see how you'll use this new capability to achieve your goals.
-
-Have questions or feedback? Reply to this email or reach out to our support team at support@company.com.
-
----
-*Happy building!*
-The Product Team
-
-*Generated on ${timestamp} for feature announcement newsletter*`
+${solutionDescription.length > 0 ? 
+  `${solutionDescription.substring(0, 300).replace(/\n/g, ' ').trim()}${solutionDescription.length > 300 ? '...' : ''}` :
+  `${shortTitle} solves these challenges by providing an integrated solution that streamlines workflows, enhances data visibility, and improves collaboration across teams. The feature seamlessly integrates into our existing platform, giving customers immediate value while maintaining the familiar user experience they trust, enabling teams to focus on strategic initiatives rather than manual tasks.`
+}`
 
     default:
-      return `# Content Generated for ${workItem}
+      return `# Content Generated for ${workItemSummary}
+
+**Work Item**: ${workItemKey}
+**Project**: ${workItemProject}
+**Type**: ${workItemType}
+
+## Description
+${problemDescription}
 
 This is a placeholder content generated for ${contentType}.
 

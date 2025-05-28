@@ -20,6 +20,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   const [workItemType, setWorkItemType] = useState<WorkItemType>('epic')
   const [workItems, setWorkItems] = useState<JiraWorkItem[]>([])
   const [selectedWorkItem, setSelectedWorkItem] = useState<JiraWorkItem | null>(null)
+  const [detailedWorkItem, setDetailedWorkItem] = useState<JiraWorkItem | null>(null)
+  const [loadingWorkItemDetails, setLoadingWorkItemDetails] = useState(false)
   const [selectedContentType, setSelectedContentType] = useState<ContentType | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingQuarters, setLoadingQuarters] = useState(false)
@@ -277,9 +279,39 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     lastLoadedStateRef.current = ''
   }
 
-  const handleWorkItemSelect = (workItem: JiraWorkItem) => {
+  const handleWorkItemSelect = async (workItem: JiraWorkItem) => {
+    if (!jiraConnection) return
+    
     setSelectedWorkItem(workItem)
-    setSelectedContentType(null)
+    setLoadingWorkItemDetails(true)
+    setDetailedWorkItem(null)
+    setError(null)
+    
+    try {
+      const detailedItem = await jiraContentService.getWorkItem(jiraConnection, workItem.key)
+      setDetailedWorkItem(detailedItem)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      console.error('Failed to load work item details:', err)
+      
+      // Show user-friendly error message
+      setError(`Failed to load details for ${workItem.key}: ${errorMessage}`)
+      
+      // For certain errors, we can still show the basic work item info
+      if (errorMessage.includes('not found') || errorMessage.includes('Access denied') || errorMessage.includes('Authentication failed')) {
+        // Use the basic work item data as fallback
+        setDetailedWorkItem({
+          ...workItem,
+          description: workItem.description || 'Description not available - insufficient permissions or work item not found.',
+          assignee: null,
+          reporter: null,
+          created: null,
+          updated: null
+        })
+      }
+    } finally {
+      setLoadingWorkItemDetails(false)
+    }
   }
 
   const handleContentTypeSelect = (contentType: ContentType) => {
@@ -292,6 +324,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
 
   const handleBackToWorkItems = () => {
     setSelectedWorkItem(null)
+    setDetailedWorkItem(null)
     setSelectedContentType(null)
   }
 
@@ -615,12 +648,12 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     )
   }
 
-  if (selectedContentType && selectedWorkItem) {
+  if (selectedContentType && selectedWorkItem && (detailedWorkItem || selectedWorkItem)) {
     return (
       <ContentGenerator
         jiraConnection={jiraConnection}
         devsAIConnection={devsAIConnection}
-        workItem={selectedWorkItem}
+        workItem={detailedWorkItem || selectedWorkItem}
         contentType={selectedContentType}
         deliveryQuarter={selectedQuarter}
         onBack={handleBackToSelection}
@@ -648,7 +681,15 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column - Work item details */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="bg-white rounded-lg shadow-lg p-6 relative">
+              {/* Loading overlay for work item details */}
+              {loadingWorkItemDetails && (
+                <div className="absolute inset-0 bg-white bg-opacity-90 rounded-lg flex flex-col items-center justify-center z-10">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3"></div>
+                  <p className="text-sm text-blue-600 font-medium">Loading work item details...</p>
+                </div>
+              )}
+              
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Work Item Details</h2>
               
               {/* Work item header */}
@@ -690,15 +731,61 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     <p className="text-gray-900">{selectedWorkItem.labels.join(', ')}</p>
                   </div>
                 )}
+                {detailedWorkItem?.assignee && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Assignee:</span>
+                    <p className="text-gray-900">{detailedWorkItem.assignee}</p>
+                  </div>
+                )}
+                {detailedWorkItem?.reporter && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Reporter:</span>
+                    <p className="text-gray-900">{detailedWorkItem.reporter}</p>
+                  </div>
+                )}
               </div>
 
               {/* Full description */}
               <div>
                 <span className="text-sm font-medium text-gray-500">Description:</span>
-                <div className="mt-2 p-4 bg-gray-50 rounded-lg">
-                  {formatJiraDescription(selectedWorkItem.description)}
-                </div>
+                {detailedWorkItem ? (
+                  <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+                    {formatJiraDescription(detailedWorkItem.description)}
+                  </div>
+                ) : !loadingWorkItemDetails ? (
+                  <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+                    <p className="text-gray-500 italic">Click on a work item to load full description</p>
+                  </div>
+                ) : (
+                  <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gray-300 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-300 rounded w-1/2 mb-2"></div>
+                      <div className="h-4 bg-gray-300 rounded w-5/6"></div>
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* Warning message when using fallback data */}
+              {!detailedWorkItem && !loadingWorkItemDetails && error && (
+                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-start">
+                    <svg className="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <h4 className="text-sm font-medium text-yellow-800">Limited Information Available</h4>
+                      <p className="text-sm text-yellow-700 mt-1">
+                        {error}
+                      </p>
+                      <p className="text-sm text-yellow-700 mt-2">
+                        You can still generate content using the basic work item information, but the results may be less detailed.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -706,38 +793,54 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Choose Content Type</h3>
-              <div className="space-y-4">
-                <ContentTypeCard
-                  type="quarterly-presentation"
-                  title="Quarterly Presentation"
-                  description="Executive slide deck for quarterly business reviews"
-                  phase="Planning Phase"
-                  icon="📊"
-                  workItem={selectedWorkItem}
-                  onGenerate={(contentType) => handleContentTypeSelect(contentType)}
-                  onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
-                />
-                <ContentTypeCard
-                  type="customer-webinar"
-                  title="Customer Webinar"
-                  description="Customer-facing presentation content"
-                  phase="Planning Phase"
-                  icon="🎯"
-                  workItem={selectedWorkItem}
-                  onGenerate={(contentType) => handleContentTypeSelect(contentType)}
-                  onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
-                />
-                <ContentTypeCard
-                  type="feature-newsletter"
-                  title="Feature Newsletter"
-                  description="Newsletter content for feature announcement"
-                  phase="Post-Completion"
-                  icon="📰"
-                  workItem={selectedWorkItem}
-                  onGenerate={(contentType) => handleContentTypeSelect(contentType)}
-                  onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
-                />
-              </div>
+              {detailedWorkItem ? (
+                <div className="space-y-4">
+                  <ContentTypeCard
+                    type="quarterly-presentation"
+                    title="Quarterly Presentation"
+                    description="Executive slide deck for quarterly business reviews"
+                    phase="Planning Phase"
+                    icon="📊"
+                    workItem={detailedWorkItem}
+                    onGenerate={(contentType) => handleContentTypeSelect(contentType)}
+                    onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
+                  />
+                  <ContentTypeCard
+                    type="customer-webinar"
+                    title="Customer Webinar"
+                    description="Customer-facing presentation content"
+                    phase="Planning Phase"
+                    icon="🎯"
+                    workItem={detailedWorkItem}
+                    onGenerate={(contentType) => handleContentTypeSelect(contentType)}
+                    onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
+                  />
+                  <ContentTypeCard
+                    type="feature-newsletter"
+                    title="Feature Newsletter"
+                    description="Newsletter content for feature announcement"
+                    phase="Post-Completion"
+                    icon="📰"
+                    workItem={detailedWorkItem}
+                    onGenerate={(contentType) => handleContentTypeSelect(contentType)}
+                    onConfigure={(contentType) => handleOpenInstructionSection(contentType)}
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-500 text-sm">
+                    {loadingWorkItemDetails 
+                      ? 'Loading work item details...' 
+                      : 'Work item details will appear here'
+                    }
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -948,9 +1051,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                       </span>
                     </div>
                     <h4 className="font-medium text-gray-900 mb-2">{workItem.summary}</h4>
-                    <p className="text-sm text-gray-600">
-                      {truncateText(workItem.description)}
-                    </p>
+                    <p className="text-sm text-gray-500 italic">Click to view details and description</p>
                     {(workItem.labels && workItem.labels.length > 0) && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {workItem.labels.slice(0, 3).map((label, index) => (

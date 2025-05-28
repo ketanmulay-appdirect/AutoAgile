@@ -36,7 +36,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
 
   const testConnection = async () => {
     if (!connection.apiToken) {
-      setTestResult({ success: false, message: 'Please provide your DevS.ai API token' })
+      setTestResult({ success: false, message: 'Please provide your Devs.ai API token' })
       return
     }
 
@@ -87,7 +87,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">DevS.ai Connection</h2>
+        <h2 className="text-2xl font-bold">Devs.ai Connection</h2>
         {isConnected && (
           <div className="flex items-center space-x-2">
             <div className="w-3 h-3 bg-green-500 rounded-full"></div>
@@ -105,12 +105,12 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
             type="password"
             value={connection.apiToken || ''}
             onChange={(e) => handleInputChange('apiToken', e.target.value)}
-            placeholder="Your DevS.ai secret key (starts with sk-)"
+            placeholder="Your Devs.ai secret key (starts with sk-)"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isConnected}
           />
           <p className="mt-1 text-sm text-gray-500">
-            Your DevS.ai secret key from the API Keys page
+            Your Devs.ai secret key from the API Keys page
           </p>
         </div>
 
@@ -159,8 +159,8 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
             <h3 className="text-sm font-medium text-blue-800 mb-2">Setup Instructions:</h3>
             <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
-              <li>Create an account at <a href="https://devs.ai" target="_blank" rel="noopener noreferrer" className="underline">DevS.ai</a></li>
-              <li><strong>Log into your DevS.ai dashboard and keep it open</strong></li>
+              <li>Create an account at <a href="https://devs.ai" target="_blank" rel="noopener noreferrer" className="underline">Devs.ai</a></li>
+              <li><strong>Log into your Devs.ai dashboard and keep it open</strong></li>
               <li>Navigate to <a href="https://devs.ai/api-keys" target="_blank" rel="noopener noreferrer" className="underline">API Keys page</a></li>
               <li>Click "Create new secret key" and add appropriate scopes</li>
               <li>Copy the generated secret key (starts with "sk-")</li>
@@ -171,11 +171,11 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
             <h3 className="text-sm font-medium text-amber-800 mb-2">Important Authentication Notes:</h3>
             <ul className="text-sm text-amber-700 space-y-1 list-disc list-inside">
-              <li><strong>You must be logged into DevS.ai in your browser</strong> for API calls to work</li>
-              <li>DevS.ai uses both session authentication and API keys</li>
+              <li><strong>You must be logged into Devs.ai in your browser</strong> for API calls to work</li>
+              <li>Devs.ai uses both session authentication and API keys</li>
               <li>Required scopes: ai.read.self, ai.write.self, chats.read.self, chats.write.self</li>
               <li>Keep your secret key secure and never share it publicly</li>
-              <li>If you get authentication errors, ensure you're logged into DevS.ai</li>
+              <li>If you get authentication errors, ensure you're logged into Devs.ai</li>
             </ul>
           </div>
 

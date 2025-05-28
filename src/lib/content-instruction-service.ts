@@ -23,16 +23,22 @@ Format as structured content with clear headings and bullet points suitable for 
 
 Create content that is customer-friendly, avoids technical jargon, and focuses on value proposition.`,
 
-  'feature-newsletter': `Write newsletter content for feature announcement. Cover:
-- Catchy headline and introduction
-- Feature highlights and benefits
-- How customers can access/use it
-- Customer impact and value
-- Supporting resources and documentation
-- Feedback collection mechanism
-- What's coming next
+  'feature-newsletter': `You are writing newsletter content for a feature announcement. You must follow this EXACT format with NO headings, NO markdown formatting, and NO numbered lists:
 
-Tone should be informative yet exciting, suitable for both technical and non-technical audiences.`
+REQUIRED OUTPUT FORMAT:
+[Feature Title - max 12 words]
+
+[The Why paragraph - up to 150 words (80 recommended) describing the problem/limitation being addressed. Use professional, user-friendly tone appropriate for enterprise SaaS audience. Focus on business pain or user friction this solves.]
+
+[The How paragraph - up to 150 words (80 recommended) explaining how the feature solves the problem. Emphasize value/control it gives customers, how it fits into the platform, and outcomes it enables. Stay solution-focused.]
+
+IMPORTANT: 
+- Do NOT use any headings like "# Title" or "## The Why" 
+- Do NOT use numbered lists like "1. Title:"
+- Do NOT use markdown formatting
+- Just provide the title followed by two paragraphs
+- Keep tone informative yet exciting, suitable for both technical and non-technical audiences
+- Use AppDirect-style professional phrasing`
 }
 
 class ContentInstructionService {

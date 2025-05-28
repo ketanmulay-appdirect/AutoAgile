@@ -50,12 +50,104 @@ export function ContentGenerator({
   }
 
   const generateContent = useCallback(async () => {
+    if (!workItem) return
+    
     setIsGenerating(true)
-    setError(null)
-    setGeneratedContent('')
-
+    setGeneratedContent(null)
+    
     try {
       const instructions = contentInstructionService.getActiveInstructions(contentType)
+      
+      // Extract problem and solution descriptions
+      const extractProblemAndSolution = (description: any): { problemDescription: string; solutionDescription: string } => {
+        let fullText = ''
+        
+        // Extract text from description (handle both string and ADF formats)
+        if (typeof description === 'string') {
+          fullText = description
+        } else if (description && typeof description === 'object' && description.content) {
+          const extractText = (node: any): string => {
+            if (node.text) {
+              return node.text
+            }
+            if (node.content && Array.isArray(node.content)) {
+              return node.content.map(extractText).join(' ')
+            }
+            return ''
+          }
+          fullText = description.content.map(extractText).join('\n').trim()
+        }
+        
+        // Initialize result
+        let problemDescription = ''
+        let solutionDescription = ''
+        
+        // Split text into lines for processing
+        const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+        
+        let currentSection = ''
+        let problemLines: string[] = []
+        let solutionLines: string[] = []
+        
+        for (const line of lines) {
+          // Check for section headings (case insensitive)
+          const lowerLine = line.toLowerCase()
+          
+          if (lowerLine.includes('problem description') || 
+              lowerLine.includes('problem statement') ||
+              lowerLine.includes('the problem') ||
+              (lowerLine.startsWith('problem') && lowerLine.includes(':'))) {
+            currentSection = 'problem'
+            continue
+          }
+          
+          if (lowerLine.includes('solution description') || 
+              lowerLine.includes('solution statement') ||
+              lowerLine.includes('the solution') ||
+              lowerLine.includes('proposed solution') ||
+              (lowerLine.startsWith('solution') && lowerLine.includes(':'))) {
+            currentSection = 'solution'
+            continue
+          }
+          
+          // Skip obvious headings (lines that are very short and might be section headers)
+          if (line.length < 10 && (line.includes('#') || line.includes('###'))) {
+            continue
+          }
+          
+          // Add content to appropriate section
+          if (currentSection === 'problem' && line.length > 10) {
+            problemLines.push(line)
+          } else if (currentSection === 'solution' && line.length > 10) {
+            solutionLines.push(line)
+          }
+        }
+        
+        // Join the lines and clean up
+        problemDescription = problemLines.join(' ').trim()
+        solutionDescription = solutionLines.join(' ').trim()
+        
+        // If we didn't find specific sections, try to extract from the beginning of the description
+        if (!problemDescription && !solutionDescription && fullText.length > 50) {
+          // Take first half as problem, second half as solution (fallback)
+          const sentences = fullText.split(/[.!?]+/).filter(s => s.trim().length > 10)
+          if (sentences.length >= 2) {
+            const midPoint = Math.ceil(sentences.length / 2)
+            problemDescription = sentences.slice(0, midPoint).join('. ').trim() + '.'
+            solutionDescription = sentences.slice(midPoint).join('. ').trim() + '.'
+          } else {
+            // If very short, use the whole thing as problem description
+            problemDescription = fullText
+          }
+        }
+        
+        return {
+          problemDescription: problemDescription || 'No problem description available',
+          solutionDescription: solutionDescription || 'No solution description available'
+        }
+      }
+      
+      const { problemDescription, solutionDescription } = extractProblemAndSolution(workItem.description)
       
       const prompt = `${instructions}
 
@@ -65,13 +157,24 @@ Work Item Details:
 - Status: ${workItem.status}
 - Project: ${workItem.project}
 - Delivery Quarter: ${deliveryQuarter}
-- Description: ${workItem.description}
+- Problem Description: ${problemDescription}
+- Solution Description: ${solutionDescription}
 - Labels: ${workItem.labels?.join(', ') || 'None'}
 - Fix Versions: ${workItem.fixVersions?.join(', ') || 'None'}
 
-Please generate the content based on the above work item details and instructions. Format the output as structured content suitable for the specified content type.`
+${contentType === 'feature-newsletter' ? 
+`CRITICAL: You must output EXACTLY this format with NO headings, NO markdown, NO numbered lists:
 
-      // Use DevS.ai API if available, otherwise use a mock response
+[Clean feature title - max 12 words]
+
+[The Why paragraph - up to 150 words (80 recommended) about the problem/limitation]
+
+[The How paragraph - up to 150 words (80 recommended) about how the feature solves it]
+
+Do NOT include any headings like "# Title" or "## The Why". Just provide the title followed by two paragraphs.` : 
+''}`
+
+      // Use Devs.ai API if available, otherwise use a mock response
       if (devsAIConnection) {
         const response = await fetch('/api/generate-content', {
           method: 'POST',
@@ -81,7 +184,7 @@ Please generate the content based on the above work item details and instruction
           body: JSON.stringify({
             prompt,
             contentType,
-            workItem: workItem.key
+            workItem: workItem
           })
         })
 
@@ -102,9 +205,102 @@ Please generate the content based on the above work item details and instruction
     } finally {
       setIsGenerating(false)
     }
-  }, [devsAIConnection, contentType, workItem.key, workItem.summary, workItem.issueType, workItem.status, workItem.project, deliveryQuarter, workItem.description, workItem.labels, workItem.fixVersions])
+  }, [devsAIConnection, contentType, workItem.key, workItem.summary, workItem.issueType, workItem.status, workItem.project, deliveryQuarter, workItem.description])
 
   const generateMockContent = (type: ContentType, item: JiraWorkItem): string => {
+    const timestamp = new Date().toLocaleString()
+    
+    // Helper function to extract Problem Description and Solution Description sections
+    const extractProblemAndSolution = (description: any): { problemDescription: string; solutionDescription: string } => {
+      let fullText = ''
+      
+      // Extract text from description (handle both string and ADF formats)
+      if (typeof description === 'string') {
+        fullText = description
+      } else if (description && typeof description === 'object' && description.content) {
+        const extractText = (node: any): string => {
+          if (node.text) {
+            return node.text
+          }
+          if (node.content && Array.isArray(node.content)) {
+            return node.content.map(extractText).join(' ')
+          }
+          return ''
+        }
+        fullText = description.content.map(extractText).join('\n').trim()
+      }
+      
+      // Initialize result
+      let problemDescription = ''
+      let solutionDescription = ''
+      
+      // Split text into lines for processing
+      const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+      
+      let currentSection = ''
+      let problemLines: string[] = []
+      let solutionLines: string[] = []
+      
+      for (const line of lines) {
+        // Check for section headings (case insensitive)
+        const lowerLine = line.toLowerCase()
+        
+        if (lowerLine.includes('problem description') || 
+            lowerLine.includes('problem statement') ||
+            lowerLine.includes('the problem') ||
+            (lowerLine.startsWith('problem') && lowerLine.includes(':'))) {
+          currentSection = 'problem'
+          continue
+        }
+        
+        if (lowerLine.includes('solution description') || 
+            lowerLine.includes('solution statement') ||
+            lowerLine.includes('the solution') ||
+            lowerLine.includes('proposed solution') ||
+            (lowerLine.startsWith('solution') && lowerLine.includes(':'))) {
+          currentSection = 'solution'
+          continue
+        }
+        
+        // Skip obvious headings (lines that are very short and might be section headers)
+        if (line.length < 10 && (line.includes('#') || line.includes('###'))) {
+          continue
+        }
+        
+        // Add content to appropriate section
+        if (currentSection === 'problem' && line.length > 10) {
+          problemLines.push(line)
+        } else if (currentSection === 'solution' && line.length > 10) {
+          solutionLines.push(line)
+        }
+      }
+      
+      // Join the lines and clean up
+      problemDescription = problemLines.join(' ').trim()
+      solutionDescription = solutionLines.join(' ').trim()
+      
+      // If we didn't find specific sections, try to extract from the beginning of the description
+      if (!problemDescription && !solutionDescription && fullText.length > 50) {
+        // Take first half as problem, second half as solution (fallback)
+        const sentences = fullText.split(/[.!?]+/).filter(s => s.trim().length > 10)
+        if (sentences.length >= 2) {
+          const midPoint = Math.ceil(sentences.length / 2)
+          problemDescription = sentences.slice(0, midPoint).join('. ').trim() + '.'
+          solutionDescription = sentences.slice(midPoint).join('. ').trim() + '.'
+        } else {
+          // If very short, use the whole thing as problem description
+          problemDescription = fullText
+        }
+      }
+      
+      return {
+        problemDescription: problemDescription || 'No problem description available',
+        solutionDescription: solutionDescription || 'No solution description available'
+      }
+    }
+    
+    const { problemDescription, solutionDescription } = extractProblemAndSolution(item.description)
+
     switch (type) {
       case 'quarterly-presentation':
         return `# ${item.summary} - Quarterly Review
@@ -190,49 +386,21 @@ We'll now address your questions about this exciting new feature.
 Thank you for joining us today. We're excited to see how you'll use this new capability!`
 
       case 'feature-newsletter':
-        return `# 🎉 Exciting News: ${item.summary} is Here!
+        // Extract a clean title from the work item summary
+        const cleanTitle = item.summary.replace(/^\d{4}Q\d\s*-\s*\[[^\]]+\]\s*-\s*/, '').trim()
+        const shortTitle = cleanTitle.length > 60 ? cleanTitle.substring(0, 57) + '...' : cleanTitle
+        
+        return `${shortTitle}
 
-## What's New
-We're thrilled to announce the launch of ${item.summary}, a game-changing addition to our platform that will revolutionize how you work.
+${problemDescription.length > 0 ? 
+  `${problemDescription.substring(0, 300).replace(/\n/g, ' ').trim()}${problemDescription.length > 300 ? '...' : ''}` :
+  `This feature addresses critical business pain points and user friction that have been limiting productivity and efficiency in daily operations. Our customers have been requesting enhanced capabilities to streamline workflows and reduce manual overhead in their core business processes.`
+}
 
-## Why This Matters
-Based on your feedback and our commitment to continuous improvement, this feature addresses key pain points and opens up new possibilities for your workflows.
-
-## Key Benefits
-✅ **Improved Efficiency**: Streamline your daily tasks
-✅ **Better Insights**: Make data-driven decisions faster  
-✅ **Enhanced Collaboration**: Work seamlessly with your team
-✅ **Increased Productivity**: Focus on what matters most
-
-## How to Access
-The feature is now available in your dashboard. Look for the new [Feature Name] section in your main navigation.
-
-## Getting Started Guide
-1. Navigate to the new feature section
-2. Complete the quick setup wizard
-3. Explore the tutorial for best practices
-4. Start using the feature in your workflow
-
-## Resources & Support
-- 📖 **Documentation**: Comprehensive guides and tutorials
-- 🎥 **Video Tutorials**: Step-by-step walkthroughs
-- 💬 **Support**: Our team is here to help
-- 🌟 **Community**: Join the discussion in our user forum
-
-## We Want Your Feedback
-Your input drives our innovation. Share your experience and suggestions:
-- Email us at feedback@company.com
-- Join our user feedback sessions
-- Rate the feature in your dashboard
-
-## Coming Soon
-This is just the beginning! We're already working on exciting enhancements based on early user feedback.
-
-## Stay Connected
-Follow us for the latest updates and feature announcements.
-
----
-*Thank you for being part of our journey. Together, we're building something amazing!*`
+${solutionDescription.length > 0 ? 
+  `${solutionDescription.substring(0, 300).replace(/\n/g, ' ').trim()}${solutionDescription.length > 300 ? '...' : ''}` :
+  `${shortTitle} solves these challenges by providing an integrated solution that streamlines workflows, enhances data visibility, and improves collaboration across teams. The feature seamlessly integrates into our existing platform, giving customers immediate value while maintaining the familiar user experience they trust, enabling teams to focus on strategic initiatives rather than manual tasks.`
+}`
 
       default:
         return 'Content generation not implemented for this type.'

@@ -176,7 +176,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     }
   }, [jiraConnection, workItemType])
 
-  // Check for DevS.ai connection on component mount
+  // Check for Devs.ai connection on component mount
   useEffect(() => {
     if (devsAIConnection) {
       devsAIService.initialize(devsAIConnection.apiToken)
@@ -206,9 +206,9 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       return
     }
 
-    // Handle DevS.ai setup first if needed
+    // Handle Devs.ai setup first if needed
     if (aiModel === 'devs-ai' && !isDevsAIReady) {
-      warning('DevS.ai Not Connected', 'Please connect to DevS.ai first in the DevS.ai Connection tab.')
+      warning('Devs.ai Not Connected', 'Please connect to Devs.ai first in the Devs.ai Connection tab.')
       return
     }
 
@@ -220,16 +220,16 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       // Generate custom prompt using template
       const customPrompt = templateService.generatePrompt(currentTemplate, description)
       
-      // Handle DevS.ai separately
+      // Handle Devs.ai separately
       if (aiModel === 'devs-ai') {
-        // Use DevS.ai service to generate content with custom prompt
+        // Use Devs.ai service to generate content with custom prompt
         const devsAIContent = await devsAIService.generateContent(customPrompt, selectedDevsAIModel)
         
         // Parse the generated content into the expected format
         const content = parseGeneratedContent(devsAIContent, workItemType)
         setGeneratedContent(content)
         
-        success('Content Generated', `${workItemType} content has been generated successfully using DevS.ai (${selectedDevsAIModel}) with ${currentTemplate.name}.`)
+        success('Content Generated', `${workItemType} content has been generated successfully using Devs.ai (${selectedDevsAIModel}) with ${currentTemplate.name}.`)
       } else {
         // Handle other AI models with custom prompt
         const response = await fetch('/api/generate-content', {
@@ -488,11 +488,6 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     <div className="space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       
-      {/* Debug indicator */}
-      <div className="bg-green-100 border border-green-300 rounded-md p-3 text-sm text-green-800 font-medium">
-        ✅ Enhanced Work Item Creator - Push to Jira functionality is available!
-      </div>
-      
       {/* Header */}
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Work Item</h2>
@@ -554,16 +549,16 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               <option value="openai">OpenAI GPT-4</option>
               <option value="anthropic">Anthropic Claude</option>
               <option value="devs-ai">
-                {isDevsAIReady ? 'DevS.ai (Multiple LLMs) ✓' : 'DevS.ai (Multiple LLMs) - Setup Required'}
+                {isDevsAIReady ? 'Devs.ai (Multiple LLMs) ✓' : 'Devs.ai (Multiple LLMs) - Setup Required'}
               </option>
             </select>
           </div>
 
-          {/* DevS.ai Model Selection */}
+          {/* Devs.ai Model Selection */}
           {aiModel === 'devs-ai' && isDevsAIReady && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                DevS.ai Model
+                Devs.ai Model
               </label>
               <select
                 value={selectedDevsAIModel}
@@ -639,7 +634,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                 <span>Generating...</span>
               </div>
             ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
-              'Setup DevS.ai API Key'
+              'Setup Devs.ai API Key'
             ) : (
               'Generate Content'
             )}
