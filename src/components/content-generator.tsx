@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { JiraInstance, JiraWorkItem, ContentType } from '../types'
 import { contentInstructionService } from '../lib/content-instruction-service'
 
@@ -49,7 +49,7 @@ export function ContentGenerator({
     }
   }
 
-  const generateContent = async () => {
+  const generateContent = useCallback(async () => {
     setIsGenerating(true)
     setError(null)
     setGeneratedContent('')
@@ -102,7 +102,7 @@ Please generate the content based on the above work item details and instruction
     } finally {
       setIsGenerating(false)
     }
-  }
+  }, [devsAIConnection, contentType, workItem.key, workItem.summary, workItem.issueType, workItem.status, workItem.project, deliveryQuarter, workItem.description, workItem.labels, workItem.fixVersions])
 
   const generateMockContent = (type: ContentType, item: JiraWorkItem): string => {
     switch (type) {
@@ -252,6 +252,10 @@ Follow us for the latest updates and feature announcements.
   }
 
   const contentTypeInfo = getContentTypeInfo(contentType)
+
+  useEffect(() => {
+    generateContent()
+  }, [generateContent])
 
   return (
     <div className="space-y-6">

@@ -436,15 +436,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
           {/* Right column - Content type selection */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-900">Choose Content Type</h3>
-                <button
-                  onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-config'))}
-                  className="text-blue-600 hover:text-blue-700 transition-colors text-sm font-medium"
-                >
-                  Configure Templates
-                </button>
-              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Choose Content Type</h3>
               <div className="space-y-4">
                 <ContentTypeCard
                   type="quarterly-presentation"
@@ -680,14 +672,41 @@ function ContentTypeCard({ type, title, description, phase, icon, workItem, onGe
     onGenerate(type)
   }
 
+  const handleConfigureClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    // Navigate to template configuration for this specific content type
+    const event = new CustomEvent('navigate-to-config', { 
+      detail: { contentType: type } 
+    })
+    window.dispatchEvent(event)
+  }
+
   return (
     <div className="border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200">
       <div className="p-4">
-        <div className="flex items-center mb-2">
-          <span className="text-xl mr-3">{icon}</span>
-          <h4 className="font-semibold text-gray-900 text-sm">
-            {title}
-          </h4>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center">
+            <span className="text-xl mr-3">{icon}</span>
+            <h4 className="font-semibold text-gray-900 text-sm">
+              {title}
+            </h4>
+          </div>
+          <div className="relative group">
+            <button
+              onClick={handleConfigureClick}
+              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+              title="Configure instructions for this content type"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+            {/* Tooltip */}
+            <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+              Configure instructions
+            </div>
+          </div>
         </div>
         <p className="text-gray-600 text-xs mb-3">{description}</p>
         <div className="flex items-center justify-between">
