@@ -1,11 +1,6 @@
 {
   "version": 2,
   "public": true,
-  "functions": {
-    "app/api/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "headers": [
     {
       "source": "/(.*)",
