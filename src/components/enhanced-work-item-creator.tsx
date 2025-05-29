@@ -69,6 +69,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [isPushing, setIsPushing] = useState(false)
   const [pushingStep, setPushingStep] = useState(0)
   const [isValidating, setIsValidating] = useState(false)
+  const [validatingStep, setValidatingStep] = useState(0)
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [jiraIssueUrl, setJiraIssueUrl] = useState<string | null>(null)
@@ -359,8 +360,13 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
 
     // Start validation loader
     setIsValidating(true)
+    setValidatingStep(0)
 
     try {
+      // Step 1: Checking Jira field requirements
+      setValidatingStep(1)
+      await new Promise(resolve => setTimeout(resolve, 300)) // Brief pause for UX
+
       // Ensure we have Jira fields loaded
       if (jiraFields.length === 0) {
         console.log('No Jira fields loaded, attempting to discover them now...')
@@ -374,9 +380,16 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         }
       }
 
+      // Step 2: Validating content structure
+      setValidatingStep(2)
+      await new Promise(resolve => setTimeout(resolve, 200))
+
       // Validate fields with smart extraction before pushing
       if (jiraFields.length > 0) {
         try {
+          // Step 3: Extracting field values with AI
+          setValidatingStep(3)
+          
           // Get AI provider info for field extraction
           let aiProvider: string | undefined
           let apiKey: string | undefined
@@ -396,6 +409,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             aiProvider,
             apiKey
           )
+
+          // Step 4: Processing validation results
+          setValidatingStep(4)
+          await new Promise(resolve => setTimeout(resolve, 200))
 
           // Store extracted fields and suggestions for the modal
           setExtractedFields(validationResult.extractedFields || {})
@@ -434,6 +451,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           console.error('Field validation error:', validationError)
           warning('Validation Error', 'Unable to validate fields. Proceeding with basic validation.')
         }
+      } else {
+        // Skip AI extraction if no fields available
+        setValidatingStep(4)
+        await new Promise(resolve => setTimeout(resolve, 400))
       }
 
       // Proceed with Jira creation
@@ -441,6 +462,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     } finally {
       // Always stop validation loader
       setIsValidating(false)
+      setValidatingStep(0)
     }
   }
 
@@ -658,9 +680,12 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         title="Validating Data"
         subtitle="Checking required fields and preparing for Jira..."
         steps={[
-          'Validating content'
+          'Checking Jira field requirements',
+          'Validating content structure',
+          'Extracting field values with AI',
+          'Processing validation results'
         ]}
-        currentStep={1}
+        currentStep={validatingStep}
       />
 
       {/* Page Loader for Jira Push */}
