@@ -60,7 +60,7 @@ export interface AIInstructionTemplate {
 }
 
 // AI model types
-export type AIModel = 'auto' | 'gemini' | 'openai' | 'anthropic' | 'devs-ai'
+export type AIModel = 'auto' | 'openai' | 'anthropic' | 'devs-ai'
 
 // Jira field types
 export interface JiraField {

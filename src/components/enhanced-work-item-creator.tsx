@@ -198,11 +198,17 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
     if (devsAIConnection) {
       devsAIService.initialize(devsAIConnection.apiToken)
       setIsDevsAIReady(true)
+      setAiModel('devs-ai') // Set devs-ai as default when connection is active
     } else {
       const savedConnection = devsAIService.loadSavedConnection()
       if (savedConnection) {
         devsAIService.initialize(savedConnection.apiToken)
         setIsDevsAIReady(true)
+        setAiModel('devs-ai') // Set devs-ai as default when connection is active
+      } else {
+        setIsDevsAIReady(false)
+        // Reset to auto if currently set to devs-ai but connection is not available
+        setAiModel(prevModel => prevModel === 'devs-ai' ? 'auto' : prevModel)
       }
     }
   }, [devsAIConnection])
@@ -703,11 +709,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               disabled={isGenerating || isPushing}
             >
               <option value="auto">Auto (Free - Gemini)</option>
-              <option value="gemini">Google Gemini (Free)</option>
               <option value="openai">OpenAI GPT-4</option>
               <option value="anthropic">Anthropic Claude</option>
               <option value="devs-ai">
-                {isDevsAIReady ? 'Devs.ai (Multiple LLMs) ✓' : 'Devs.ai (Multiple LLMs) - Setup Required'}
+                {isDevsAIReady ? 'Devs.ai (Multiple LLMs)' : 'Devs.ai (Multiple LLMs) - Setup Required'}
               </option>
             </select>
           </div>
