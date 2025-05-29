@@ -708,8 +708,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     <h3 className="text-lg font-semibold text-gray-900">{selectedWorkItem.key}</h3>
                     <p className="text-gray-700 mt-1">{selectedWorkItem.summary}</p>
                   </div>
-                  <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-                    selectedWorkItem.status === 'Done' ? 'bg-green-100 text-green-700' :
+                  <span className={`inline-block px-3 py-1 text-xs rounded-full whitespace-nowrap ${
+                    selectedWorkItem.status === 'Done' || selectedWorkItem.status === 'Closed' ? 'bg-green-100 text-green-700' :
                     selectedWorkItem.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
                     'bg-gray-100 text-gray-700'
                   }`}>
@@ -1015,8 +1015,8 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <span className="font-semibold text-blue-600">{workItem.key}</span>
-                        <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-                          workItem.status === 'Done' ? 'bg-green-100 text-green-700' :
+                        <span className={`inline-block px-3 py-1 text-xs rounded-full whitespace-nowrap ${
+                          workItem.status === 'Done' || workItem.status === 'Closed' ? 'bg-green-100 text-green-700' :
                           workItem.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
                           'bg-gray-100 text-gray-700'
                         }`}>
@@ -1128,7 +1128,9 @@ function ContentTypeCard({ type, title, description, phase, icon, workItem: _, o
         </div>
         <p className="text-gray-600 text-xs mb-3">{description}</p>
         <div className="flex items-center justify-between">
-          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+          <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+            phase === 'Post-Completion' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+          }`}>
             {phase}
           </span>
           <button

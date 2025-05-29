@@ -167,46 +167,75 @@ ${solutionDescription || 'Our engineering team has developed an innovative solut
     case 'quarterly-presentation':
       return `# ${generatedTitle}
 
-## Executive Summary
+## Executive Summary (Answer First)
 
-This initiative represents a critical advancement in our platform capabilities, directly addressing key customer pain points while positioning us for sustained competitive advantage. The implementation will deliver immediate operational benefits and establish the foundation for future innovation.
+This initiative delivers critical business value by addressing key operational challenges and positioning us for sustained competitive advantage. The implementation will generate immediate ROI through improved efficiency, enhanced customer satisfaction, and reduced operational overhead.
 
-## Strategic Context
-
-${problemDescription}
-
-## Business Impact
-
-**Revenue Implications**
+**Key Value Delivered:**
 - Projected 15-20% improvement in customer retention rates
 - Estimated $2.3M annual cost savings through operational efficiency gains
-- Enhanced upselling opportunities through improved feature adoption
+- Enhanced competitive positioning and market differentiation
+- Reduced support overhead by 35-40% through improved user experience
 
-**Operational Benefits**
-- Streamlined workflows reducing manual intervention by 60%
-- Improved system reliability and performance metrics
-- Enhanced data visibility and actionable insights for stakeholders
+## Strategic Context (The Why)
 
-## Technical Approach
+${problemDescription || 'Market dynamics and customer feedback have highlighted urgent needs for enhanced platform capabilities. Current operational challenges are impacting user satisfaction and limiting our ability to capture market opportunities. Addressing these requirements is critical for maintaining competitive advantage and supporting business growth objectives.'}
 
-${solutionDescription}
+**Business Drivers:**
+- Customer demand for improved functionality and user experience
+- Competitive pressure requiring platform modernization
+- Operational inefficiencies impacting cost structure and scalability
+- Strategic alignment with company growth and market expansion goals
 
-The solution architecture leverages industry best practices and proven technologies to ensure scalability, maintainability, and optimal performance. Integration points have been carefully designed to minimize disruption to existing workflows while maximizing the value delivered to end users.
+## Solution Approach (The How)
 
-## Success Metrics & KPIs
+${solutionDescription || 'Our engineering team has developed an innovative solution leveraging cutting-edge technology to deliver seamless user experiences. The implementation introduces intelligent automation, enhanced data processing capabilities, and intuitive interface improvements that significantly reduce time-to-value for customers.'}
 
-- User adoption rate: Target 75% within 30 days of release
+**Key Capabilities:**
+- Advanced automation reducing manual intervention by 60%
+- Enhanced system reliability and performance optimization
+- Improved data visibility and actionable insights for stakeholders
+- Seamless integration with existing workflows and minimal disruption
+
+## Business Impact & Success Metrics
+
+**Revenue & Cost Impact:**
+- Customer retention improvement: +15-20%
+- Annual cost savings: $2.3M through operational efficiency
+- Upselling opportunities through enhanced feature adoption
+- Reduced support costs: 40% decrease in related inquiries
+
+**Operational Benefits:**
+- User adoption target: 75% within 30 days of release
 - Customer satisfaction improvement: +25 points on NPS scale
 - System performance: <200ms response time for core operations
-- Support ticket reduction: 40% decrease in related inquiries
+- Process efficiency gains: 60% reduction in manual tasks
 
-## Risk Mitigation
+## Timeline & Resource Allocation
 
-Comprehensive testing protocols and phased rollout strategies will ensure minimal business disruption. Rollback procedures and monitoring systems are in place to address any unforeseen issues promptly.
+**Key Milestones:**
+- Development progressing according to schedule with all major milestones on track
+- Core implementation phase: Current focus on critical user-facing features
+- Integration testing and performance validation: Next 2-3 weeks
+- Production deployment: Aligned with business priorities and market timing
 
-## Timeline & Next Steps
+**Risk Mitigation:**
+- Comprehensive testing protocols and phased rollout strategies
+- Rollback procedures and monitoring systems in place
+- Regular stakeholder updates ensuring continued alignment
 
-Development is progressing according to schedule with key milestones aligned to business priorities. Regular stakeholder updates and feedback loops ensure continuous alignment with strategic objectives.`
+## Next Quarter Outlook
+
+**Future Enhancements:**
+- Additional platform capabilities planned for next quarter
+- Scaling opportunities and market expansion potential
+- Enhanced analytics and reporting features
+- Integration with emerging technologies and industry standards
+
+**Strategic Positioning:**
+- Foundation for future innovation and competitive differentiation
+- Platform scalability supporting business growth objectives
+- Market leadership in user experience and operational efficiency`
 
     case 'customer-webinar':
       return `# Introducing ${generatedTitle}

@@ -175,6 +175,7 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
   const getStatusVariant = (status: string) => {
     switch (status.toLowerCase()) {
       case 'done':
+      case 'closed':
         return 'done';
       case 'in progress':
         return 'in-progress';
@@ -205,6 +206,7 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
       case 'done':
+      case 'closed':
         return <StatusIcons.Done size="xs" autoContrast={isSelected} />
       case 'in progress':
         return <StatusIcons.InProgress size="xs" autoContrast={isSelected} />

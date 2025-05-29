@@ -1,16 +1,50 @@
 import { AIInstructionTemplate, ContentType } from '../types'
 
 const DEFAULT_INSTRUCTIONS = {
-  'quarterly-presentation': `Create compelling slide deck content for a quarterly business presentation. Focus on:
-- Executive summary of the feature/epic
-- Business value and impact metrics
-- Key milestones and deliverables
-- Success criteria and KPIs
-- Timeline and resource allocation
-- Risk mitigation strategies
-- Next quarter outlook
+  'quarterly-presentation': `You are creating compelling slide deck content for a quarterly business presentation to senior leadership. You must extract and utilize the provided work item data to create content with an answer-first approach that is digestible for executives.
 
-Format as structured content with clear headings and bullet points suitable for slides.`,
+CRITICAL: You must extract and use the following from the work item data:
+1. Problem Description - The business problem or limitation being addressed
+2. Solution Description - How the feature/epic solves the problem  
+3. Business Case - The value proposition and impact (extract from context or infer from problem/solution)
+
+REQUIRED OUTPUT FORMAT:
+Create structured content with clear headings and bullet points suitable for slides. Use an answer-first approach - lead with the value and impact, then explain the why and how.
+
+CONTENT STRUCTURE:
+# [Clean Feature Title]
+
+## Executive Summary (Answer First)
+- Lead with the key business value and impact this delivers
+- State the strategic importance and competitive advantage
+- Quantify benefits where possible (use realistic estimates if specific metrics aren't provided)
+
+## Strategic Context (The Why)
+- Clearly articulate the business problem from the Problem Description
+- Explain market pressures, customer needs, or operational challenges
+- Connect to broader company objectives and competitive positioning
+
+## Solution Approach (The How)  
+- Summarize the Solution Description in business terms
+- Focus on capabilities delivered, not technical implementation
+- Highlight key differentiators and innovation aspects
+
+## Business Impact & Success Metrics
+- Revenue implications and cost savings potential
+- Operational efficiency gains and process improvements
+- Customer satisfaction and retention benefits
+- Risk mitigation and compliance advantages
+
+## Timeline & Resource Allocation
+- Key milestones aligned to business priorities
+- Resource requirements and dependencies
+- Risk mitigation strategies
+
+## Next Quarter Outlook
+- Future enhancements and roadmap alignment
+- Scaling opportunities and market expansion potential
+
+TONE: Professional, confident, and results-focused. Suitable for C-level executives who need clear, actionable insights.`,
 
   'customer-webinar': `Generate engaging webinar content for customer-facing presentation. Include:
 - Feature overview and benefits
@@ -38,7 +72,27 @@ IMPORTANT:
 - Do NOT use markdown formatting
 - Just provide the title followed by two paragraphs
 - Keep tone informative yet exciting, suitable for both technical and non-technical audiences
-- Use AppDirect-style professional phrasing`
+- Use AppDirect-style professional phrasing`,
+
+  'technical-documentation': `Create comprehensive technical documentation that extracts and utilizes work item data. Focus on:
+- Technical specifications and architecture
+- Implementation details and requirements
+- Integration points and dependencies
+- Testing strategies and acceptance criteria
+- Performance considerations and constraints
+- Security and compliance requirements
+
+Extract problem and solution descriptions from the work item to provide context for technical decisions.`,
+
+  'stakeholder-update': `Generate stakeholder update content that leverages work item data. Include:
+- Project status and progress summary
+- Key accomplishments and milestones
+- Current focus areas and next steps
+- Risk assessment and mitigation strategies
+- Resource allocation and timeline updates
+- Success metrics and performance indicators
+
+Use the problem and solution descriptions to provide context for project decisions and priorities.`
 }
 
 class ContentInstructionService {
