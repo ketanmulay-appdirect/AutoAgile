@@ -301,7 +301,7 @@ export function WorkItemsPage({ jiraConnection }: WorkItemsPageProps) {
       {/* Work Items List */}
       {filteredItems.length === 0 ? (
         <div className="bg-white rounded-lg border border-cloud-200 p-8 text-center">
-          <Icons.List size="xl" variant="muted" className="mx-auto mb-4" />
+          <Icons.List size="xl" variant="secondary" className="mx-auto mb-4" />
           <h3 className="text-lg font-medium text-cloud-700 mb-2">
             {workItems.length === 0 ? 'No work items yet' : 'No items match your filters'}
           </h3>
