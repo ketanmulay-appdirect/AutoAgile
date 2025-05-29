@@ -89,7 +89,7 @@ export function ContentChatRefiner({
         setSelectedMessageId(lastAssistantMessage.id)
       }
     }
-  }, [originalPrompt, content.description, chatHistory.length])
+  }, [originalPrompt, chatHistory.length])
 
   // Update parent when messages change (but only if messages actually changed)
   useEffect(() => {

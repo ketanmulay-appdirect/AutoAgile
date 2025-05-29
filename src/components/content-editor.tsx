@@ -97,12 +97,6 @@ export function ContentEditor({
     setChatHistory(messages)
   }, [])
 
-  useEffect(() => {
-    if (content.description !== editedContent.description) {
-      setChatHistory([])
-    }
-  }, [content.description, editedContent.description])
-
   if (showChatRefiner) {
     return (
       <ContentChatRefiner
