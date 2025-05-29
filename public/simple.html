@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Test - No Auth Required</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .status {
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 Static File Test - Success!</h1>
+        <div class="status">
+            ✅ If you can see this page, static files are working without authentication.
+        </div>
+        <p><strong>Test Details:</strong></p>
+        <ul>
+            <li>File Type: Static HTML</li>
+            <li>Location: /public/simple.html</li>
+            <li>Timestamp: <span id="timestamp"></span></li>
+            <li>No authentication required</li>
+        </ul>
+        <p>This test helps determine if the authentication issue is specific to Next.js pages or affects all content on the domain.</p>
+    </div>
+    
+    <script>
+        document.getElementById('timestamp').textContent = new Date().toISOString();
+    </script>
+</body>
+</html> 
