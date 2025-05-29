@@ -1,16 +1,16 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { WorkItemType, GeneratedContent, AIModel, JiraInstance } from '../types'
+import { WorkItemType, GeneratedContent, AIModel, JiraInstance, WorkItemTemplate, JiraField } from '../types'
 import { ContentEditor } from './content-editor'
 import { ToastContainer } from './ui/toast'
 import { useToast } from '../hooks/use-toast'
 import { devsAIService } from '../lib/devs-ai-service'
-import { templateService, type WorkItemTemplate } from '../lib/template-service'
+import { templateService } from '../lib/template-service'
 import { type DevsAIConnection } from './devs-ai-connection'
 import { FieldValidationModal } from './field-validation-modal'
 import { fieldValidationService, type MissingField } from '../lib/field-validation-service'
-import { jiraFieldService, type JiraField } from '../lib/jira-field-service'
+import { jiraFieldService } from '../lib/jira-field-service'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
@@ -18,6 +18,8 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert'
 import { LoadingSpinner } from './ui/loading-spinner'
 import { Icons, StatusIcons } from './ui/icons'
 import { PageLoader } from './ui/page-loader'
+import { workItemStorage } from '../lib/work-item-storage'
+import { ContentChatRefiner } from './content-chat-refiner'
 
 interface EnhancedWorkItemCreatorProps {
   jiraConnection: JiraInstance | null
@@ -538,6 +540,33 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           {' '} has been created in Jira. Click the link to view it.
         </span>
       )
+
+      // Automatically save the work item
+      try {
+        await workItemStorage.saveWorkItem({
+          type: workItemType,
+          title: content.title,
+          description: content.description,
+          originalPrompt: originalPrompt || description,
+          generatedContent: content,
+          jiraIssue: {
+            id: data.issue.id,
+            key: data.issue.key,
+            summary: content.title,
+            description: content.description,
+            issueType: workItemType,
+            status: 'Open', // Default status
+            url: issueUrl,
+            createdAt: new Date()
+          },
+          jiraUrl: issueUrl,
+          templateUsed: currentTemplate?.name || 'Default Template',
+          status: 'pushed'
+        })
+      } catch (storageError) {
+        console.error('Failed to save work item to storage:', storageError)
+        // Don't fail the whole operation if storage fails
+      }
     } catch (err) {
       console.error('Error creating Jira issue:', err)
       error('Jira Creation Failed', err instanceof Error ? err.message : 'Failed to create issue in Jira.')

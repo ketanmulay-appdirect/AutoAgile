@@ -29,6 +29,12 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
       description: 'Generate content for existing work items'
     },
     {
+      id: 'work-items',
+      label: 'Work Items',
+      icon: Icons.List,
+      description: 'View and manage created work items'
+    },
+    {
       id: 'jira',
       label: 'Jira Connection',
       icon: Icons.Link,

@@ -7,10 +7,11 @@ import { DevsAIConnection, type DevsAIConnection as DevsAIConnectionType } from 
 import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creator'
 import { TemplateConfiguration } from '../components/template-configuration'
 import { ContentStudio } from '../components/content-studio'
+import { WorkItemsPage } from '../components/work-items-page'
 import { AppLayout } from '../components/app-layout'
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio'>('create')
+  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio' | 'work-items'>('create')
   const [jiraConnection, setJiraConnection] = useState<JiraInstance | null>(null)
   const [devsAIConnection, setDevsAIConnection] = useState<DevsAIConnectionType | null>(null)
 
@@ -51,12 +52,18 @@ export default function Home() {
       setCurrentView('config')
     }
 
+    const handleNavigateToCreate = () => {
+      setCurrentView('create')
+    }
+
     window.addEventListener('navigate-to-jira', handleNavigateToJira)
     window.addEventListener('navigate-to-config', handleNavigateToConfig)
+    window.addEventListener('navigate-to-create', handleNavigateToCreate)
     
     return () => {
       window.removeEventListener('navigate-to-jira', handleNavigateToJira)
       window.removeEventListener('navigate-to-config', handleNavigateToConfig)
+      window.removeEventListener('navigate-to-create', handleNavigateToCreate)
     }
   }, [])
 
@@ -79,7 +86,7 @@ export default function Home() {
   }
 
   const handleViewChange = (view: string) => {
-    setCurrentView(view as 'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio')
+    setCurrentView(view as 'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio' | 'work-items')
   }
 
   // Get current view title and description
@@ -109,6 +116,11 @@ export default function Home() {
         return {
           title: 'Configure Templates',
           description: 'Manage work item templates and AI prompts'
+        }
+      case 'work-items':
+        return {
+          title: 'Work Items',
+          description: 'Manage and view work items'
         }
       default:
         return {
@@ -175,6 +187,12 @@ export default function Home() {
           {currentView === 'config' && (
             <TemplateConfiguration
               onClose={() => setCurrentView('create')}
+            />
+          )}
+
+          {currentView === 'work-items' && (
+            <WorkItemsPage
+              jiraConnection={jiraConnection}
             />
           )}
         </div>
