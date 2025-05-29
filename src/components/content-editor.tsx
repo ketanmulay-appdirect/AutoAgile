@@ -81,9 +81,12 @@ export function ContentEditor({
   }
 
   const handleChatRefinerContentSelect = (newDescription: string) => {
+    console.log('ContentEditor: handleChatRefinerContentSelect called with:', newDescription)
+    console.log('ContentEditor: Current editedContent:', editedContent)
     const updatedContent = { ...editedContent, description: newDescription }
     setEditedContent(updatedContent)
     setHasChanges(true)
+    console.log('ContentEditor: Updated editedContent to:', updatedContent)
   }
 
   const handleChatRefinerClose = () => {

@@ -243,11 +243,26 @@ export function ContentStudioChatRefiner({
   }
 
   const handleApplySelected = () => {
+    console.log('Apply Selected clicked (Content Studio)')
+    console.log('Selected message ID:', selectedMessageId)
+    console.log('Available messages:', messages)
+    
     const selectedMessage = messages.find(msg => msg.id === selectedMessageId)
+    console.log('Found selected message:', selectedMessage)
+    
     if (selectedMessage && selectedMessage.role === 'assistant') {
+      console.log('Calling onContentSelect with:', selectedMessage.content)
       onContentSelect(selectedMessage.content)
-      // Don't close the chat refiner - let parent decide
-      // onClose()
+      
+      // Switch to generated tab to show the updated content (if tabs are shown)
+      if (showTabs) {
+        setActiveTab('generated')
+      }
+      
+      // Provide visual feedback
+      console.log('Content applied successfully')
+    } else {
+      console.log('No valid message selected or message is not from assistant')
     }
   }
 

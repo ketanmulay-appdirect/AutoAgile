@@ -589,7 +589,10 @@ Development follows proven methodologies with emphasis on quality, security, and
   }
 
   const handleChatRefinerContentSelect = (newContent: string) => {
+    console.log('ContentGenerator: handleChatRefinerContentSelect called with:', newContent)
+    console.log('ContentGenerator: Current generatedContent:', generatedContent)
     setGeneratedContent(newContent)
+    console.log('ContentGenerator: Updated generatedContent to:', newContent)
     // Don't close chat refiner or reset tab - let user continue refining
     // setShowChatRefiner(false)
     // setActiveTab('generated')
