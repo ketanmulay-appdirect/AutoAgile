@@ -475,9 +475,12 @@ class JiraFieldService {
   // Map our work item types to Jira issue types
   private mapWorkItemTypeToJiraIssueType(workItemType: WorkItemType, issueTypes: any[]): any | null {
     const mappings: Record<WorkItemType, string[]> = {
+      all: ['Story', 'Epic', 'Task', 'Bug', 'Initiative'], // For 'all', try common types
       story: ['Story', 'User Story', 'Task'],
       epic: ['Epic'],
-      initiative: ['Initiative', 'Epic', 'Story'] // Fallback order
+      initiative: ['Initiative', 'Epic', 'Story'], // Fallback order
+      task: ['Task', 'Story', 'Sub-task'],
+      bug: ['Bug', 'Defect', 'Issue']
     }
 
     const candidates = mappings[workItemType] || []
@@ -591,4 +594,45 @@ class JiraFieldService {
   }
 }
 
-export const jiraFieldService = new JiraFieldService() 
+export const jiraFieldService = new JiraFieldService()
+
+// Utility function to fetch all projects with pagination
+export async function fetchAllJiraProjects(jiraConnection: { url: string; email: string; apiToken: string }) {
+  const auth = Buffer.from(`${jiraConnection.email}:${jiraConnection.apiToken}`).toString('base64')
+  
+  let allProjects: any[] = []
+  let startAt = 0
+  const maxResults = 100
+  let hasMoreResults = true
+
+  while (hasMoreResults) {
+    const url = `${jiraConnection.url}/rest/api/3/project/search?startAt=${startAt}&maxResults=${maxResults}`
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Jira API error: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    
+    // Add projects from this page
+    if (data.values && Array.isArray(data.values)) {
+      allProjects = allProjects.concat(data.values)
+    }
+    
+    // Check if there are more results
+    const totalResults = data.total || 0
+    startAt += maxResults
+    hasMoreResults = startAt < totalResults
+  }
+  
+  return allProjects
+} 
