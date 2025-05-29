@@ -141,119 +141,119 @@ function generateMockContent(contentType: string, workItem: unknown, userPrompt:
   const workItemProject = typeof workItem === 'object' ? (workItem as any)?.project || 'Generated Content' : 'Generated Content'
   const workItemType = typeof workItem === 'object' ? (workItem as any)?.issueType || contentType : contentType
   
-  // Use the user's actual prompt as the primary source of information
-  const primaryDescription = userPrompt || workItemDescription || 'No description available'
+  // Use the work item description as the primary source, not the user prompt which contains instructions
+  const actualWorkItemDescription = extractTextFromDescription(workItemDescription)
+  const { problemDescription, solutionDescription } = extractProblemAndSolution(actualWorkItemDescription)
   
-  // Helper function to extract text from Jira ADF (Atlassian Document Format)
-  const extractTextFromDescription = (description: unknown): string => {
-    if (typeof description === 'string') {
-      return description
-    }
-    
-    if (description && typeof description === 'object' && (description as any).content) {
-      const extractText = (node: any): string => {
-        if (node.text) {
-          return node.text
-        }
-        if (node.content && Array.isArray(node.content)) {
-          return node.content.map(extractText).join(' ')
-        }
-        return ''
-      }
-      
-      return (description as any).content.map(extractText).join('\n').trim()
-    }
-    
-    return 'No description available'
+  // Generate a title from the work item summary
+  const generateTitle = (summary: string): string => {
+    // Clean up the summary by removing project prefixes and quarter info
+    const cleanSummary = summary.replace(/^\d{4}Q\d\s*-\s*\[[^\]]+\]\s*-\s*/, '').trim()
+    // Take first 8-10 words for a concise title
+    const words = cleanSummary.split(' ').slice(0, 10).join(' ')
+    return words || 'Feature Update'
   }
   
-  // Helper function to extract Problem Description and Solution Description sections
-  const extractProblemAndSolution = (description: unknown): { problemDescription: string; solutionDescription: string } => {
-    const fullText = extractTextFromDescription(description)
-    
-    // Initialize result
-    let problemDescription = ''
-    let solutionDescription = ''
-    
-    // Split text into lines for processing
-    const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
-    
-    let currentSection = ''
-    let problemLines: string[] = []
-    let solutionLines: string[] = []
-    
-    for (const line of lines) {
-      // Check for section headings (case insensitive)
-      const lowerLine = line.toLowerCase()
-      
-      if (lowerLine.includes('problem description') || 
-          lowerLine.includes('problem statement') ||
-          lowerLine.includes('the problem') ||
-          (lowerLine.startsWith('problem') && lowerLine.includes(':'))) {
-        currentSection = 'problem'
-        continue
-      }
-      
-      if (lowerLine.includes('solution description') || 
-          lowerLine.includes('solution statement') ||
-          lowerLine.includes('the solution') ||
-          lowerLine.includes('proposed solution') ||
-          (lowerLine.startsWith('solution') && lowerLine.includes(':'))) {
-        currentSection = 'solution'
-        continue
-      }
-      
-      // Skip obvious headings (lines that are very short and might be section headers)
-      if (line.length < 10 && (line.includes('#') || line.includes('###'))) {
-        continue
-      }
-      
-      // Add content to appropriate section
-      if (currentSection === 'problem' && line.length > 10) {
-        problemLines.push(line)
-      } else if (currentSection === 'solution' && line.length > 10) {
-        solutionLines.push(line)
-      }
-    }
-    
-    // Join the lines and clean up
-    problemDescription = problemLines.join(' ').trim()
-    solutionDescription = solutionLines.join(' ').trim()
-    
-    // If we didn't find specific sections, try to extract from the beginning of the description
-    if (!problemDescription && !solutionDescription && fullText.length > 50) {
-      // Take first half as problem, second half as solution (fallback)
-      const sentences = fullText.split(/[.!?]+/).filter(s => s.trim().length > 10)
-      if (sentences.length >= 2) {
-        const midPoint = Math.ceil(sentences.length / 2)
-        problemDescription = sentences.slice(0, midPoint).join('. ').trim() + '.'
-        solutionDescription = sentences.slice(midPoint).join('. ').trim() + '.'
-      } else {
-        // If very short, use the whole thing as problem description
-        problemDescription = fullText
-      }
-    }
-    
-    return {
-      problemDescription: problemDescription || primaryDescription,
-      solutionDescription: solutionDescription || 'Implementation of this feature will address the identified requirements and deliver value to users.'
-    }
-  }
-  
-  // Use the user's prompt as the primary source for content generation
-  const { problemDescription, solutionDescription } = extractProblemAndSolution(primaryDescription)
-  
-  // Generate a title from the user's prompt
-  const generateTitle = (prompt: string): string => {
-    // Extract key phrases and create a concise title
-    const words = prompt.split(' ').filter(word => word.length > 3)
-    const keyWords = words.slice(0, 6).join(' ')
-    return keyWords.charAt(0).toUpperCase() + keyWords.slice(1)
-  }
-  
-  const generatedTitle = generateTitle(primaryDescription)
+  const generatedTitle = generateTitle(workItemSummary)
   
   switch (contentType) {
+    case 'feature-newsletter':
+      return `${generatedTitle}
+
+${problemDescription || 'Current market demands require enhanced platform capabilities to address evolving customer needs and competitive pressures. Users have consistently requested improved functionality that streamlines their daily workflows and reduces operational complexity.'}
+
+${solutionDescription || 'Our engineering team has developed an innovative solution that leverages cutting-edge technology to deliver seamless user experiences. The implementation introduces intelligent automation, enhanced data processing capabilities, and intuitive interface improvements that significantly reduce time-to-value for our customers.'}`
+
+    case 'quarterly-presentation':
+      return `# ${generatedTitle}
+
+## Executive Summary
+
+This initiative represents a critical advancement in our platform capabilities, directly addressing key customer pain points while positioning us for sustained competitive advantage. The implementation will deliver immediate operational benefits and establish the foundation for future innovation.
+
+## Strategic Context
+
+${problemDescription}
+
+## Business Impact
+
+**Revenue Implications**
+- Projected 15-20% improvement in customer retention rates
+- Estimated $2.3M annual cost savings through operational efficiency gains
+- Enhanced upselling opportunities through improved feature adoption
+
+**Operational Benefits**
+- Streamlined workflows reducing manual intervention by 60%
+- Improved system reliability and performance metrics
+- Enhanced data visibility and actionable insights for stakeholders
+
+## Technical Approach
+
+${solutionDescription}
+
+The solution architecture leverages industry best practices and proven technologies to ensure scalability, maintainability, and optimal performance. Integration points have been carefully designed to minimize disruption to existing workflows while maximizing the value delivered to end users.
+
+## Success Metrics & KPIs
+
+- User adoption rate: Target 75% within 30 days of release
+- Customer satisfaction improvement: +25 points on NPS scale
+- System performance: <200ms response time for core operations
+- Support ticket reduction: 40% decrease in related inquiries
+
+## Risk Mitigation
+
+Comprehensive testing protocols and phased rollout strategies will ensure minimal business disruption. Rollback procedures and monitoring systems are in place to address any unforeseen issues promptly.
+
+## Timeline & Next Steps
+
+Development is progressing according to schedule with key milestones aligned to business priorities. Regular stakeholder updates and feedback loops ensure continuous alignment with strategic objectives.`
+
+    case 'customer-webinar':
+      return `# Introducing ${generatedTitle}
+
+## Welcome & Agenda
+Welcome to our exclusive webinar showcasing the latest innovation in our product suite.
+
+## The Challenge We're Solving
+${problemDescription}
+
+## Feature Overview
+${generatedTitle} is designed to:
+- Streamline your workflow
+- Improve efficiency
+- Enhance user experience
+- Provide better insights
+
+## Live Demo Highlights
+Let's explore the key capabilities:
+
+### Core Functionality
+${solutionDescription}
+
+### Advanced Features
+- Customizable dashboards
+- Automated reporting
+- Enhanced security measures
+
+## Customer Success Story
+"This feature has transformed how we approach our daily operations" - [Customer Name]
+
+## Getting Started
+- Available in your dashboard starting next quarter
+- Step-by-step setup guide provided
+- Support team ready to assist
+
+## Q&A Session
+We'll now address your questions about this exciting new feature.
+
+## What's Next
+- Additional enhancements planned for next quarter
+- Beta program for advanced features
+- Community feedback integration
+
+## Thank You
+Thank you for joining us today. We're excited to see how you'll use this new capability!`
+
     case 'story':
       return `# ${generatedTitle}
 
@@ -414,5 +414,99 @@ This ${contentType} addresses the specified requirements through a comprehensive
 
 ---
 *Generated from user requirements on ${new Date().toISOString()}*`
+  }
+}
+
+function extractTextFromDescription(description: unknown): string {
+  if (typeof description === 'string') {
+    return description
+  }
+  
+  if (description && typeof description === 'object' && (description as any).content) {
+    const extractText = (node: any): string => {
+      if (node.text) {
+        return node.text
+      }
+      if (node.content && Array.isArray(node.content)) {
+        return node.content.map(extractText).join(' ')
+      }
+      return ''
+    }
+    
+    return (description as any).content.map(extractText).join('\n').trim()
+  }
+  
+  return 'No description available'
+}
+
+function extractProblemAndSolution(description: string): { problemDescription: string; solutionDescription: string } {
+  const fullText = description.trim()
+  
+  // Initialize result
+  let problemDescription = ''
+  let solutionDescription = ''
+  
+  // Split text into lines for processing
+  const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+  
+  let currentSection = ''
+  let problemLines: string[] = []
+  let solutionLines: string[] = []
+  
+  for (const line of lines) {
+    // Check for section headings (case insensitive)
+    const lowerLine = line.toLowerCase()
+    
+    if (lowerLine.includes('problem description') || 
+        lowerLine.includes('problem statement') ||
+        lowerLine.includes('the problem') ||
+        (lowerLine.startsWith('problem') && lowerLine.includes(':'))) {
+      currentSection = 'problem'
+      continue
+    }
+    
+    if (lowerLine.includes('solution description') || 
+        lowerLine.includes('solution statement') ||
+        lowerLine.includes('the solution') ||
+        lowerLine.includes('proposed solution') ||
+        (lowerLine.startsWith('solution') && lowerLine.includes(':'))) {
+      currentSection = 'solution'
+      continue
+    }
+    
+    // Skip obvious headings (lines that are very short and might be section headers)
+    if (line.length < 10 && (line.includes('#') || line.includes('###'))) {
+      continue
+    }
+    
+    // Add content to appropriate section
+    if (currentSection === 'problem' && line.length > 10) {
+      problemLines.push(line)
+    } else if (currentSection === 'solution' && line.length > 10) {
+      solutionLines.push(line)
+    }
+  }
+  
+  // Join the lines and clean up
+  problemDescription = problemLines.join(' ').trim()
+  solutionDescription = solutionLines.join(' ').trim()
+  
+  // If we didn't find specific sections, try to extract from the beginning of the description
+  if (!problemDescription && !solutionDescription && fullText.length > 50) {
+    // Take first half as problem, second half as solution (fallback)
+    const sentences = fullText.split(/[.!?]+/).filter(s => s.trim().length > 10)
+    if (sentences.length >= 2) {
+      const midPoint = Math.ceil(sentences.length / 2)
+      problemDescription = sentences.slice(0, midPoint).join('. ').trim() + '.'
+      solutionDescription = sentences.slice(midPoint).join('. ').trim() + '.'
+    } else {
+      // If very short, use the whole thing as problem description
+      problemDescription = fullText
+    }
+  }
+  
+  return {
+    problemDescription: problemDescription || 'No problem description available',
+    solutionDescription: solutionDescription || 'No solution description available'
   }
 }
