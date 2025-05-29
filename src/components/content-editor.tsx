@@ -1,8 +1,15 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { GeneratedContent, WorkItemType } from '../types'
 import { ContentChatRefiner } from './content-chat-refiner'
+
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: Date
+}
 
 interface ContentEditorProps {
   content: GeneratedContent
@@ -24,6 +31,7 @@ export function ContentEditor({
   const [editedContent, setEditedContent] = useState<GeneratedContent>(content)
   const [hasChanges, setHasChanges] = useState(false)
   const [showChatRefiner, setShowChatRefiner] = useState(false)
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
 
   useEffect(() => {
     setEditedContent(content)
@@ -75,14 +83,22 @@ export function ContentEditor({
   const handleChatRefinerContentSelect = (newDescription: string) => {
     const updatedContent = { ...editedContent, description: newDescription }
     setEditedContent(updatedContent)
-    setHasChanges(false)
-    setShowChatRefiner(false)
-    onSave(updatedContent)
+    setHasChanges(true)
   }
 
   const handleChatRefinerClose = () => {
     setShowChatRefiner(false)
   }
+
+  const handleChatHistoryUpdate = useCallback((messages: ChatMessage[]) => {
+    setChatHistory(messages)
+  }, [])
+
+  useEffect(() => {
+    if (content.description !== editedContent.description) {
+      setChatHistory([])
+    }
+  }, [content.description, editedContent.description])
 
   if (showChatRefiner) {
     return (
@@ -92,6 +108,8 @@ export function ContentEditor({
         originalPrompt={originalPrompt}
         onContentSelect={handleChatRefinerContentSelect}
         onClose={handleChatRefinerClose}
+        chatHistory={chatHistory}
+        onChatHistoryUpdate={handleChatHistoryUpdate}
       />
     )
   }

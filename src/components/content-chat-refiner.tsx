@@ -20,6 +20,8 @@ interface ContentChatRefinerProps {
   onContentSelect: (content: string) => void
   onClose: () => void
   initialTab?: 'generated' | 'refine'
+  chatHistory?: ChatMessage[]
+  onChatHistoryUpdate?: (messages: ChatMessage[]) => void
 }
 
 export function ContentChatRefiner({
@@ -28,10 +30,12 @@ export function ContentChatRefiner({
   originalPrompt,
   onContentSelect,
   onClose,
-  initialTab = 'refine'
+  initialTab = 'refine',
+  chatHistory = [],
+  onChatHistoryUpdate
 }: ContentChatRefinerProps) {
   const [activeTab, setActiveTab] = useState<'generated' | 'refine'>(initialTab)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(chatHistory)
   const [newMessage, setNewMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
@@ -53,25 +57,46 @@ export function ContentChatRefiner({
     }
   }, [])
 
-  // Initialize chat with original context
+  // Initialize chat with original context if no history exists
   useEffect(() => {
-    const initialMessages: ChatMessage[] = [
-      {
-        id: 'original-prompt',
-        role: 'user',
-        content: originalPrompt,
-        timestamp: new Date()
-      },
-      {
-        id: 'original-response',
-        role: 'assistant',
-        content: content.description,
-        timestamp: new Date()
+    if (chatHistory.length === 0) {
+      const initialMessages: ChatMessage[] = [
+        {
+          id: 'original-prompt',
+          role: 'user',
+          content: originalPrompt,
+          timestamp: new Date()
+        },
+        {
+          id: 'original-response',
+          role: 'assistant',
+          content: content.description,
+          timestamp: new Date()
+        }
+      ]
+      setMessages(initialMessages)
+      setSelectedMessageId('original-response') // Default to original response
+      // Update parent with initial history
+      if (onChatHistoryUpdate) {
+        onChatHistoryUpdate(initialMessages)
       }
-    ]
-    setMessages(initialMessages)
-    setSelectedMessageId('original-response') // Default to original response
-  }, [originalPrompt, content.description])
+    } else {
+      // Use existing chat history
+      setMessages(chatHistory)
+      // Set selected message to the last assistant message if none selected
+      const lastAssistantMessage = chatHistory.filter(msg => msg.role === 'assistant').pop()
+      if (lastAssistantMessage && !selectedMessageId) {
+        setSelectedMessageId(lastAssistantMessage.id)
+      }
+    }
+  }, [originalPrompt, content.description, chatHistory.length])
+
+  // Update parent when messages change (but only if messages actually changed)
+  useEffect(() => {
+    if (onChatHistoryUpdate && messages.length > 0 && messages !== chatHistory) {
+      onChatHistoryUpdate(messages)
+    }
+  }, [messages])
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isLoading) return
@@ -83,7 +108,8 @@ export function ContentChatRefiner({
       timestamp: new Date()
     }
 
-    setMessages(prev => [...prev, userMessage])
+    const updatedMessages = [...messages, userMessage]
+    setMessages(updatedMessages)
     setNewMessage('')
     setIsLoading(true)
 
@@ -116,7 +142,7 @@ export function ContentChatRefiner({
           role: 'system' as const,
           content: `You are an expert product manager and technical writer helping to refine Jira work item descriptions. The user is working on a ${workItemType} and wants to improve their description. Provide helpful, specific suggestions and refined versions of the content. Keep responses focused and actionable.`
         },
-        ...messages.map(msg => ({
+        ...updatedMessages.map(msg => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content
         })),
@@ -197,7 +223,8 @@ export function ContentChatRefiner({
     const selectedMessage = messages.find(msg => msg.id === selectedMessageId)
     if (selectedMessage && selectedMessage.role === 'assistant') {
       onContentSelect(selectedMessage.content)
-      onClose()
+      // Don't close the chat refiner - let parent decide
+      // onClose()
     }
   }
 

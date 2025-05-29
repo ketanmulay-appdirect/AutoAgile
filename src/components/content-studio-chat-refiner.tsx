@@ -22,6 +22,8 @@ interface ContentStudioChatRefinerProps {
   onClose: () => void
   initialTab?: 'generated' | 'refine'
   showTabs?: boolean
+  chatHistory?: ChatMessage[]
+  onChatHistoryUpdate?: (messages: ChatMessage[]) => void
 }
 
 export function ContentStudioChatRefiner({
@@ -32,10 +34,12 @@ export function ContentStudioChatRefiner({
   onContentSelect,
   onClose,
   initialTab = 'refine',
-  showTabs = true
+  showTabs = true,
+  chatHistory = [],
+  onChatHistoryUpdate
 }: ContentStudioChatRefinerProps) {
   const [activeTab, setActiveTab] = useState<'generated' | 'refine'>(initialTab)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(chatHistory)
   const [newMessage, setNewMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
@@ -57,25 +61,46 @@ export function ContentStudioChatRefiner({
     }
   }, [])
 
-  // Initialize chat with original context
+  // Initialize chat with original context if no history exists
   useEffect(() => {
-    const initialMessages: ChatMessage[] = [
-      {
-        id: 'original-prompt',
-        role: 'user',
-        content: originalPrompt,
-        timestamp: new Date()
-      },
-      {
-        id: 'original-response',
-        role: 'assistant',
-        content: content,
-        timestamp: new Date()
+    if (chatHistory.length === 0) {
+      const initialMessages: ChatMessage[] = [
+        {
+          id: 'original-prompt',
+          role: 'user',
+          content: originalPrompt,
+          timestamp: new Date()
+        },
+        {
+          id: 'original-response',
+          role: 'assistant',
+          content: content,
+          timestamp: new Date()
+        }
+      ]
+      setMessages(initialMessages)
+      setSelectedMessageId('original-response') // Default to original response
+      // Update parent with initial history
+      if (onChatHistoryUpdate) {
+        onChatHistoryUpdate(initialMessages)
       }
-    ]
-    setMessages(initialMessages)
-    setSelectedMessageId('original-response') // Default to original response
-  }, [originalPrompt, content])
+    } else {
+      // Use existing chat history
+      setMessages(chatHistory)
+      // Set selected message to the last assistant message if none selected
+      const lastAssistantMessage = chatHistory.filter(msg => msg.role === 'assistant').pop()
+      if (lastAssistantMessage && !selectedMessageId) {
+        setSelectedMessageId(lastAssistantMessage.id)
+      }
+    }
+  }, [originalPrompt, content, chatHistory.length])
+
+  // Update parent when messages change (but only if messages actually changed)
+  useEffect(() => {
+    if (onChatHistoryUpdate && messages.length > 0 && messages !== chatHistory) {
+      onChatHistoryUpdate(messages)
+    }
+  }, [messages])
 
   const getContentTypeDisplayName = (type: ContentType): string => {
     switch (type) {
@@ -104,7 +129,8 @@ export function ContentStudioChatRefiner({
       timestamp: new Date()
     }
 
-    setMessages(prev => [...prev, userMessage])
+    const updatedMessages = [...messages, userMessage]
+    setMessages(updatedMessages)
     setNewMessage('')
     setIsLoading(true)
 
@@ -139,7 +165,7 @@ export function ContentStudioChatRefiner({
           role: 'system' as const,
           content: systemPrompt
         },
-        ...messages.map(msg => ({
+        ...updatedMessages.map(msg => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content
         })),
@@ -220,7 +246,8 @@ export function ContentStudioChatRefiner({
     const selectedMessage = messages.find(msg => msg.id === selectedMessageId)
     if (selectedMessage && selectedMessage.role === 'assistant') {
       onContentSelect(selectedMessage.content)
-      onClose()
+      // Don't close the chat refiner - let parent decide
+      // onClose()
     }
   }
 

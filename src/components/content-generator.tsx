@@ -5,6 +5,13 @@ import { JiraInstance, JiraWorkItem, ContentType } from '../types'
 import { contentInstructionService } from '../lib/content-instruction-service'
 import { ContentStudioChatRefiner } from './content-studio-chat-refiner'
 
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: Date
+}
+
 interface ContentGeneratorProps {
   jiraConnection: JiraInstance
   devsAIConnection: unknown
@@ -28,6 +35,7 @@ export function ContentGenerator({
   const [activeTab, setActiveTab] = useState<'generated' | 'refine'>('generated')
   const [showChatRefiner, setShowChatRefiner] = useState(false)
   const [originalPrompt, setOriginalPrompt] = useState<string>('')
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const contentRef = useRef<HTMLDivElement>(null)
 
   const getContentTypeInfo = (type: ContentType) => {
@@ -582,8 +590,9 @@ Development follows proven methodologies with emphasis on quality, security, and
 
   const handleChatRefinerContentSelect = (newContent: string) => {
     setGeneratedContent(newContent)
-    setShowChatRefiner(false)
-    setActiveTab('generated')
+    // Don't close chat refiner or reset tab - let user continue refining
+    // setShowChatRefiner(false)
+    // setActiveTab('generated')
   }
 
   const handleChatRefinerClose = () => {
@@ -591,11 +600,21 @@ Development follows proven methodologies with emphasis on quality, security, and
     setActiveTab('generated')
   }
 
+  const handleChatHistoryUpdate = useCallback((messages: ChatMessage[]) => {
+    setChatHistory(messages)
+  }, [])
+
+  // Clear chat history when generating new content
+  const generateContentWithHistoryReset = useCallback(async () => {
+    setChatHistory([]) // Clear chat history on new generation
+    await generateContent()
+  }, [generateContent])
+
   const contentTypeInfo = getContentTypeInfo(contentType)
 
   useEffect(() => {
-    generateContent()
-  }, [generateContent])
+    generateContentWithHistoryReset()
+  }, [generateContentWithHistoryReset])
 
   // If chat refiner is open, show it instead of the main interface
   if (showChatRefiner && generatedContent && originalPrompt) {
@@ -652,6 +671,8 @@ Development follows proven methodologies with emphasis on quality, security, and
             onClose={handleChatRefinerClose}
             initialTab="refine"
             showTabs={false}
+            chatHistory={chatHistory}
+            onChatHistoryUpdate={handleChatHistoryUpdate}
           />
         </div>
       </div>
@@ -736,7 +757,7 @@ Development follows proven methodologies with emphasis on quality, security, and
 
         {!generatedContent && (
           <button
-            onClick={generateContent}
+            onClick={generateContentWithHistoryReset}
             disabled={isGenerating}
             className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
@@ -799,7 +820,7 @@ Development follows proven methodologies with emphasis on quality, security, and
                 <h3 className="text-xl font-semibold text-gray-900">Generated Content</h3>
                 <div className="flex space-x-2">
                   <button
-                    onClick={generateContent}
+                    onClick={generateContentWithHistoryReset}
                     className="text-blue-600 hover:text-blue-700 transition-colors text-sm font-medium"
                   >
                     Regenerate
@@ -840,6 +861,8 @@ Development follows proven methodologies with emphasis on quality, security, and
                   onClose={handleChatRefinerClose}
                   initialTab="refine"
                   showTabs={false}
+                  chatHistory={chatHistory}
+                  onChatHistoryUpdate={handleChatHistoryUpdate}
                 />
               ) : (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
