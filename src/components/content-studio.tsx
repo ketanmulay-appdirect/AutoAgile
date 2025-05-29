@@ -78,7 +78,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     if (!jiraConnection || !selectedProject) return
     
     setLoadingQuarters(true)
-    setQuarterInitialized(false)
     
     try {
       const { quarters: quarterList, defaultQuarter } = await jiraContentService.getDeliveryQuarters(jiraConnection, selectedProject)
@@ -93,11 +92,10 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         // Use default quarter if no saved preference
         setSelectedQuarter(defaultQuarter)
       } else {
-        // No valid quarter found
+        // No valid quarter found - this is OK, work items can still load
         setSelectedQuarter('')
       }
       
-      setQuarterInitialized(true)
     } catch (err) {
       console.error('Failed to load delivery quarters:', err)
       // Set default quarters as fallback
@@ -128,9 +126,9 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         setSelectedQuarter(`Q${currentQuarter} ${currentYear}`)
       }
       
-      setQuarterInitialized(true)
     } finally {
       setLoadingQuarters(false)
+      setQuarterInitialized(true)
     }
   }, [jiraConnection, selectedProject])
 
@@ -190,15 +188,16 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         setSelectedProject(savedPreferences.selectedProject)
         setWorkItemType(savedPreferences.workItemType)
         setPreferencesRestored(true)
+        
+        // Step 3: Load quarters for the saved project
+        // Note: We don't await this to avoid blocking initialization
+        loadQuarters()
+      } else {
+        // No saved preferences - set quarterInitialized to true so work items can load
+        // when user manually selects a project
+        setQuarterInitialized(true)
       }
       setPreferencesLoaded(true)
-
-      // Step 3: If we have a saved project, load quarters for it
-      const projectToUse = savedPreferences?.selectedProject || ''
-      if (projectToUse) {
-        // Wait for quarters to load and initialize
-        await loadQuarters()
-      }
 
     } catch (err) {
       setError('Failed to initialize Content Studio. Please check your Jira connection.')
@@ -220,7 +219,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     } else if (!selectedProject) {
       setQuarters([])
       setSelectedQuarter('')
-      setQuarterInitialized(false)
+      setQuarterInitialized(true) // Always set to true, even when no project selected
     }
   }, [jiraConnection, selectedProject, loadQuarters, isInitializing, preferencesLoaded])
 
@@ -229,10 +228,10 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     if (
       !isInitializing && 
       !isLoadingWorkItems && 
-      quarterInitialized && 
       jiraConnection && 
       selectedProject && 
-      workItemType
+      workItemType &&
+      preferencesLoaded // Ensure preferences have been loaded/initialized
     ) {
       // Create a state key to track if we've already loaded for this combination
       const stateKey = `${selectedProject}-${workItemType}-${selectedQuarter || 'all'}`
@@ -251,11 +250,12 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
   }, [
     isInitializing, 
     isLoadingWorkItems, 
-    quarterInitialized, 
     jiraConnection, 
     selectedProject, 
     workItemType, 
-    selectedQuarter
+    selectedQuarter,
+    preferencesLoaded,
+    loadWorkItems
   ])
 
   const handleProjectSelect = (projectKey: string) => {
@@ -266,9 +266,9 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
     setWorkItems([])
     setSelectedWorkItem(null)
     setSelectedContentType(null)
-    setQuarterInitialized(false)
     // Reset loaded state to allow fresh loading
     lastLoadedStateRef.current = ''
+    // Note: quarterInitialized will be set to true by loadQuarters() when it completes
   }
 
   const handleWorkTypeSelect = (type: WorkItemType) => {
@@ -939,7 +939,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                 value={selectedQuarter}
                 onChange={(e) => handleQuarterSelect(e.target.value)}
                 className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-                disabled={isInitializing || isLoadingWorkItems || !selectedProject || loadingQuarters}
+                disabled={isInitializing || isLoadingWorkItems || !selectedProject}
               >
                 <option value="">All Quarters (Optional)</option>
                 {quarters.map((quarter) => (
@@ -948,6 +948,9 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                   </option>
                 ))}
               </select>
+              {loadingQuarters && selectedProject && (
+                <p className="text-xs text-blue-500 mt-1">Loading quarters...</p>
+              )}
               {quarters.length === 0 && !loadingQuarters && selectedProject && !isInitializing && (
                 <p className="text-xs text-cloud-500 mt-1">No fix versions found for this project</p>
               )}
@@ -959,7 +962,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
                 <div className="flex space-x-2">
                   <Button
                     onClick={handleManualLoadWorkItems}
-                    disabled={isInitializing || isLoadingWorkItems || !selectedProject || !workItemType || !quarterInitialized}
+                    disabled={isInitializing || isLoadingWorkItems || !selectedProject || !workItemType}
                     className="flex-1"
                   >
                     <Icons.Search size="sm" autoContrast className="mr-2" />
