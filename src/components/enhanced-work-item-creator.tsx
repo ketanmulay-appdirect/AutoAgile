@@ -68,6 +68,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [generatingStep, setGeneratingStep] = useState(0)
   const [isPushing, setIsPushing] = useState(false)
   const [pushingStep, setPushingStep] = useState(0)
+  const [isValidating, setIsValidating] = useState(false)
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [jiraIssueUrl, setJiraIssueUrl] = useState<string | null>(null)
@@ -356,83 +357,91 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       return
     }
 
-    // Ensure we have Jira fields loaded
-    if (jiraFields.length === 0) {
-      console.log('No Jira fields loaded, attempting to discover them now...')
-      try {
-        const fieldMapping = await jiraFieldService.discoverFields(jiraConnection, workItemType)
-        if (fieldMapping) {
-          setJiraFields(fieldMapping.fields)
+    // Start validation loader
+    setIsValidating(true)
+
+    try {
+      // Ensure we have Jira fields loaded
+      if (jiraFields.length === 0) {
+        console.log('No Jira fields loaded, attempting to discover them now...')
+        try {
+          const fieldMapping = await jiraFieldService.discoverFields(jiraConnection, workItemType)
+          if (fieldMapping) {
+            setJiraFields(fieldMapping.fields)
+          }
+        } catch (error) {
+          console.error('Failed to discover fields during push:', error)
         }
-      } catch (error) {
-        console.error('Failed to discover fields during push:', error)
       }
-    }
 
-    // Validate fields with smart extraction before pushing
-    if (jiraFields.length > 0) {
-      try {
-        // Get AI provider info for field extraction
-        let aiProvider: string | undefined
-        let apiKey: string | undefined
-        
-        if (aiModel === 'devs-ai' && isDevsAIReady) {
-          aiProvider = 'devs-ai'
-          const savedConnection = devsAIService.loadSavedConnection()
-          apiKey = savedConnection?.apiToken
-        }
+      // Validate fields with smart extraction before pushing
+      if (jiraFields.length > 0) {
+        try {
+          // Get AI provider info for field extraction
+          let aiProvider: string | undefined
+          let apiKey: string | undefined
+          
+          if (aiModel === 'devs-ai' && isDevsAIReady) {
+            aiProvider = 'devs-ai'
+            const savedConnection = devsAIService.loadSavedConnection()
+            apiKey = savedConnection?.apiToken
+          }
 
-        console.log('Starting field validation with extraction...')
-        const validationResult = await fieldValidationService.validateContentWithExtraction(
-          content,
-          workItemType,
-          currentTemplate,
-          jiraFields,
-          aiProvider,
-          apiKey
-        )
+          console.log('Starting field validation with extraction...')
+          const validationResult = await fieldValidationService.validateContentWithExtraction(
+            content,
+            workItemType,
+            currentTemplate,
+            jiraFields,
+            aiProvider,
+            apiKey
+          )
 
-        // Store extracted fields and suggestions for the modal
-        setExtractedFields(validationResult.extractedFields || {})
-        setFieldSuggestions(validationResult.suggestions || {})
+          // Store extracted fields and suggestions for the modal
+          setExtractedFields(validationResult.extractedFields || {})
+          setFieldSuggestions(validationResult.suggestions || {})
 
-        if (validationResult.extractedFields && Object.keys(validationResult.extractedFields).length > 0) {
-          info('Smart Fields Extracted', `Automatically extracted ${Object.keys(validationResult.extractedFields).length} field(s) from your description.`)
-        }
+          if (validationResult.extractedFields && Object.keys(validationResult.extractedFields).length > 0) {
+            info('Smart Fields Extracted', `Automatically extracted ${Object.keys(validationResult.extractedFields).length} field(s) from your description.`)
+          }
 
-        if (!validationResult.isValid) {
-          console.log(`Validation failed: ${validationResult.missingFields.length} missing fields`)
-          // Show validation modal with missing fields and suggestions
-          setValidationMissingFields(validationResult.missingFields)
-          setPendingContent({
-            ...content,
-            customFields: {
-              ...content.customFields,
-              ...validationResult.extractedFields
-            }
-          })
-          setShowValidationModal(true)
-          return
-        }
+          if (!validationResult.isValid) {
+            console.log(`Validation failed: ${validationResult.missingFields.length} missing fields`)
+            // Show validation modal with missing fields and suggestions
+            setValidationMissingFields(validationResult.missingFields)
+            setPendingContent({
+              ...content,
+              customFields: {
+                ...content.customFields,
+                ...validationResult.extractedFields
+              }
+            })
+            setShowValidationModal(true)
+            return
+          }
 
-        // If validation passed, update content with extracted fields
-        if (validationResult.extractedFields && Object.keys(validationResult.extractedFields).length > 0) {
-          content = {
-            ...content,
-            customFields: {
-              ...content.customFields,
-              ...validationResult.extractedFields
+          // If validation passed, update content with extracted fields
+          if (validationResult.extractedFields && Object.keys(validationResult.extractedFields).length > 0) {
+            content = {
+              ...content,
+              customFields: {
+                ...content.customFields,
+                ...validationResult.extractedFields
+              }
             }
           }
+        } catch (validationError) {
+          console.error('Field validation error:', validationError)
+          warning('Validation Error', 'Unable to validate fields. Proceeding with basic validation.')
         }
-      } catch (validationError) {
-        console.error('Field validation error:', validationError)
-        warning('Validation Error', 'Unable to validate fields. Proceeding with basic validation.')
       }
-    }
 
-    // Proceed with Jira creation
-    await createJiraIssue(content)
+      // Proceed with Jira creation
+      await createJiraIssue(content)
+    } finally {
+      // Always stop validation loader
+      setIsValidating(false)
+    }
   }
 
   const createJiraIssue = async (content: GeneratedContent) => {
@@ -642,6 +651,18 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         currentStep={generatingStep}
       />
 
+      {/* Page Loader for Validation */}
+      <PageLoader
+        isVisible={isValidating}
+        variant="jira"
+        title="Validating Data"
+        subtitle="Checking required fields and preparing for Jira..."
+        steps={[
+          'Validating content'
+        ]}
+        currentStep={1}
+      />
+
       {/* Page Loader for Jira Push */}
       <PageLoader
         isVisible={isPushing}
@@ -672,7 +693,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                 setSelectedTemplate('default') // Reset template when work item type changes
               }}
                 className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-              disabled={isGenerating || isPushing}
+              disabled={isGenerating || isPushing || isValidating}
             >
               <option value="epic">Epic</option>
               <option value="story">Story</option>
@@ -688,7 +709,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               value={selectedTemplate}
               onChange={(e) => setSelectedTemplate(e.target.value)}
                 className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-              disabled={isGenerating || isPushing}
+              disabled={isGenerating || isPushing || isValidating}
             >
               {availableTemplates.map((template) => (
                 <option key={template.id} value={template.id}>
@@ -706,7 +727,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               value={aiModel}
               onChange={(e) => setAiModel(e.target.value as AIModel)}
                 className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-              disabled={isGenerating || isPushing}
+              disabled={isGenerating || isPushing || isValidating}
             >
               <option value="auto">Auto (Free - Gemini)</option>
               <option value="openai">OpenAI GPT-4</option>
@@ -727,7 +748,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                 value={selectedDevsAIModel}
                 onChange={(e) => setSelectedDevsAIModel(e.target.value)}
                   className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-                disabled={isGenerating || isPushing}
+                disabled={isGenerating || isPushing || isValidating}
               >
                 {devsAIService.getAvailableModels().map((model) => (
                   <option key={model} value={model}>
@@ -749,7 +770,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             rows={4}
               className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 resize-none bg-white text-navy-950"
             placeholder={`Describe your ${workItemType} in detail...`}
-            disabled={isGenerating || isPushing}
+            disabled={isGenerating || isPushing || isValidating}
           />
         </div>
 
@@ -778,7 +799,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             <Button
               variant="outline"
             onClick={handleReset}
-            disabled={isGenerating || isPushing}
+            disabled={isGenerating || isPushing || isValidating}
           >
               <Icons.RotateCcw size="sm" autoContrast className="mr-2" />
             Reset Form
@@ -786,7 +807,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           
             <Button
             onClick={handleGenerate}
-            disabled={isGenerating || isPushing || !description.trim()}
+            disabled={isGenerating || isPushing || isValidating || !description.trim()}
               className="min-w-[160px]"
           >
             {isGenerating ? (
@@ -824,7 +845,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                   <Button
                     variant="outline"
                     onClick={() => setIsEditing(true)}
-                    disabled={isPushing}
+                    disabled={isPushing || isValidating}
                   >
                     <Icons.Edit size="sm" autoContrast className="mr-2" />
                     Edit Content
@@ -832,7 +853,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                 )}
                 <Button
                   onClick={() => handlePushToJira(generatedContent)}
-                  disabled={isPushing || !jiraConnection}
+                  disabled={isPushing || isValidating || !jiraConnection}
                   variant={jiraConnection ? "default" : "secondary"}
                 >
                   {isPushing ? (
