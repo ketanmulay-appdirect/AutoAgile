@@ -5,7 +5,7 @@ import { JiraField } from '../lib/jira-field-service'
 import { WorkItemTemplate } from '../lib/template-service'
 import { GeneratedContent } from '../types'
 
-interface MissingField {
+export interface MissingField {
   jiraFieldId: string
   jiraField: JiraField
   templateFieldId?: string

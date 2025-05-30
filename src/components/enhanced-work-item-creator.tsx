@@ -8,8 +8,8 @@ import { useToast } from '../hooks/use-toast'
 import { devsAIService } from '../lib/devs-ai-service'
 import { templateService } from '../lib/template-service'
 import { type DevsAIConnection } from './devs-ai-connection'
-import { FieldValidationModal } from './field-validation-modal'
-import { fieldValidationService, type MissingField } from '../lib/field-validation-service'
+import { FieldValidationModal, type MissingField } from './field-validation-modal'
+import { fieldValidationService } from '../lib/field-validation-service'
 import { jiraFieldService } from '../lib/jira-field-service'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -20,6 +20,10 @@ import { Icons, StatusIcons } from './ui/icons'
 import { PageLoader } from './ui/page-loader'
 import { workItemStorage } from '../lib/work-item-storage'
 import { ContentChatRefiner } from './content-chat-refiner'
+import { Textarea } from './ui/textarea'
+import { GeneratedContentDisplay } from './generated-content-display'
+import { WorkItemTemplateSelector } from './template-selector'
+import { type WorkItemTemplate } from '../types'
 
 interface EnhancedWorkItemCreatorProps {
   jiraConnection: JiraInstance | null
@@ -97,6 +101,11 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   // Track if mock content is being used
   const [isUsingMockContent, setIsUsingMockContent] = useState(false)
 
+  // State for invalid option correction
+  const [showInvalidOptionModal, setShowInvalidOptionModal] = useState(false);
+  const [invalidOptionDetails, setInvalidOptionDetails] = useState<any>(null); // Consider defining a specific type
+  const [pendingContentForOptionCorrection, setPendingContentForOptionCorrection] = useState<GeneratedContent | null>(null);
+
   const { toasts, removeToast, success, error, warning, info } = useToast()
 
   // Load templates on client-side only
@@ -144,11 +153,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             const data = await response.json()
             console.log(`Discovered ${data.fields.length} Jira fields for ${workItemType}`)
             
-            // Convert the discovered fields to our JiraField format
-            const jiraFieldsData = data.fields.map((field: any) => ({
+            const jiraFieldsData: JiraField[] = data.fields.map((field: any) => ({
               id: field.id,
               name: field.name,
-              type: field.type,
+              type: field.type as JiraField['type'], 
               required: field.required,
               allowedValues: field.allowedValues?.map((v: any) => 
                 typeof v === 'object' ? (v.name || v.value || v.id) : v
@@ -178,7 +186,20 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             }
             
             if (fieldMapping) {
-              setJiraFields(fieldMapping.fields)
+              // Update the jiraFields state with discovered fields
+              const mappedJiraFields: JiraField[] = fieldMapping.fields.map((field: any) => ({
+                id: field.id,
+                name: field.name,
+                type: field.type as JiraField['type'],
+                required: field.required,
+                allowedValues: field.allowedValues?.map((v: any) => 
+                  typeof v === 'object' ? (v.name || v.value || v.id) : v
+                ),
+                description: field.description,
+                schema: field.schema,
+                isMultiSelect: field.isMultiSelect
+              }));
+              setJiraFields(mappedJiraFields)
             }
           }
         } catch (error) {
@@ -457,6 +478,24 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         await new Promise(resolve => setTimeout(resolve, 400))
       }
 
+      // Ensure currentTemplate is compatible with what validateContent expects if it's still an issue
+      const validationContent = await fieldValidationService.validateContent(
+        content,
+        workItemType,
+        currentTemplate, // Check type compatibility
+        jiraFields
+      );
+      setValidatingStep(3);
+
+      if (!validationContent.isValid) {
+        console.log(`Validation failed: ${validationContent.missingFields.length} missing fields`)
+        // Show validation modal with missing fields and suggestions
+        setValidationMissingFields(validationContent.missingFields)
+        setPendingContent(content)
+        setShowValidationModal(true)
+        return
+      }
+
       // Proceed with Jira creation
       await createJiraIssue(content)
     } finally {
@@ -508,6 +547,22 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       if (!response.ok) {
         const errorData = await response.json()
         
+        // Handle Invalid Field Option error
+        if (errorData.error === 'Invalid field option') {
+          console.log('Invalid field option error detected:', errorData);
+          setInvalidOptionDetails({
+            fieldId: errorData.fieldId,
+            errorMessage: errorData.errorMessage,
+            invalidValue: errorData.invalidValue,
+            allowedOptions: errorData.allowedOptions || [],
+            fieldName: jiraFields.find(f => f.id === errorData.fieldId)?.name || errorData.fieldId
+          });
+          setPendingContentForOptionCorrection(content);
+          setShowInvalidOptionModal(true);
+          // Do not proceed to generic error handling for this specific case
+          return; 
+        }
+        
         // Check if this is a field discovery error
         if (errorData.fieldDiscovery && errorData.jiraError) {
           console.log('Field discovery error detected, discovering fields from error...')
@@ -522,7 +577,11 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             
             if (fieldMapping) {
               // Update the jiraFields state with discovered fields
-              setJiraFields(fieldMapping.fields)
+              const mappedJiraFields: JiraField[] = fieldMapping.fields.map((field: any) => ({
+                ...field,
+                type: field.type as JiraField['type']
+              }));
+              setJiraFields(mappedJiraFields)
               
               // Show info about discovered fields
               info(
@@ -535,7 +594,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                 content,
                 workItemType,
                 currentTemplate,
-                fieldMapping.fields
+                fieldMapping.fields as JiraField[] // Asserting type here as well
               )
               
               if (!validationResult.isValid) {
@@ -606,7 +665,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       }
     } catch (err) {
       console.error('Error creating Jira issue:', err)
-      error('Jira Creation Failed', err instanceof Error ? err.message : 'Failed to create issue in Jira.')
+      // Avoid showing generic error if invalid option modal is triggered
+      if (!showInvalidOptionModal) {
+         error('Jira Creation Failed', err instanceof Error ? err.message : 'Failed to create issue in Jira.')
+      }
     } finally {
       setIsPushing(false)
       setPushingStep(0)
@@ -1005,6 +1067,28 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         jiraConnection={jiraConnection}
         workItemType={workItemType}
       />
+
+      {/* Invalid Option Modal */}
+      {showInvalidOptionModal && (
+        <Alert variant="warning">
+          <Icons.AlertTriangle size="sm" />
+          <AlertTitle>Invalid Field Option</AlertTitle>
+          <AlertDescription>
+            {invalidOptionDetails?.errorMessage}
+          </AlertDescription>
+          <div className="mt-4">
+            <Button
+              onClick={() => {
+                setShowInvalidOptionModal(false);
+                setPendingContentForOptionCorrection(null);
+              }}
+              variant="outline"
+            >
+              Close
+            </Button>
+          </div>
+        </Alert>
+      )}
 
     </div>
   )

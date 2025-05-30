@@ -145,8 +145,9 @@ export async function POST(request: NextRequest) {
                 // Fallback formatting for unknown custom fields
                 console.log(`No metadata found for ${key}, using fallback formatting`)
                 if (key === 'customfield_26360') {
-                  // Include on Roadmap - needs array format
-                  issueData.fields[key] = Array.isArray(value) ? value.map(v => ({ value: v })) : [{ value: value }]
+                  // Include on Roadmap - needs array format.
+                  // Attempt to use the value itself as an ID in the fallback, as { value: v } is rejected.
+                  issueData.fields[key] = Array.isArray(value) ? value.map(v => ({ id: String(v) })) : [{ id: String(value) }];
                 } else if (key === 'customfield_26362') {
                   // Delivery Quarter - needs object format
                   issueData.fields[key] = { value: value }
@@ -189,6 +190,56 @@ export async function POST(request: NextRequest) {
     if (!response.ok && response.status === 400) {
       const errorData = await response.json().catch(() => ({}))
       console.error('Jira API error:', response.status, response.statusText, errorData)
+
+      // Check for invalid option value error for custom fields
+      if (errorData.errors) {
+        for (const fieldId in errorData.errors) {
+          if (fieldId.startsWith('customfield_') && typeof errorData.errors[fieldId] === 'string' && errorData.errors[fieldId].includes('is not valid')) {
+            console.log(`Invalid option detected for ${fieldId}: ${errorData.errors[fieldId]}`);
+            try {
+              const fieldMetadata = await jiraFieldService.getFieldMetadata(jiraConnection, fieldId);
+              let allowedOptions = [];
+              if (fieldMetadata && fieldMetadata.options) {
+                allowedOptions = fieldMetadata.options.map((opt: any) => ({
+                  id: opt.id,
+                  value: opt.value,
+                  name: opt.name || opt.value // Fallback to value if name is not present
+                }));
+              }
+              
+              // Find the original value sent for this field from issueData
+              let originalValue = issueData.fields[fieldId];
+              if (typeof originalValue === 'object' && originalValue !== null) {
+                // If it's an array of objects like [{id: "123"}] or [{value: "abc"}], extract the primitive
+                if (Array.isArray(originalValue) && originalValue.length > 0) {
+                    originalValue = originalValue[0].id || originalValue[0].value;
+                } else { // If it's a single object like {id: "123"} or {value: "abc"}
+                    originalValue = originalValue.id || originalValue.value;
+                }
+              }
+
+
+              return NextResponse.json({
+                error: 'Invalid field option',
+                fieldId: fieldId,
+                errorMessage: errorData.errors[fieldId],
+                invalidValue: originalValue, // Attempt to send back the value that was problematic
+                allowedOptions: allowedOptions,
+                jiraError: errorData
+              }, { status: 400 });
+            } catch (metaError) {
+              console.error(`Failed to get metadata for ${fieldId} after invalid option error:`, metaError);
+              // Fallback if metadata fetch fails
+              return NextResponse.json({
+                error: 'Invalid field option and failed to fetch options',
+                fieldId: fieldId,
+                errorMessage: errorData.errors[fieldId],
+                jiraError: errorData
+              }, { status: 400 });
+            }
+          }
+        }
+      }
       
       // Check if this is a required fields error that can be used for field discovery
       const hasRequiredFieldsError = errorData.errors && Object.keys(errorData.errors).some(key => 
@@ -215,9 +266,11 @@ export async function POST(request: NextRequest) {
         errorData.errors.priority || 
         errorData.errors.duedate ||
         errorData.errors.reporter ||
-        (errorData.errors.customfield_10002 && !errorData.errors.customfield_10002.toLowerCase().includes('required'))
+        (errorData.errors.customfield_10002 && !errorData.errors.customfield_10002.toLowerCase().includes('required')) ||
+        // Add a check for the problematic custom field if it's not a 'required' error but an 'invalid option'
+        (errorData.errors.customfield_26360 && !errorData.errors.customfield_26360.toLowerCase().includes('required'))
       )) {
-        console.log('Retrying with basic fields only due to field availability issues')
+        console.log('Retrying with basic fields only due to field availability/validity issues')
         
         // Create a minimal issue data with only required fields
         const basicIssueData: any = {
@@ -263,7 +316,7 @@ export async function POST(request: NextRequest) {
                   } else {
                     // Fallback formatting
                     if (key === 'customfield_26360') {
-                      basicIssueData.fields[key] = Array.isArray(value) ? value.map(v => ({ value: v })) : [{ value: value }]
+                      basicIssueData.fields[key] = Array.isArray(value) ? value.map(v => ({ id: String(v) })) : [{ id: String(value) }]
                     } else if (key === 'customfield_26362') {
                       basicIssueData.fields[key] = { value: value }
                     } else {
@@ -293,6 +346,12 @@ export async function POST(request: NextRequest) {
       const errorData = await response.json().catch(() => ({}))
       console.error('Jira API error:', response.status, response.statusText, errorData)
       
+      // Check if this is an invalid field option error that was re-thrown after a retry
+      // This check is simplified as the detailed parsing is now done before the retry block
+      if (response.status === 400 && errorData.error === 'Invalid field option') {
+          return NextResponse.json(errorData, { status: 400 });
+      }
+
       if (response.status === 400) {
         // Check if this is a project key error
         if (errorData.errors && errorData.errors.project) {
