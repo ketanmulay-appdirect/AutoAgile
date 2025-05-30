@@ -63,6 +63,17 @@ export function FieldValidationModal({
           defaultValue = jiraConnection.projectKey
         } else if (field.jiraFieldId === 'reporter' && jiraConnection?.email) {
           defaultValue = jiraConnection.email
+        } else if (field.jiraFieldId === 'customfield_26360') {
+          // Include on Roadmap - ensure it's an array
+          if (Array.isArray(defaultValue)) {
+            // Already an array, keep as is
+          } else if (defaultValue && typeof defaultValue === 'string') {
+            // Convert single string value to array
+            defaultValue = [defaultValue]
+          } else {
+            // No value, start with empty array
+            defaultValue = []
+          }
         }
         
         initialValues[field.jiraFieldId] = defaultValue
@@ -89,33 +100,46 @@ export function FieldValidationModal({
   }
 
   const validateFields = (): boolean => {
+    console.log(`🔍 validateFields called - checking ${missingFields.length} missing fields`)
     const errors: Record<string, string> = {}
     
     missingFields.forEach(field => {
       const value = fieldValues[field.jiraFieldId]
+      console.log(`🔍 Checking field ${field.jiraFieldId} (${field.jiraField.name}): value = "${value}", required = ${field.jiraField.required}`)
       
       if (field.jiraField.required && (!value || value.toString().trim() === '')) {
         errors[field.jiraFieldId] = `${field.jiraField.name} is required`
+        console.log(`❌ Field ${field.jiraFieldId} failed validation: required but empty`)
       }
       
       // Additional validation based on field type
       if (value && field.jiraField.type === 'number' && isNaN(Number(value))) {
         errors[field.jiraFieldId] = `${field.jiraField.name} must be a valid number`
+        console.log(`❌ Field ${field.jiraFieldId} failed validation: invalid number`)
       }
     })
     
     setValidationErrors(errors)
-    return Object.keys(errors).length === 0
+    const isValid = Object.keys(errors).length === 0
+    console.log(`🔍 validateFields result: ${isValid ? 'VALID' : 'INVALID'}, errors:`, errors)
+    return isValid
   }
 
   const handleSubmit = async () => {
-    if (!validateFields()) {
-      return
-    }
-
-    setIsSubmitting(true)
+    const submitCallId = Math.random().toString(36).substr(2, 9)
+    console.log(`🎯 Modal handleSubmit called with ID: ${submitCallId}`)
+    console.trace('Modal handleSubmit call stack')
     
+    if (isSubmitting) return
+    
+    setIsSubmitting(true)
+    setValidationErrors({})
+
     try {
+      if (!validateFields()) {
+        return
+      }
+
       // Create updated content with filled fields
       const updatedContent = { ...content }
       const customFields: Record<string, any> = {}
@@ -171,6 +195,36 @@ export function FieldValidationModal({
     const jiraField = field.jiraField
     const value = fieldValues[field.jiraFieldId] || ''
     const error = validationErrors[field.jiraFieldId]
+    
+    // Handle specific custom fields first
+    if (field.jiraFieldId === 'customfield_26360') {
+      // Include on Roadmap - multiselect checkbox with Internal/External values
+      const currentValues = Array.isArray(value) ? value : (value ? [value] : [])
+      const options = ['Internal', 'External']
+      
+      return (
+        <div className="space-y-2 border border-gray-300 rounded-md p-3">
+          <div className="text-sm text-gray-600 mb-2">Select all that apply:</div>
+          {options.map((option) => (
+            <label key={option} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={currentValues.includes(option)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    handleFieldChange(field.jiraFieldId, [...currentValues, option])
+                  } else {
+                    handleFieldChange(field.jiraFieldId, currentValues.filter(v => v !== option))
+                  }
+                }}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">{option}</span>
+            </label>
+          ))}
+        </div>
+      )
+    }
     
     // Handle different field types based on Jira schema
     switch (jiraField.type) {
@@ -466,6 +520,8 @@ export function FieldValidationModal({
   }
 
   if (!isOpen) return null
+
+  console.log(`👁️ FieldValidationModal rendering - isOpen: ${isOpen}, missingFields: ${missingFields.length}`)
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

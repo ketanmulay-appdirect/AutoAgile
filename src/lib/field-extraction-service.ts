@@ -246,50 +246,12 @@ Return a JSON object with this structure:
 
       // Boolean fields (Yes/No) - enhanced for roadmap field
       else if (fieldName.includes('roadmap') || fieldName.includes('include') || field.id === 'customfield_26360') {
-        // Look for positive indicators
-        const yesPatterns = [
-          /\b(yes|include|add|roadmap|public|external|visible|show)\b/i,
-          /\bon\s+roadmap\b/i,
-          /\binclude.*roadmap\b/i,
-          /\broadmap.*include\b/i
-        ];
-        
-        // Look for negative indicators
-        const noPatterns = [
-          /\b(no|exclude|skip|private|internal|hidden|not)\b/i,
-          /\bnot.*roadmap\b/i,
-          /\bexclude.*roadmap\b/i,
-          /\binternal.*only\b/i
-        ];
-        
-        let yesMatch = false;
-        let noMatch = false;
-        
-        for (const pattern of yesPatterns) {
-          if (pattern.test(description)) {
-            yesMatch = true;
-            break;
-          }
+        // Internal/External multiselect field
+        if (field.id === 'customfield_26360') {
+          return this.extractInternalExternalValue(description)
         }
-        
-        for (const pattern of noPatterns) {
-          if (pattern.test(description)) {
-            noMatch = true;
-            break;
-          }
-        }
-        
-        if (yesMatch && !noMatch) {
-          extractedValue = 'Yes';
-          confidence = 0.7;
-        } else if (noMatch && !yesMatch) {
-          extractedValue = 'No';
-          confidence = 0.7;
-        } else if (yesMatch) {
-          // Default to yes if roadmap is mentioned
-          extractedValue = 'Yes';
-          confidence = 0.5;
-        }
+        // Legacy roadmap field handling
+        return this.extractRoadmapValue(description)
       }
 
       // Story points extraction
@@ -305,7 +267,7 @@ Return a JSON object with this structure:
       else if (fieldName.includes('component')) {
         if (field.allowedValues) {
           for (const allowedValue of field.allowedValues) {
-            const componentName = allowedValue.toLowerCase();
+            const componentName = typeof allowedValue === 'string' ? allowedValue.toLowerCase() : allowedValue.value?.toLowerCase() || '';
             if (componentName && lowerDescription.includes(componentName)) {
               extractedValue = allowedValue;
               confidence = 0.7;
@@ -345,7 +307,7 @@ Return a JSON object with this structure:
 
     // Score each allowed value based on relevance to description
     for (const allowedValue of field.allowedValues) {
-      const value = allowedValue.toLowerCase();
+      const value = typeof allowedValue === 'string' ? allowedValue.toLowerCase() : (allowedValue.value?.toLowerCase() || allowedValue.name?.toLowerCase() || '');
       let score = 0;
 
       // Exact match
@@ -511,6 +473,54 @@ Return a JSON object with this structure:
       const data = await response.json();
       return data.content || data.response || '';
     }
+  }
+
+  private extractInternalExternalValue(description: string): ExtractedFieldValue[] {
+    const extractedFields: ExtractedFieldValue[] = [];
+    const lowerDescription = typeof description === 'string' ? description.toLowerCase() : '';
+
+    // Include on Roadmap - look for Internal/External indicators
+    const values = [];
+    
+    // Check for Internal indicators
+    if (lowerDescription.match(/\b(internal|private|confidential|company|team|staff)\b/)) {
+      values.push('Internal');
+    }
+    
+    // Check for External indicators  
+    if (lowerDescription.match(/\b(external|public|customer|client|visible|roadmap|showcase)\b/)) {
+      values.push('External');
+    }
+    
+    // If we found values, add them to extracted fields
+    if (values.length > 0) {
+      extractedFields.push({
+        fieldId: 'customfield_26360',
+        value: values, // Array for multiselect
+        confidence: 0.8,
+        extractionMethod: 'pattern'
+      });
+    }
+
+    return extractedFields;
+  }
+
+  private extractRoadmapValue(description: string): ExtractedFieldValue[] {
+    const extractedFields: ExtractedFieldValue[] = [];
+    const lowerDescription = typeof description === 'string' ? description.toLowerCase() : '';
+
+    // Legacy roadmap field handling
+    const roadmapMatch = lowerDescription.match(/\b(roadmap|public|external|visible|show)\b/);
+    if (roadmapMatch) {
+      extractedFields.push({
+        fieldId: 'customfield_26360',
+        value: roadmapMatch[0],
+        confidence: 0.8,
+        extractionMethod: 'pattern'
+      });
+    }
+
+    return extractedFields;
   }
 }
 

@@ -145,9 +145,19 @@ export async function POST(request: NextRequest) {
                 // Fallback formatting for unknown custom fields
                 console.log(`No metadata found for ${key}, using fallback formatting`)
                 if (key === 'customfield_26360') {
-                  // Include on Roadmap - needs array format.
-                  // Attempt to use the value itself as an ID in the fallback, as { value: v } is rejected.
-                  issueData.fields[key] = Array.isArray(value) ? value.map(v => ({ id: String(v) })) : [{ id: String(value) }];
+                  // Include on Roadmap (Internal/External) - needs array format.
+                  // For multiselect fields, Jira expects an array of objects with 'value' property
+                  const values = Array.isArray(value) ? value : [value];
+                  const formattedValues = values
+                    .filter(v => v && v.toString().trim()) // Remove empty values
+                    .map(v => {
+                      const trimmedValue = String(v).trim();
+                      // Try multiple format variations that Jira might accept
+                      return { value: trimmedValue };
+                    });
+                  
+                  console.log(`Formatting customfield_26360: input=${JSON.stringify(value)} -> output=${JSON.stringify(formattedValues)}`);
+                  issueData.fields[key] = formattedValues;
                 } else if (key === 'customfield_26362') {
                   // Delivery Quarter - needs object format
                   issueData.fields[key] = { value: value }

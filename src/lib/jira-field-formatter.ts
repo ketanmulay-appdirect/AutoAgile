@@ -82,13 +82,19 @@ class JiraFieldFormatter {
       if (allowedValues && allowedValues.length > 0) {
         const match = this.findMatchingOption(v, allowedValues)
         if (match) {
-          return { id: match.id, value: match.value || match.name }
+          // For multiselect fields, prefer the ID if available, otherwise use value
+          if (match.id) {
+            return { id: match.id }
+          } else {
+            return { value: match.value || match.name }
+          }
         }
       }
       
       // Default format for array items
       if (typeof v === 'object') return v
-      return { value: String(v) }
+      // For multiselect fields, use value property
+      return { value: String(v).trim() }
     })
   }
 

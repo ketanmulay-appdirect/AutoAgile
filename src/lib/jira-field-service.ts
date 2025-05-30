@@ -165,7 +165,7 @@ class JiraFieldService {
       'date': 'date',
       'datetime': 'date',
       'option': 'select',
-      'array': 'select',
+      'array': 'multiselect',
       'user': 'text',
       'project': 'text',
       'issuetype': 'select',
@@ -327,7 +327,7 @@ class JiraFieldService {
   private guessFieldTypeFromId(fieldId: string): string {
     // Handle specific known fields
     if (fieldId === 'customfield_26362') return 'select' // Delivery Quarter
-    if (fieldId === 'customfield_26360') return 'select' // Include on Roadmap (changed from checkbox to select for better UX)
+    if (fieldId === 'customfield_26360') return 'multiselect' // Include on Roadmap - multiselect checkbox with Internal/External values
     
     if (fieldId.includes('date') || fieldId.includes('time')) return 'date'
     if (fieldId.includes('number') || fieldId.includes('point')) return 'number'
@@ -361,9 +361,8 @@ class JiraFieldService {
     }
     
     if (fieldId === 'customfield_26360' || lowerFieldName.includes('roadmap') || lowerFieldName.includes('include on roadmap')) {
-      // Based on error: "Specify the value for Include on Roadmap? in an array"
-      // This suggests it's a multi-select or checkbox that needs array format
-      return ['Yes', 'No']
+      // Include on Roadmap - multiselect checkbox with Internal and External values
+      return ['Internal', 'External']
     }
     
     // Handle standard fields
@@ -403,7 +402,7 @@ class JiraFieldService {
       // Try to get a better name based on common patterns
       const commonNames: Record<string, string> = {
         'customfield_26362': 'Delivery Quarter',
-        'customfield_26360': 'Include on Roadmap?',
+        'customfield_26360': 'Include on Roadmap',
         'customfield_17950': 'Priority',
         'customfield_10002': 'Story Points'
       }

@@ -369,13 +369,18 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   }
 
   const handlePushToJira = async (content: GeneratedContent) => {
+    const callId = Math.random().toString(36).substr(2, 9)
+    console.log(`🔵 handlePushToJira called with ID: ${callId}`)
+    
     if (!jiraConnection) {
       warning('Jira Not Connected', 'Please connect to Jira first in the Jira Connection tab.')
+      console.log(`🔴 handlePushToJira ${callId} - No Jira connection, returning`)
       return
     }
 
     if (!content.title.trim() || !content.description.trim()) {
       warning('Missing Required Fields', 'Title and description are required to create a Jira issue.')
+      console.log(`🔴 handlePushToJira ${callId} - Missing title/description, returning`)
       return
     }
 
@@ -391,13 +396,28 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       // Ensure we have Jira fields loaded
       if (jiraFields.length === 0) {
         console.log('No Jira fields loaded, attempting to discover them now...')
+        let discoveredFields: any[] = []
         try {
           const fieldMapping = await jiraFieldService.discoverFields(jiraConnection, workItemType)
           if (fieldMapping) {
-            setJiraFields(fieldMapping.fields)
+            discoveredFields = fieldMapping.fields
+            setJiraFields(discoveredFields)
+            console.log(`Discovered ${discoveredFields.length} fields for ${workItemType}`)
+          } else {
+            console.warn('Field discovery returned no field mapping')
           }
         } catch (error) {
           console.error('Failed to discover fields during push:', error)
+        }
+        
+        // After discovery attempt, check if we still have no fields
+        if (discoveredFields.length === 0) {
+          console.error('Cannot proceed: No Jira fields available after discovery attempt')
+          error(
+            'Field Discovery Failed', 
+            'Unable to discover required Jira fields. Please check your Jira connection and permissions, or try again.'
+          )
+          return
         }
       }
 
@@ -445,6 +465,8 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
 
           if (!validationResult.isValid) {
             console.log(`Validation failed: ${validationResult.missingFields.length} missing fields`)
+            console.log('Missing fields:', validationResult.missingFields.map(f => f.jiraFieldId))
+            console.log(`🚫 ${callId} - Validation failed, showing modal and returning`)
             // Show validation modal with missing fields and suggestions
             setValidationMissingFields(validationResult.missingFields)
             setPendingContent({
@@ -455,6 +477,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               }
             })
             setShowValidationModal(true)
+            console.log(`🛑 ${callId} - Modal set, RETURNING from handlePushToJira`)
             return
           }
 
@@ -468,36 +491,34 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               }
             }
           }
+          
+          console.log(`✅ ${callId} - Validation passed, creating Jira issue`)
+          await createJiraIssue(content)
         } catch (validationError) {
           console.error('Field validation error:', validationError)
-          warning('Validation Error', 'Unable to validate fields. Proceeding with basic validation.')
+          
+          // If validation completely failed, we should not proceed to Jira creation
+          // This could be due to AI failures, network issues, etc.
+          error('Validation Failed', 'Unable to validate required fields due to an error. Please try again or check your configuration.')
+          return
         }
       } else {
         // Skip AI extraction if no fields available
+        console.log('No jiraFields available for validation - this should not happen when creating issues')
         setValidatingStep(4)
         await new Promise(resolve => setTimeout(resolve, 400))
+        
+        // If no fields have been discovered, we cannot safely create a Jira issue
+        // This prevents bypassing validation when fields haven't been loaded yet
+        if (jiraFields.length === 0) {
+          console.warn('Cannot create Jira issue: No field information available')
+          error('Field Discovery Required', 'Unable to validate required fields. Please try field discovery first or check your Jira connection.')
+          return
+        }
+        
+        // No validation needed, proceed with Jira creation  
+        await createJiraIssue(content)
       }
-
-      // Ensure currentTemplate is compatible with what validateContent expects if it's still an issue
-      const validationContent = await fieldValidationService.validateContent(
-        content,
-        workItemType,
-        currentTemplate, // Check type compatibility
-        jiraFields
-      );
-      setValidatingStep(3);
-
-      if (!validationContent.isValid) {
-        console.log(`Validation failed: ${validationContent.missingFields.length} missing fields`)
-        // Show validation modal with missing fields and suggestions
-        setValidationMissingFields(validationContent.missingFields)
-        setPendingContent(content)
-        setShowValidationModal(true)
-        return
-      }
-
-      // Proceed with Jira creation
-      await createJiraIssue(content)
     } finally {
       // Always stop validation loader
       setIsValidating(false)
@@ -506,6 +527,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   }
 
   const createJiraIssue = async (content: GeneratedContent) => {
+    const createCallId = Math.random().toString(36).substr(2, 9)
+    console.log(`🔨 createJiraIssue called with ID: ${createCallId}`)
+    console.trace('createJiraIssue call stack')
+    
     if (!jiraConnection) {
       error('Jira Not Connected', 'Jira connection is required to create an issue.')
       return
