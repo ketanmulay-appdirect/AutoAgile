@@ -236,4 +236,64 @@ export interface EnhancedExtractionResult {
     manualCount: number
     skippedCount: number
   }
+}
+
+// PM Resources Types
+export type PMToolCategory = 
+  | 'planning-roadmapping'
+  | 'diagramming-visualization'
+  | 'documentation-requirements'
+  | 'design-prototyping'
+  | 'analysis-metrics'
+  | 'collaboration-communication'
+  | 'development-workflow'
+
+export type PMToolType = 'free' | 'paid' | 'freemium'
+export type PMToolComplexity = 'beginner' | 'intermediate' | 'advanced'
+
+export interface PMTool {
+  id: string
+  name: string
+  description: string
+  shortDescription?: string
+  category: PMToolCategory
+  type: PMToolType
+  complexity: PMToolComplexity
+  url: string
+  isPopular: boolean
+  tags: string[]
+  useCases: string[]
+  features?: string[]
+  pros?: string[]
+  cons?: string[]
+  pricing?: string
+  alternatives?: string[]
+  rating?: number
+  lastUpdated?: string
+}
+
+export interface PMToolCategory_Info {
+  id: PMToolCategory
+  name: string
+  description: string
+  icon: string
+  color: string
+}
+
+export interface PMResourcesFilters {
+  category?: PMToolCategory
+  type?: PMToolType
+  complexity?: PMToolComplexity
+  useCase?: string
+  searchTerm?: string
+  search?: string
+  showOnlyPopular?: boolean
+}
+
+export interface PMToolUseCase {
+  id: string
+  title: string
+  description: string
+  recommendedTools: string[]
+  category: PMToolCategory
 } 

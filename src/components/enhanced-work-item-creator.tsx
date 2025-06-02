@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { WorkItemType, GeneratedContent, AIModel, JiraInstance, WorkItemTemplate, JiraField, EnhancedExtractionResult } from '../types'
+import { WorkItemType, GeneratedContent, AIModel, JiraInstance, WorkItemTemplate, JiraField, EnhancedExtractionResult, FieldExtractionConfig, ExtractionPreferences, PMToolCategory } from '../types'
 import { ContentEditor } from './content-editor'
 import { ToastContainer } from './ui/toast'
 import { useToast } from '../hooks/use-toast'
@@ -20,6 +20,9 @@ import { Icons, StatusIcons } from './ui/icons'
 import { PageLoader } from './ui/page-loader'
 import { workItemStorage } from '../lib/work-item-storage'
 import { ContentChatRefiner } from './content-chat-refiner'
+import { FieldExtractionConfigEditor } from './field-extraction-config-editor'
+import { PMResources } from './pm-resources'
+import { cn } from '../lib/utils'
 // Note: The following imports are commented out until components are available:
 // import { Textarea } from './ui/textarea'
 // import { GeneratedContentDisplay } from './generated-content-display'
@@ -28,6 +31,14 @@ import { ContentChatRefiner } from './content-chat-refiner'
 interface EnhancedWorkItemCreatorProps {
   jiraConnection: JiraInstance | null
   devsAIConnection?: DevsAIConnection | null
+}
+
+// Chat message interface
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: Date
 }
 
 // Helper function to parse generated content into structured format
@@ -108,6 +119,26 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [pendingContentForOptionCorrection, setPendingContentForOptionCorrection] = useState<GeneratedContent | null>(null);
 
   const { toasts, removeToast, success, error, warning, info } = useToast()
+
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
+  const [showChatRefiner, setShowChatRefiner] = useState(false)
+  const [showContextualResources, setShowContextualResources] = useState(false)
+
+  // Context-aware PM resource suggestions
+  const getContextualCategory = (workItemType: WorkItemType): PMToolCategory | undefined => {
+    switch (workItemType) {
+      case 'epic':
+        return 'planning-roadmapping'
+      case 'story':
+        return 'documentation-requirements'
+      case 'task':
+        return 'development-workflow'
+      case 'initiative':
+        return 'planning-roadmapping'
+      default:
+        return undefined
+    }
+  }
 
   // Load templates on client-side only
   useEffect(() => {
@@ -806,8 +837,524 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   return (
     <div className="space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+      
+      {/* Contextual PM Resources Toggle */}
+      {false && ( // Hide contextual mode for now
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowContextualResources(!showContextualResources)}
+            className="flex items-center gap-2"
+          >
+            <Icons.Target size="sm" />
+            {showContextualResources ? 'Hide' : 'Show'} Suggested Tools
+          </Button>
+        </div>
+      )}
 
-      {/* Page Loader for Content Generation */}
+      <div className={cn(
+        "grid gap-6",
+        false && showContextualResources ? "grid-cols-1 lg:grid-cols-3" : "grid-cols-1" // Hide contextual mode
+      )}>
+        {/* Main Content */}
+        <div className={cn(
+          false && showContextualResources ? "lg:col-span-2" : "col-span-1" // Hide contextual mode
+        )}>
+          {isEditing ? (
+            <Card>
+              <CardContent className="space-y-6 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                      <label className="block text-sm font-medium text-navy-950 mb-2">
+                      Work Item Type
+                    </label>
+                    <select
+                      value={workItemType}
+                      onChange={(e) => {
+                        setWorkItemType(e.target.value as WorkItemType)
+                        setSelectedTemplate('default') // Reset template when work item type changes
+                      }}
+                        className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                      disabled={isGenerating || isPushing || isValidating}
+                    >
+                      <option value="epic">Epic</option>
+                      <option value="story">Story</option>
+                      <option value="initiative">Initiative</option>
+                    </select>
+                  </div>
+
+                  <div>
+                      <label className="block text-sm font-medium text-navy-950 mb-2">
+                      Content Template
+                    </label>
+                    <select
+                      value={selectedTemplate}
+                      onChange={(e) => setSelectedTemplate(e.target.value)}
+                        className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                      disabled={isGenerating || isPushing || isValidating}
+                    >
+                      {availableTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                      <label className="block text-sm font-medium text-navy-950 mb-2">
+                      AI Model
+                    </label>
+                    <select
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value as AIModel)}
+                        className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                      disabled={isGenerating || isPushing || isValidating}
+                    >
+                      <option value="auto">Auto (Free - Gemini)</option>
+                      <option value="openai">OpenAI GPT-4</option>
+                      <option value="anthropic">Anthropic Claude</option>
+                      <option value="devs-ai">
+                        {isDevsAIReady ? 'Devs.ai (Multiple LLMs)' : 'Devs.ai (Multiple LLMs) - Setup Required'}
+                      </option>
+                    </select>
+                  </div>
+
+                  {/* Devs.ai Model Selection */}
+                  {aiModel === 'devs-ai' && isDevsAIReady && (
+                    <div>
+                        <label className="block text-sm font-medium text-navy-950 mb-2">
+                        Devs.ai Model
+                      </label>
+                      <select
+                        value={selectedDevsAIModel}
+                        onChange={(e) => setSelectedDevsAIModel(e.target.value)}
+                          className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                        disabled={isGenerating || isPushing || isValidating}
+                      >
+                        {devsAIService.getAvailableModels().map((model) => (
+                          <option key={model} value={model}>
+                            {model}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-navy-950 mb-2">
+                    Description *
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                      className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 resize-none bg-white text-navy-950"
+                    placeholder={`Describe your ${workItemType} in detail...`}
+                    disabled={isGenerating || isPushing || isValidating}
+                  />
+                </div>
+
+                {/* Template Preview */}
+                {currentTemplate && (
+                    <Alert variant="info">
+                      <Icons.FileText size="sm" />
+                      <AlertTitle>Template: {currentTemplate.name}</AlertTitle>
+                      <AlertDescription>
+                        <div className="space-y-2 mt-2">
+                          <p>
+                        <strong>Fields to generate:</strong> {currentTemplate.fields.map(f => f.name).join(', ')}
+                      </p>
+                      {currentTemplate.aiPrompt && (
+                        <p>
+                          <strong>Custom prompt:</strong> {currentTemplate.aiPrompt.substring(0, 100)}
+                          {currentTemplate.aiPrompt.length > 100 ? '...' : ''}
+                        </p>
+                      )}
+                    </div>
+                      </AlertDescription>
+                    </Alert>
+                )}
+
+                <div className="flex justify-between items-center">
+                    <Button
+                      variant="outline"
+                    onClick={handleReset}
+                    disabled={isGenerating || isPushing || isValidating}
+                  >
+                      <Icons.RotateCcw size="sm" autoContrast className="mr-2" />
+                    Reset Form
+                    </Button>
+                  
+                    <Button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || isPushing || isValidating || !description.trim()}
+                      className="min-w-[160px]"
+                  >
+                    {isGenerating ? (
+                        <>
+                          <LoadingSpinner size="sm" variant="white" className="mr-2" />
+                          Generating...
+                        </>
+                    ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
+                        <>
+                          <Icons.Settings size="sm" autoContrast className="mr-2" />
+                          Setup Devs.ai API Key
+                        </>
+                    ) : (
+                        <>
+                          <Icons.Sparkles size="sm" autoContrast className="mr-2" />
+                          Generate Content
+                        </>
+                    )}
+                    </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="space-y-6 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                      <label className="block text-sm font-medium text-navy-950 mb-2">
+                      Work Item Type
+                    </label>
+                    <select
+                      value={workItemType}
+                      onChange={(e) => {
+                        setWorkItemType(e.target.value as WorkItemType)
+                        setSelectedTemplate('default') // Reset template when work item type changes
+                      }}
+                        className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                      disabled={isGenerating || isPushing || isValidating}
+                    >
+                      <option value="epic">Epic</option>
+                      <option value="story">Story</option>
+                      <option value="initiative">Initiative</option>
+                    </select>
+                  </div>
+
+                  <div>
+                      <label className="block text-sm font-medium text-navy-950 mb-2">
+                      Content Template
+                    </label>
+                    <select
+                      value={selectedTemplate}
+                      onChange={(e) => setSelectedTemplate(e.target.value)}
+                        className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                      disabled={isGenerating || isPushing || isValidating}
+                    >
+                      {availableTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                      <label className="block text-sm font-medium text-navy-950 mb-2">
+                      AI Model
+                    </label>
+                    <select
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value as AIModel)}
+                        className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                      disabled={isGenerating || isPushing || isValidating}
+                    >
+                      <option value="auto">Auto (Free - Gemini)</option>
+                      <option value="openai">OpenAI GPT-4</option>
+                      <option value="anthropic">Anthropic Claude</option>
+                      <option value="devs-ai">
+                        {isDevsAIReady ? 'Devs.ai (Multiple LLMs)' : 'Devs.ai (Multiple LLMs) - Setup Required'}
+                      </option>
+                    </select>
+                  </div>
+
+                  {/* Devs.ai Model Selection */}
+                  {aiModel === 'devs-ai' && isDevsAIReady && (
+                    <div>
+                        <label className="block text-sm font-medium text-navy-950 mb-2">
+                        Devs.ai Model
+                      </label>
+                      <select
+                        value={selectedDevsAIModel}
+                        onChange={(e) => setSelectedDevsAIModel(e.target.value)}
+                          className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
+                        disabled={isGenerating || isPushing || isValidating}
+                      >
+                        {devsAIService.getAvailableModels().map((model) => (
+                          <option key={model} value={model}>
+                            {model}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-navy-950 mb-2">
+                    Description *
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                      className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 resize-none bg-white text-navy-950"
+                    placeholder={`Describe your ${workItemType} in detail...`}
+                    disabled={isGenerating || isPushing || isValidating}
+                  />
+                </div>
+
+                {/* Template Preview */}
+                {currentTemplate && (
+                    <Alert variant="info">
+                      <Icons.FileText size="sm" />
+                      <AlertTitle>Template: {currentTemplate.name}</AlertTitle>
+                      <AlertDescription>
+                        <div className="space-y-2 mt-2">
+                          <p>
+                        <strong>Fields to generate:</strong> {currentTemplate.fields.map(f => f.name).join(', ')}
+                      </p>
+                      {currentTemplate.aiPrompt && (
+                        <p>
+                          <strong>Custom prompt:</strong> {currentTemplate.aiPrompt.substring(0, 100)}
+                          {currentTemplate.aiPrompt.length > 100 ? '...' : ''}
+                        </p>
+                      )}
+                    </div>
+                      </AlertDescription>
+                    </Alert>
+                )}
+
+                <div className="flex justify-between items-center">
+                    <Button
+                      variant="outline"
+                    onClick={handleReset}
+                    disabled={isGenerating || isPushing || isValidating}
+                  >
+                      <Icons.RotateCcw size="sm" autoContrast className="mr-2" />
+                    Reset Form
+                    </Button>
+                  
+                    <Button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || isPushing || isValidating || !description.trim()}
+                      className="min-w-[160px]"
+                  >
+                    {isGenerating ? (
+                        <>
+                          <LoadingSpinner size="sm" variant="white" className="mr-2" />
+                          Generating...
+                        </>
+                    ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
+                        <>
+                          <Icons.Settings size="sm" autoContrast className="mr-2" />
+                          Setup Devs.ai API Key
+                        </>
+                    ) : (
+                        <>
+                          <Icons.Sparkles size="sm" autoContrast className="mr-2" />
+                          Generate Content
+                        </>
+                    )}
+                    </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Generated Content */}
+          {generatedContent && (
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center">
+                    <Icons.FileText size="md" autoContrast className="mr-2" />
+                    Generated Content
+                  </CardTitle>
+                  <div className="flex space-x-2">
+                    {!isEditing && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsEditing(true)}
+                        disabled={isPushing || isValidating}
+                      >
+                        <Icons.Edit size="sm" autoContrast className="mr-2" />
+                        Edit Content
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => handlePushToJira(generatedContent)}
+                      disabled={isPushing || isValidating || !jiraConnection}
+                      variant={jiraConnection ? "default" : "secondary"}
+                    >
+                      {isPushing ? (
+                        <>
+                          <LoadingSpinner size="sm" variant="white" className="mr-2" />
+                          Creating in Jira...
+                        </>
+                      ) : (
+                        <>
+                          <Icons.Upload size="sm" autoContrast className="mr-2" />
+                          Push to Jira
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Mock Content Indicator */}
+                {isUsingMockContent && (
+                  <Alert variant="warning" className="mt-4">
+                    <Icons.AlertTriangle size="sm" />
+                    <AlertTitle>Enhanced Mock Content</AlertTitle>
+                    <AlertDescription>
+                      This content was generated using our enhanced mock AI system. For real AI-powered generation:
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>Configure OpenAI or Anthropic API keys in your environment (.env.local file)</li>
+                        <li>Or set up DevS.ai connection for access to multiple premium models</li>
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardHeader>
+
+              <CardContent>
+                <ContentEditor
+                  content={generatedContent}
+                  workItemType={workItemType}
+                  onSave={handleContentSave}
+                  onCancel={() => setIsEditing(false)}
+                  isEditing={isEditing}
+                  originalPrompt={originalPrompt}
+                />
+              </CardContent>
+
+              {/* Push to Jira Action Section */}
+              {!isEditing && (
+                <CardContent className="bg-cloud-50 border-t">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {jiraConnection ? (
+                        <>
+                          <StatusIcons.Done size="sm" />
+                          <Badge variant="success">Jira Connected</Badge>
+                          <span className="text-xs text-cloud-600">({jiraConnection.url})</span>
+                        </>
+                      ) : (
+                        <>
+                          <StatusIcons.Error size="sm" />
+                          <Badge variant="destructive">Jira Not Connected</Badge>
+                        </>
+                      )}
+                    </div>
+                    
+                    {!jiraConnection && (
+                      <Button
+                        onClick={() => {
+                          // Navigate to Jira connection tab
+                          window.dispatchEvent(new CustomEvent('navigate-to-jira'))
+                        }}
+                        variant="outline"
+                        size="lg"
+                      >
+                        <Icons.Link size="sm" autoContrast className="mr-2" />
+                        Connect to Jira
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          )}
+
+          {/* Success Message with Jira Link */}
+          {jiraIssueUrl && (
+            <Alert variant="success">
+              <Icons.CheckCircle size="sm" />
+              <AlertTitle>Issue Created Successfully!</AlertTitle>
+              <AlertDescription>
+                    Your {workItemType} has been created in Jira.{' '}
+                    <a
+                      href={jiraIssueUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                  className="font-medium underline hover:text-forest-800 transition-colors"
+                    >
+                      View in Jira →
+                    </a>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Connection Status */}
+          {!jiraConnection && (
+            <Alert variant="warning">
+              <Icons.AlertTriangle size="sm" />
+              <AlertTitle>Jira Not Connected</AlertTitle>
+              <AlertDescription>
+                Connect to Jira in the "Jira Connection" tab to push generated content directly to your instance.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Field Validation Modal */}
+          {showValidationModal && (pendingContent || generatedContent) && (
+            <FieldValidationModal
+              isOpen={showValidationModal}
+              onClose={handleValidationCancel}
+              onSubmit={handleValidationSubmit}
+              content={pendingContent || generatedContent!}
+              template={currentTemplate}
+              jiraFields={jiraFields}
+              missingFields={validationMissingFields}
+              extractedFields={extractedFields}
+              suggestions={fieldSuggestions}
+              enhancedExtraction={enhancedExtractionResult || undefined}
+              jiraConnection={jiraConnection}
+              workItemType={workItemType}
+            />
+          )}
+
+          {/* Invalid Option Modal */}
+          {showInvalidOptionModal && (
+            <Alert variant="warning">
+              <Icons.AlertTriangle size="sm" />
+              <AlertTitle>Invalid Field Option</AlertTitle>
+              <AlertDescription>
+                {invalidOptionDetails?.errorMessage}
+              </AlertDescription>
+              <div className="mt-4">
+                <Button
+                  onClick={() => {
+                    setShowInvalidOptionModal(false);
+                    setPendingContentForOptionCorrection(null);
+                  }}
+                  variant="outline"
+                >
+                  Close
+                </Button>
+              </div>
+            </Alert>
+          )}
+        </div>
+
+        {/* PM Resources Sidebar */}
+        {false && showContextualResources && ( // Hide contextual mode for now
+          <div className="col-span-1">
+            <PMResources
+              contextualMode={true}
+              suggestedCategory={getContextualCategory(workItemType)}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Page Loaders */}
       <PageLoader
         isVisible={isGenerating}
         variant="ai"
@@ -822,7 +1369,6 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         currentStep={generatingStep}
       />
 
-      {/* Page Loader for Validation */}
       <PageLoader
         isVisible={isValidating}
         variant="jira"
@@ -837,7 +1383,6 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         currentStep={validatingStep}
       />
 
-      {/* Page Loader for Jira Push */}
       <PageLoader
         isVisible={isPushing}
         variant="jira"
@@ -851,335 +1396,6 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
         ]}
         currentStep={pushingStep}
       />
-
-      {/* Input Form - Simplified */}
-      <Card>
-        <CardContent className="space-y-6 pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-              <label className="block text-sm font-medium text-navy-950 mb-2">
-              Work Item Type
-            </label>
-            <select
-              value={workItemType}
-              onChange={(e) => {
-                setWorkItemType(e.target.value as WorkItemType)
-                setSelectedTemplate('default') // Reset template when work item type changes
-              }}
-                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-              disabled={isGenerating || isPushing || isValidating}
-            >
-              <option value="epic">Epic</option>
-              <option value="story">Story</option>
-              <option value="initiative">Initiative</option>
-            </select>
-          </div>
-
-          <div>
-              <label className="block text-sm font-medium text-navy-950 mb-2">
-              Content Template
-            </label>
-            <select
-              value={selectedTemplate}
-              onChange={(e) => setSelectedTemplate(e.target.value)}
-                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-              disabled={isGenerating || isPushing || isValidating}
-            >
-              {availableTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-              <label className="block text-sm font-medium text-navy-950 mb-2">
-              AI Model
-            </label>
-            <select
-              value={aiModel}
-              onChange={(e) => setAiModel(e.target.value as AIModel)}
-                className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-              disabled={isGenerating || isPushing || isValidating}
-            >
-              <option value="auto">Auto (Free - Gemini)</option>
-              <option value="openai">OpenAI GPT-4</option>
-              <option value="anthropic">Anthropic Claude</option>
-              <option value="devs-ai">
-                {isDevsAIReady ? 'Devs.ai (Multiple LLMs)' : 'Devs.ai (Multiple LLMs) - Setup Required'}
-              </option>
-            </select>
-          </div>
-
-          {/* Devs.ai Model Selection */}
-          {aiModel === 'devs-ai' && isDevsAIReady && (
-            <div>
-                <label className="block text-sm font-medium text-navy-950 mb-2">
-                Devs.ai Model
-              </label>
-              <select
-                value={selectedDevsAIModel}
-                onChange={(e) => setSelectedDevsAIModel(e.target.value)}
-                  className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 bg-white text-navy-950"
-                disabled={isGenerating || isPushing || isValidating}
-              >
-                {devsAIService.getAvailableModels().map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        <div>
-            <label className="block text-sm font-medium text-navy-950 mb-2">
-            Description *
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={4}
-              className="w-full px-3 py-2 border border-cloud-300 rounded-md focus:outline-none focus:ring-2 focus:ring-royal-500 focus:border-royal-500 resize-none bg-white text-navy-950"
-            placeholder={`Describe your ${workItemType} in detail...`}
-            disabled={isGenerating || isPushing || isValidating}
-          />
-        </div>
-
-        {/* Template Preview */}
-        {currentTemplate && (
-            <Alert variant="info">
-              <Icons.FileText size="sm" />
-              <AlertTitle>Template: {currentTemplate.name}</AlertTitle>
-              <AlertDescription>
-                <div className="space-y-2 mt-2">
-                  <p>
-                <strong>Fields to generate:</strong> {currentTemplate.fields.map(f => f.name).join(', ')}
-              </p>
-              {currentTemplate.aiPrompt && (
-                <p>
-                  <strong>Custom prompt:</strong> {currentTemplate.aiPrompt.substring(0, 100)}
-                  {currentTemplate.aiPrompt.length > 100 ? '...' : ''}
-                </p>
-              )}
-            </div>
-              </AlertDescription>
-            </Alert>
-        )}
-
-        <div className="flex justify-between items-center">
-            <Button
-              variant="outline"
-            onClick={handleReset}
-            disabled={isGenerating || isPushing || isValidating}
-          >
-              <Icons.RotateCcw size="sm" autoContrast className="mr-2" />
-            Reset Form
-            </Button>
-          
-            <Button
-            onClick={handleGenerate}
-            disabled={isGenerating || isPushing || isValidating || !description.trim()}
-              className="min-w-[160px]"
-          >
-            {isGenerating ? (
-                <>
-                  <LoadingSpinner size="sm" variant="white" className="mr-2" />
-                  Generating...
-                </>
-            ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
-                <>
-                  <Icons.Settings size="sm" autoContrast className="mr-2" />
-                  Setup Devs.ai API Key
-                </>
-            ) : (
-                <>
-                  <Icons.Sparkles size="sm" autoContrast className="mr-2" />
-                  Generate Content
-                </>
-            )}
-            </Button>
-        </div>
-        </CardContent>
-      </Card>
-
-      {/* Generated Content */}
-      {generatedContent && (
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="flex items-center">
-                <Icons.FileText size="md" autoContrast className="mr-2" />
-                Generated Content
-              </CardTitle>
-              <div className="flex space-x-2">
-                {!isEditing && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsEditing(true)}
-                    disabled={isPushing || isValidating}
-                  >
-                    <Icons.Edit size="sm" autoContrast className="mr-2" />
-                    Edit Content
-                  </Button>
-                )}
-                <Button
-                  onClick={() => handlePushToJira(generatedContent)}
-                  disabled={isPushing || isValidating || !jiraConnection}
-                  variant={jiraConnection ? "default" : "secondary"}
-                >
-                  {isPushing ? (
-                    <>
-                      <LoadingSpinner size="sm" variant="white" className="mr-2" />
-                      Creating in Jira...
-                    </>
-                  ) : (
-                    <>
-                      <Icons.Upload size="sm" autoContrast className="mr-2" />
-                      Push to Jira
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-            
-            {/* Mock Content Indicator */}
-            {isUsingMockContent && (
-              <Alert variant="warning" className="mt-4">
-                <Icons.AlertTriangle size="sm" />
-                <AlertTitle>Enhanced Mock Content</AlertTitle>
-                <AlertDescription>
-                  This content was generated using our enhanced mock AI system. For real AI-powered generation:
-                  <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>Configure OpenAI or Anthropic API keys in your environment (.env.local file)</li>
-                    <li>Or set up DevS.ai connection for access to multiple premium models</li>
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardHeader>
-
-          <CardContent>
-            <ContentEditor
-              content={generatedContent}
-              workItemType={workItemType}
-              onSave={handleContentSave}
-              onCancel={() => setIsEditing(false)}
-              isEditing={isEditing}
-              originalPrompt={originalPrompt}
-            />
-          </CardContent>
-
-          {/* Push to Jira Action Section */}
-          {!isEditing && (
-            <CardContent className="bg-cloud-50 border-t">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  {jiraConnection ? (
-                    <>
-                      <StatusIcons.Done size="sm" />
-                      <Badge variant="success">Jira Connected</Badge>
-                      <span className="text-xs text-cloud-600">({jiraConnection.url})</span>
-                    </>
-                  ) : (
-                    <>
-                      <StatusIcons.Error size="sm" />
-                      <Badge variant="destructive">Jira Not Connected</Badge>
-                    </>
-                  )}
-                </div>
-                
-                {!jiraConnection && (
-                  <Button
-                    onClick={() => {
-                      // Navigate to Jira connection tab
-                      window.dispatchEvent(new CustomEvent('navigate-to-jira'))
-                    }}
-                    variant="outline"
-                    size="lg"
-                  >
-                    <Icons.Link size="sm" autoContrast className="mr-2" />
-                    Connect to Jira
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      )}
-
-      {/* Success Message with Jira Link */}
-      {jiraIssueUrl && (
-        <Alert variant="success">
-          <Icons.CheckCircle size="sm" />
-          <AlertTitle>Issue Created Successfully!</AlertTitle>
-          <AlertDescription>
-                Your {workItemType} has been created in Jira.{' '}
-                <a
-                  href={jiraIssueUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-              className="font-medium underline hover:text-forest-800 transition-colors"
-                >
-                  View in Jira →
-                </a>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Connection Status */}
-      {!jiraConnection && (
-        <Alert variant="warning">
-          <Icons.AlertTriangle size="sm" />
-          <AlertTitle>Jira Not Connected</AlertTitle>
-          <AlertDescription>
-            Connect to Jira in the "Jira Connection" tab to push generated content directly to your instance.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Field Validation Modal */}
-      {showValidationModal && (pendingContent || generatedContent) && (
-        <FieldValidationModal
-          isOpen={showValidationModal}
-          onClose={handleValidationCancel}
-          onSubmit={handleValidationSubmit}
-          content={pendingContent || generatedContent!}
-          template={currentTemplate}
-          jiraFields={jiraFields}
-          missingFields={validationMissingFields}
-          extractedFields={extractedFields}
-          suggestions={fieldSuggestions}
-          enhancedExtraction={enhancedExtractionResult || undefined}
-          jiraConnection={jiraConnection}
-          workItemType={workItemType}
-        />
-      )}
-
-      {/* Invalid Option Modal */}
-      {showInvalidOptionModal && (
-        <Alert variant="warning">
-          <Icons.AlertTriangle size="sm" />
-          <AlertTitle>Invalid Field Option</AlertTitle>
-          <AlertDescription>
-            {invalidOptionDetails?.errorMessage}
-          </AlertDescription>
-          <div className="mt-4">
-            <Button
-              onClick={() => {
-                setShowInvalidOptionModal(false);
-                setPendingContentForOptionCorrection(null);
-              }}
-              variant="outline"
-            >
-              Close
-            </Button>
-          </div>
-        </Alert>
-      )}
-
     </div>
   )
 } 

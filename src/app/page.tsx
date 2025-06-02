@@ -8,10 +8,11 @@ import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creato
 import { TemplateConfiguration } from '../components/template-configuration'
 import { ContentStudio } from '../components/content-studio'
 import { WorkItemsPage } from '../components/work-items-page'
+import { PMResources } from '../components/pm-resources'
 import { AppLayout } from '../components/app-layout'
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio' | 'work-items'>('create')
+  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio' | 'work-items' | 'pm-resources'>('create')
   const [jiraConnection, setJiraConnection] = useState<JiraInstance | null>(null)
   const [devsAIConnection, setDevsAIConnection] = useState<DevsAIConnectionType | null>(null)
 
@@ -86,7 +87,7 @@ export default function Home() {
   }
 
   const handleViewChange = (view: string) => {
-    setCurrentView(view as 'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio' | 'work-items')
+    setCurrentView(view as 'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio' | 'work-items' | 'pm-resources')
   }
 
   // Get current view title and description
@@ -121,6 +122,11 @@ export default function Home() {
         return {
           title: 'Work Items',
           description: 'Manage and view work items'
+        }
+      case 'pm-resources':
+        return {
+          title: 'PM Resources Hub',
+          description: 'Curated tools to enhance your product management workflow'
         }
       default:
         return {
@@ -194,6 +200,10 @@ export default function Home() {
             <WorkItemsPage
               jiraConnection={jiraConnection}
             />
+          )}
+
+          {currentView === 'pm-resources' && (
+            <PMResources />
           )}
         </div>
       </div>

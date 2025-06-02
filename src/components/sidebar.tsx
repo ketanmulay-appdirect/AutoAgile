@@ -72,6 +72,18 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
           status: devsAIConnection ? 'connected' : 'disconnected'
         }
       ]
+    },
+    {
+      id: 'resources',
+      label: 'RESOURCES',
+      items: [
+        {
+          id: 'pm-resources',
+          label: 'Resources Hub',
+          icon: Icons.Target,
+          description: 'Curated tools and resources'
+        }
+      ]
     }
   ] as const
 
