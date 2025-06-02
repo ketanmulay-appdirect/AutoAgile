@@ -1,9 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { JiraField } from '../lib/jira-field-service'
-import { WorkItemTemplate } from '../lib/template-service'
-import { GeneratedContent } from '../types'
+import { GeneratedContent, WorkItemTemplate, JiraField, EnhancedExtractionResult, ExtractionCandidate } from '../types'
+import { fieldValidationService } from '../lib/field-validation-service'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Button } from './ui/button'
+import { Badge } from './ui/badge'
+import { Icons } from './ui/icons'
 
 export interface MissingField {
   jiraFieldId: string
@@ -22,6 +25,7 @@ interface FieldValidationModalProps {
   missingFields: MissingField[]
   extractedFields?: Record<string, any>
   suggestions?: Record<string, any[]>
+  enhancedExtraction?: EnhancedExtractionResult
   jiraConnection?: any
   workItemType?: string
 }
@@ -36,673 +40,472 @@ export function FieldValidationModal({
   missingFields,
   extractedFields = {},
   suggestions = {},
+  enhancedExtraction,
   jiraConnection,
   workItemType
 }: FieldValidationModalProps) {
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [confirmedExtractions, setConfirmedExtractions] = useState<Set<string>>(new Set())
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Initialize field values when modal opens
   useEffect(() => {
-    if (isOpen && missingFields.length > 0) {
-      const initialValues: Record<string, any> = {}
-      missingFields.forEach(field => {
-        let defaultValue = extractedFields[field.jiraFieldId] || field.currentValue || ''
-        
-        // Auto-fill known fields
-        if (field.jiraFieldId === 'issuetype' && workItemType) {
-          // Map work item type to Jira issue type
-          const issueTypeMap: Record<string, string> = {
-            'epic': 'Epic',
-            'story': 'Story',
-            'initiative': 'Initiative'
-          }
-          defaultValue = issueTypeMap[workItemType] || workItemType
-        } else if (field.jiraFieldId === 'project' && jiraConnection?.projectKey) {
-          defaultValue = jiraConnection.projectKey
-        } else if (field.jiraFieldId === 'reporter' && jiraConnection?.email) {
-          defaultValue = jiraConnection.email
-        } else if (field.jiraFieldId === 'customfield_26360') {
-          // Include on Roadmap - ensure it's an array
-          if (Array.isArray(defaultValue)) {
-            // Already an array, keep as is
-          } else if (defaultValue && typeof defaultValue === 'string') {
-            // Convert single string value to array
-            defaultValue = [defaultValue]
-          } else {
-            // No value, start with empty array
-            defaultValue = []
-          }
+    if (isOpen && content) {
+      // Initialize field values with extracted fields and existing content
+      const initialValues: Record<string, any> = {
+        ...extractedFields,
+        ...(content.customFields || {})
+      }
+
+      // Include auto-applied fields from enhanced extraction
+      if (enhancedExtraction) {
+        for (const [fieldId, value] of enhancedExtraction.autoApplied) {
+          initialValues[fieldId] = value
         }
-        
-        initialValues[field.jiraFieldId] = defaultValue
-      })
+      }
+
       setFieldValues(initialValues)
+      setConfirmedExtractions(new Set())
       setValidationErrors({})
     }
-  }, [isOpen, missingFields, extractedFields, jiraConnection, workItemType])
+  }, [isOpen, extractedFields, content?.customFields, enhancedExtraction, content])
 
   const handleFieldChange = (fieldId: string, value: any) => {
-    setFieldValues(prev => ({
-      ...prev,
-      [fieldId]: value
-    }))
+    setFieldValues(prev => ({ ...prev, [fieldId]: value }))
     
     // Clear validation error for this field
     if (validationErrors[fieldId]) {
       setValidationErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors[fieldId]
-        return newErrors
+        const { [fieldId]: _, ...rest } = prev
+        return rest
       })
     }
   }
 
-  const validateFields = (): boolean => {
-    console.log(`🔍 validateFields called - checking ${missingFields.length} missing fields`)
-    const errors: Record<string, string> = {}
-    
-    missingFields.forEach(field => {
-      const value = fieldValues[field.jiraFieldId]
-      console.log(`🔍 Checking field ${field.jiraFieldId} (${field.jiraField.name}): value = "${value}", required = ${field.jiraField.required}`)
-      
-      if (field.jiraField.required && (!value || value.toString().trim() === '')) {
-        errors[field.jiraFieldId] = `${field.jiraField.name} is required`
-        console.log(`❌ Field ${field.jiraFieldId} failed validation: required but empty`)
+  const handleConfirmExtraction = (fieldId: string, confirmed: boolean) => {
+    setConfirmedExtractions(prev => {
+      const newSet = new Set(prev)
+      if (confirmed) {
+        newSet.add(fieldId)
+      } else {
+        newSet.delete(fieldId)
       }
+      return newSet
+    })
+  }
+
+  const validateFields = (): boolean => {
+    const errors: Record<string, string> = {}
+    let isValid = true
+
+    // Validate all required fields
+    jiraFields.filter(f => f.required).forEach(field => {
+      const value = fieldValues[field.id]
+      const validation = fieldValidationService.validateFieldValue(field, value)
       
-      // Additional validation based on field type
-      if (value && field.jiraField.type === 'number' && isNaN(Number(value))) {
-        errors[field.jiraFieldId] = `${field.jiraField.name} must be a valid number`
-        console.log(`❌ Field ${field.jiraFieldId} failed validation: invalid number`)
+      if (!validation.isValid && validation.error) {
+        errors[field.id] = validation.error
+        isValid = false
       }
     })
-    
+
     setValidationErrors(errors)
-    const isValid = Object.keys(errors).length === 0
-    console.log(`🔍 validateFields result: ${isValid ? 'VALID' : 'INVALID'}, errors:`, errors)
     return isValid
   }
 
   const handleSubmit = async () => {
-    const submitCallId = Math.random().toString(36).substr(2, 9)
-    console.log(`🎯 Modal handleSubmit called with ID: ${submitCallId}`)
-    console.trace('Modal handleSubmit call stack')
-    
-    if (isSubmitting) return
-    
+    if (!validateFields()) {
+      return
+    }
+
+    if (!content) {
+      console.error('Cannot submit: content is null')
+      return
+    }
+
     setIsSubmitting(true)
-    setValidationErrors({})
-
     try {
-      if (!validateFields()) {
-        return
+      const updatedContent: GeneratedContent = {
+        ...content,
+        customFields: {
+          ...(content.customFields || {}),
+          ...fieldValues
+        }
       }
 
-      // Create updated content with filled fields
-      const updatedContent = { ...content }
-      const customFields: Record<string, any> = {}
-      
-      // Map field values to custom fields, but handle standard fields separately
-      missingFields.forEach(field => {
-        const value = fieldValues[field.jiraFieldId]
-        if (value !== undefined && value !== '') {
-          // Standard Jira fields that should not go into customFields
-          const standardFields = ['project', 'issuetype', 'summary', 'description', 'reporter', 'assignee', 'priority', 'labels']
-          
-          if (standardFields.includes(field.jiraFieldId)) {
-            // Handle standard fields in the content object
-            if (field.jiraFieldId === 'priority') {
-              updatedContent.priority = value
-            } else if (field.jiraFieldId === 'labels') {
-              updatedContent.labels = Array.isArray(value) ? value : [value]
-            } else {
-              // For project, issuetype, reporter, assignee - put them in customFields so the API can handle them
-              customFields[field.jiraFieldId] = value
-            }
-          } else {
-            // Custom fields go into customFields
-            // Handle special formatting for known fields
-            if (field.jiraFieldId === 'customfield_26360') {
-              // Include on Roadmap - ensure it's the right format
-              customFields[field.jiraFieldId] = value
-            } else if (field.jiraFieldId === 'customfield_26362') {
-              // Delivery Quarter - ensure it's the right format
-              customFields[field.jiraFieldId] = value
-            } else {
-              customFields[field.jiraFieldId] = value
-            }
-          }
-        }
-      })
-      
-      // Update content custom fields
-      updatedContent.customFields = {
-        ...updatedContent.customFields,
-        ...customFields
-      }
-      
-      onSubmit(updatedContent, customFields)
+      await onSubmit(updatedContent, fieldValues)
     } catch (error) {
-      console.error('Error submitting fields:', error)
+      console.error('Field validation submission error:', error)
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const renderFieldInput = (field: MissingField) => {
-    const jiraField = field.jiraField
-    const value = fieldValues[field.jiraFieldId] || ''
-    const error = validationErrors[field.jiraFieldId]
-    
-    // Handle specific custom fields first
-    if (field.jiraFieldId === 'customfield_26360') {
-      // Include on Roadmap - multiselect checkbox with Internal/External values
-      const currentValues = Array.isArray(value) ? value : (value ? [value] : [])
-      const options = ['Internal', 'External']
-      
-      return (
-        <div className="space-y-2 border border-gray-300 rounded-md p-3">
-          <div className="text-sm text-gray-600 mb-2">Select all that apply:</div>
-          {options.map((option) => (
-            <label key={option} className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={currentValues.includes(option)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    handleFieldChange(field.jiraFieldId, [...currentValues, option])
-                  } else {
-                    handleFieldChange(field.jiraFieldId, currentValues.filter(v => v !== option))
-                  }
-                }}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">{option}</span>
-            </label>
-          ))}
-        </div>
-      )
+  const handleApplyAllExtractions = () => {
+    if (enhancedExtraction) {
+      const newConfirmed = new Set(confirmedExtractions)
+      for (const fieldId of enhancedExtraction.requiresConfirmation.keys()) {
+        newConfirmed.add(fieldId)
+      }
+      setConfirmedExtractions(newConfirmed)
     }
-    
-    // Handle different field types based on Jira schema
-    switch (jiraField.type) {
-      case 'select':
-        return (
-          <select
-            value={value}
-            onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              error ? 'border-red-500' : 'border-gray-300'
-            }`}
-          >
-            <option value="">-- Select {jiraField.name} --</option>
-            {jiraField.allowedValues?.map((option) => {
-              const optionValue = typeof option === 'object' ? (option.value || option.name || option.id || '') : option
-              const optionLabel = typeof option === 'object' ? (option.name || option.value || option.id || '') : option
-              return (
-                <option key={optionValue} value={optionValue}>
-                  {optionLabel}
-                </option>
-              )
-            })}
-          </select>
-        )
-      
-      case 'multiselect':
-        return (
-          <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3">
-            {jiraField.allowedValues?.map((option) => {
-              const optionValue = typeof option === 'object' ? (option.value || option.name || option.id || '') : option
-              const optionLabel = typeof option === 'object' ? (option.name || option.value || option.id || '') : option
-              const currentValues = Array.isArray(value) ? value : []
-              
-              return (
-                <label key={optionValue} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={currentValues.includes(optionValue)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        handleFieldChange(field.jiraFieldId, [...currentValues, optionValue])
-                      } else {
-                        handleFieldChange(field.jiraFieldId, currentValues.filter(v => v !== optionValue))
-                      }
-                    }}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">{optionLabel}</span>
-                </label>
-              )
-            })}
-          </div>
-        )
-      
-      case 'checkbox':
-        // For simple Yes/No checkboxes, render as radio buttons for better UX
-        if (jiraField.allowedValues?.length === 2 && 
-            jiraField.allowedValues.includes('Yes') && 
-            jiraField.allowedValues.includes('No')) {
-          return (
-            <div className="flex items-center space-x-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name={field.jiraFieldId}
-                  value="Yes"
-                  checked={value === 'Yes'}
-                  onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-                  className="border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">Yes</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name={field.jiraFieldId}
-                  value="No"
-                  checked={value === 'No'}
-                  onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-                  className="border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">No</span>
-              </label>
-            </div>
-          )
-        }
-        
-        // For other checkbox fields, render as checkboxes
-        return (
-          <div className="space-y-2">
-                         {jiraField.allowedValues?.map((option) => {
-               const optionValue = typeof option === 'object' ? (option.value || option.name || option.id || '') : option
-               const optionLabel = typeof option === 'object' ? (option.name || option.value || option.id || '') : option
-               
-               return (
-                 <label key={optionValue} className="flex items-center space-x-2">
-                   <input
-                     type="checkbox"
-                     checked={Array.isArray(value) ? value.includes(optionValue) : value === optionValue}
-                     onChange={(e) => {
-                       if (e.target.checked) {
-                         const currentValues = Array.isArray(value) ? value : []
-                         handleFieldChange(field.jiraFieldId, [...currentValues, optionValue])
-                       } else {
-                         const currentValues = Array.isArray(value) ? value : []
-                         handleFieldChange(field.jiraFieldId, currentValues.filter(v => v !== optionValue))
-                       }
-                     }}
-                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                   />
-                   <span className="text-sm text-gray-700">{optionLabel}</span>
-                 </label>
-               )
-             }) || (
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={value === true || value === 'true' || value === 'Yes'}
-                  onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.checked ? 'Yes' : 'No')}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">{jiraField.name}</span>
-              </label>
-            )}
-          </div>
-        )
-      
-      case 'radio':
-        return (
-                     <div className="space-y-2">
-             {jiraField.allowedValues?.map((option) => {
-               const optionValue = typeof option === 'object' ? (option.value || option.name || option.id || '') : option
-               const optionLabel = typeof option === 'object' ? (option.name || option.value || option.id || '') : option
-               
-               return (
-                 <label key={optionValue} className="flex items-center space-x-2">
-                   <input
-                     type="radio"
-                     name={field.jiraFieldId}
-                     value={optionValue}
-                     checked={value === optionValue}
-                     onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-                     className="border-gray-300 text-blue-600 focus:ring-blue-500"
-                   />
-                   <span className="text-sm text-gray-700">{optionLabel}</span>
-                 </label>
-               )
-             })}
-           </div>
-        )
-      
-      case 'textarea':
-        return (
-          <textarea
-            value={value}
-            onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-            rows={3}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
-              error ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder={`Enter ${jiraField.name.toLowerCase()}...`}
-          />
-        )
-      
-      case 'number':
-        return (
-          <input
-            type="number"
-            value={value}
-            onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              error ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder={`Enter ${jiraField.name.toLowerCase()}...`}
-          />
-        )
-      
-      case 'date':
-        return (
-          <input
-            type="date"
-            value={value}
-            onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              error ? 'border-red-500' : 'border-gray-300'
-            }`}
-          />
-        )
-      
-      case 'user':
-        return (
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              error ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder="Enter username or email..."
-          />
-        )
-      
-      case 'project':
-        return (
-          <input
-            type="text"
-            value={value || jiraConnection?.projectKey || ''}
-            onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              error ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder="Enter project key..."
-          />
-        )
-      
-      case 'issuetype':
-        const issueTypeMap: Record<string, string> = {
-          'epic': 'Epic',
-          'story': 'Story',
-          'initiative': 'Initiative'
-        }
-        const defaultIssueType = issueTypeMap[workItemType || 'story'] || 'Story'
-        
-        return (
-          <select
-            value={value || defaultIssueType}
-            onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              error ? 'border-red-500' : 'border-gray-300'
-            }`}
-                     >
-             {jiraField.allowedValues?.map((option) => {
-               const optionValue = typeof option === 'object' ? (option.value || option.name || option.id || '') : option
-               const optionLabel = typeof option === 'object' ? (option.name || option.value || option.id || '') : option
-               return (
-                 <option key={optionValue} value={optionValue}>
-                   {optionLabel}
-                 </option>
-               )
-             }) || (
-               <>
-                 <option value="Epic">Epic</option>
-                 <option value="Story">Story</option>
-                 <option value="Initiative">Initiative</option>
-               </>
-             )}
-           </select>
-        )
-      
-      case 'priority':
-        return (
-          <select
-            value={value}
-            onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              error ? 'border-red-500' : 'border-gray-300'
-            }`}
-          >
-                         <option value="">Select priority...</option>
-             {jiraField.allowedValues?.map((option) => {
-               const optionValue = typeof option === 'object' ? (option.value || option.name || option.id || '') : option
-               const optionLabel = typeof option === 'object' ? (option.name || option.value || option.id || '') : option
-               return (
-                 <option key={optionValue} value={optionValue}>
-                   {optionLabel}
-                 </option>
-               )
-             }) || (
-               <>
-                 <option value="Highest">Highest</option>
-                 <option value="High">High</option>
-                 <option value="Medium">Medium</option>
-                 <option value="Low">Low</option>
-                 <option value="Lowest">Lowest</option>
-               </>
-             )}
-          </select>
-        )
-      
-      default:
-        return (
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => handleFieldChange(field.jiraFieldId, e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              error ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder={`Enter ${jiraField.name.toLowerCase()}...`}
-          />
-        )
+  }
+
+  const handleRejectAllExtractions = () => {
+    setConfirmedExtractions(new Set())
+  }
+
+  const getFieldSection = (field: JiraField): 'auto-applied' | 'confirmation' | 'manual' | 'missing' => {
+    if (enhancedExtraction) {
+      if (enhancedExtraction.autoApplied.has(field.id)) return 'auto-applied'
+      if (enhancedExtraction.requiresConfirmation.has(field.id)) return 'confirmation'
+      if (enhancedExtraction.manualFields.includes(field.id)) return 'manual'
     }
+    return 'missing'
   }
 
   if (!isOpen) return null
 
-  console.log(`👁️ FieldValidationModal rendering - isOpen: ${isOpen}, missingFields: ${missingFields.length}`)
+  const requiredFields = jiraFields.filter(f => f.required)
+  
+  const autoAppliedFields = requiredFields.filter(f => getFieldSection(f) === 'auto-applied')
+  const confirmationFields = requiredFields.filter(f => getFieldSection(f) === 'confirmation')
+  const manualFields = requiredFields.filter(f => getFieldSection(f) === 'manual')
+  const otherMissingFields = requiredFields.filter(f => 
+    getFieldSection(f) === 'missing' && 
+    !autoAppliedFields.includes(f) && 
+    !confirmationFields.includes(f) && 
+    !manualFields.includes(f)
+  )
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-red-50 border-b border-red-200 px-6 py-4">
+        <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Review Field Extraction</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Review and confirm the extracted field values before creating the Jira issue
+              </p>
+            </div>
+            <Button variant="outline" onClick={onClose} size="sm">
+              <Icons.X size="sm" className="mr-2" />
+              Cancel
+            </Button>
+          </div>
+          
+          {/* Extraction Summary */}
+          {enhancedExtraction && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Icons.Info size="sm" className="text-blue-600 mr-2" />
+                  <span className="text-sm font-medium text-blue-900">
+                    Smart Extraction Summary
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {confirmationFields.length > 0 && (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleApplyAllExtractions}
+                        className="text-green-700 border-green-300 hover:bg-green-50"
+                      >
+                        Accept All
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleRejectAllExtractions}
+                        className="text-red-700 border-red-300 hover:bg-red-50"
+                      >
+                        Reject All
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-semibold text-red-800">Required Fields Missing</h3>
-                <p className="text-sm text-red-600">
-                  Please fill in the required fields before creating the Jira issue
-                </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  <span>{enhancedExtraction.extractionSummary.autoAppliedCount} Auto-applied</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+                  <span>{enhancedExtraction.extractionSummary.confirmationCount} Need confirmation</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-gray-500 rounded-full mr-2"></span>
+                  <span>{enhancedExtraction.extractionSummary.manualCount} Manual input</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                  <span>{enhancedExtraction.extractionSummary.skippedCount} Skipped</span>
+                </div>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="text-red-400 hover:text-red-600 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+          )}
         </div>
 
         {/* Content */}
-        <div className="p-6 max-h-[60vh] overflow-y-auto">
-          <div className="space-y-6">
-            {/* Summary */}
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <h4 className="text-sm font-medium text-blue-800 mb-2">
-                Missing Required Fields ({missingFields.length})
-              </h4>
-              <p className="text-sm text-blue-700">
-                Your Jira instance requires the following fields to create a {content.title ? 'work item' : 'issue'}. 
-                Please provide values for all required fields.
-              </p>
-            </div>
-
-            {/* Extracted Fields Info */}
-            {Object.keys(extractedFields).length > 0 && (
-              <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                <h4 className="text-sm font-medium text-green-800 mb-2">
-                  🤖 Smart Fields Extracted ({Object.keys(extractedFields).length})
-                </h4>
-                <p className="text-sm text-green-700 mb-3">
-                  AI automatically extracted the following field values from your description:
-                </p>
-                <div className="space-y-2">
-                  {Object.entries(extractedFields).map(([fieldId, value]) => {
-                    const field = jiraFields.find(f => f.id === fieldId)
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Auto-Applied Fields */}
+          {autoAppliedFields.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-green-700">
+                  <Icons.CheckCircle size="sm" className="mr-2" />
+                  Auto-Applied Fields ({autoAppliedFields.length})
+                </CardTitle>
+                <CardDescription>
+                  These fields were automatically extracted and applied with high confidence.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {autoAppliedFields.map(field => {
+                    const value = enhancedExtraction?.autoApplied.get(field.id)
                     return (
-                      <div key={fieldId} className="flex justify-between items-center text-sm">
-                        <span className="font-medium text-green-800">
-                          {field?.name || fieldId}:
-                        </span>
-                        <span className="text-green-700 bg-green-100 px-2 py-1 rounded">
-                          {Array.isArray(value) ? value.join(', ') : String(value)}
-                        </span>
+                      <div key={field.id} className="p-3 bg-green-50 border border-green-200 rounded-md">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-sm font-medium text-green-900">{field.name}</label>
+                          <Badge variant="outline" className="border-green-600 text-green-700 text-xs">
+                            Auto-applied
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-green-800 bg-green-100 px-2 py-1 rounded">
+                          {String(value)}
+                        </div>
                       </div>
                     )
                   })}
                 </div>
-              </div>
-            )}
+              </CardContent>
+            </Card>
+          )}
 
-            {/* Missing Fields Form */}
-            <div className="space-y-4">
-              {missingFields.map((field, index) => (
-                <div key={field.jiraFieldId} className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    {field.jiraField.name}
-                    {field.jiraField.required && <span className="text-red-500 ml-1">*</span>}
-                  </label>
-                  
-                  {field.jiraField.description && (
-                    <p className="text-xs text-gray-500 mb-2">
-                      {field.jiraField.description}
-                    </p>
-                  )}
-                  
-                  {renderFieldInput(field)}
-                  
-                  {/* Show suggestions if available */}
-                  {suggestions[field.jiraFieldId] && suggestions[field.jiraFieldId].length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-600 mb-1">💡 Suggestions:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {suggestions[field.jiraFieldId].slice(0, 3).map((suggestion, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => handleFieldChange(field.jiraFieldId, suggestion)}
-                            className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition-colors"
-                          >
-                            {String(suggestion)}
-                          </button>
-                        ))}
+          {/* Confirmation Required Fields */}
+          {confirmationFields.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-yellow-700">
+                  <Icons.AlertCircle size="sm" className="mr-2" />
+                  Confirmation Required ({confirmationFields.length})
+                </CardTitle>
+                <CardDescription>
+                  Please review and confirm these extracted values.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {confirmationFields.map(field => {
+                    const candidate = enhancedExtraction?.requiresConfirmation.get(field.id)
+                    const isConfirmed = confirmedExtractions.has(field.id)
+                    const fieldSuggestions = suggestions[field.id] || []
+                    
+                    return (
+                      <div key={field.id} className="border border-yellow-200 rounded-lg p-4 bg-yellow-50">
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-sm font-medium text-gray-900">{field.name}</label>
+                          <div className="flex items-center gap-2">
+                            {candidate && (
+                              <Badge variant="outline" className="text-xs">
+                                {Math.round(candidate.confidence * 100)}% confidence
+                              </Badge>
+                            )}
+                            <label className="flex items-center">
+                              <input
+                                type="checkbox"
+                                checked={isConfirmed}
+                                onChange={(e) => handleConfirmExtraction(field.id, e.target.checked)}
+                                className="mr-1"
+                              />
+                              <span className="text-xs text-yellow-800">Confirm</span>
+                            </label>
+                          </div>
+                        </div>
+                        
+                        {renderFieldInput(field, candidate?.value, fieldSuggestions)}
+                        
+                        {candidate?.suggestion && (
+                          <p className="text-xs text-yellow-700 mt-2">{candidate.suggestion}</p>
+                        )}
                       </div>
-                    </div>
-                  )}
-                  
-                  {validationErrors[field.jiraFieldId] && (
-                    <p className="text-sm text-red-600">
-                      {validationErrors[field.jiraFieldId]}
-                    </p>
-                  )}
-                  
-                  <div className="text-xs text-gray-500">
-                    Field ID: {field.jiraFieldId} | Type: {field.jiraField.type}
-                  </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
+              </CardContent>
+            </Card>
+          )}
 
-            {/* Field Mapping Info */}
-            {template && (
-              <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                  Template Information
-                </h4>
-                <p className="text-sm text-gray-600">
-                  Using template: <strong>{template.name}</strong>
-                </p>
-                {template.jiraFieldMappings && Object.keys(template.jiraFieldMappings).length > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {Object.keys(template.jiraFieldMappings).length} field mappings configured
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Manual Fields */}
+          {(manualFields.length > 0 || otherMissingFields.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-gray-700">
+                  <Icons.Edit size="sm" className="mr-2" />
+                  Manual Input Required ({manualFields.length + otherMissingFields.length})
+                </CardTitle>
+                <CardDescription>
+                  These fields require manual input or could not be extracted.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[...manualFields, ...otherMissingFields].map(field => {
+                    const fieldSuggestions = suggestions[field.id] || []
+                    return (
+                      <div key={field.id} className="border border-gray-200 rounded-lg p-4">
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          {field.name}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        {renderFieldInput(field, fieldValues[field.id], fieldSuggestions)}
+                        {validationErrors[field.id] && (
+                          <p className="text-red-500 text-xs mt-1">{validationErrors[field.id]}</p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 border-t border-gray-200 px-6 py-4">
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-600">
-              {missingFields.filter(f => f.jiraField.required).length} required fields
+              {requiredFields.length} required fields • {autoAppliedFields.length} auto-applied • {confirmationFields.length + manualFields.length + otherMissingFields.length} need attention
             </div>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={onClose}
-                disabled={isSubmitting}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={onClose}>
                 Cancel
-              </button>
-              
-              <button
+              </Button>
+              <Button 
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                  isSubmitting
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg'
-                }`}
+                className="jira-btn-primary"
               >
                 {isSubmitting ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Creating Issue...</span>
-                  </div>
+                  <>
+                    <Icons.Loader size="sm" className="animate-spin mr-2" />
+                    Creating Issue...
+                  </>
                 ) : (
-                  <div className="flex items-center space-x-2">
-                    <span>🚀</span>
-                    <span>Create Jira Issue</span>
-                  </div>
+                  <>
+                    <Icons.Check size="sm" className="mr-2" />
+                    Create Jira Issue
+                  </>
                 )}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </div>
     </div>
   )
+
+  function renderFieldInput(field: JiraField, currentValue: any, fieldSuggestions: any[]): React.ReactElement {
+    const value = fieldValues[field.id] !== undefined ? fieldValues[field.id] : currentValue
+
+    switch (field.type) {
+      case 'select':
+        return (
+          <div className="space-y-2">
+            <select
+              value={value || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              className="jira-select w-full"
+            >
+              <option value="">Select {field.name}</option>
+              {field.allowedValues?.map((option: any) => (
+                <option key={typeof option === 'string' ? option : option.value} 
+                        value={typeof option === 'string' ? option : option.value}>
+                  {typeof option === 'string' ? option : option.name || option.value}
+                </option>
+              ))}
+            </select>
+            {fieldSuggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {fieldSuggestions.slice(0, 3).map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleFieldChange(field.id, typeof suggestion === 'string' ? suggestion : suggestion.value)}
+                    className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  >
+                    {typeof suggestion === 'string' ? suggestion : (suggestion.label || suggestion.value)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+
+      case 'textarea':
+        return (
+          <textarea
+            value={value || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            className="jira-textarea w-full"
+            rows={3}
+            placeholder={`Enter ${field.name}`}
+          />
+        )
+
+      case 'number':
+        return (
+          <input
+            type="number"
+            value={value || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value ? Number(e.target.value) : '')}
+            className="jira-input w-full"
+            placeholder={`Enter ${field.name}`}
+          />
+        )
+
+      case 'date':
+        return (
+          <input
+            type="date"
+            value={value || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            className="jira-input w-full"
+          />
+        )
+
+      default:
+        return (
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={value || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              className="jira-input w-full"
+              placeholder={`Enter ${field.name}`}
+            />
+            {fieldSuggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {fieldSuggestions.slice(0, 3).map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleFieldChange(field.id, typeof suggestion === 'string' ? suggestion : suggestion.value)}
+                    className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  >
+                    {typeof suggestion === 'string' ? suggestion : (suggestion.label || suggestion.value)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+    }
+  }
 } 

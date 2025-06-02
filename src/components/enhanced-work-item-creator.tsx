@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { WorkItemType, GeneratedContent, AIModel, JiraInstance, WorkItemTemplate, JiraField } from '../types'
+import { WorkItemType, GeneratedContent, AIModel, JiraInstance, WorkItemTemplate, JiraField, EnhancedExtractionResult } from '../types'
 import { ContentEditor } from './content-editor'
 import { ToastContainer } from './ui/toast'
 import { useToast } from '../hooks/use-toast'
@@ -20,10 +20,10 @@ import { Icons, StatusIcons } from './ui/icons'
 import { PageLoader } from './ui/page-loader'
 import { workItemStorage } from '../lib/work-item-storage'
 import { ContentChatRefiner } from './content-chat-refiner'
-import { Textarea } from './ui/textarea'
-import { GeneratedContentDisplay } from './generated-content-display'
-import { WorkItemTemplateSelector } from './template-selector'
-import { type WorkItemTemplate } from '../types'
+// Note: The following imports are commented out until components are available:
+// import { Textarea } from './ui/textarea'
+// import { GeneratedContentDisplay } from './generated-content-display'
+// import { WorkItemTemplateSelector } from './template-selector'
 
 interface EnhancedWorkItemCreatorProps {
   jiraConnection: JiraInstance | null
@@ -94,6 +94,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [pendingContent, setPendingContent] = useState<GeneratedContent | null>(null)
   const [extractedFields, setExtractedFields] = useState<Record<string, any>>({})
   const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, any[]>>({})
+  const [enhancedExtractionResult, setEnhancedExtractionResult] = useState<EnhancedExtractionResult | null>(null)
   
   // Store original prompt for chat refiner
   const [originalPrompt, setOriginalPrompt] = useState<string>('')
@@ -441,7 +442,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             apiKey = savedConnection?.apiToken
           }
 
-          console.log('Starting field validation with extraction...')
+          console.log('Starting enhanced field validation with extraction...')
           const validationResult = await fieldValidationService.validateContentWithExtraction(
             content,
             workItemType,
@@ -459,15 +460,25 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           setExtractedFields(validationResult.extractedFields || {})
           setFieldSuggestions(validationResult.suggestions || {})
 
-          if (validationResult.extractedFields && Object.keys(validationResult.extractedFields).length > 0) {
+          // Enhanced extraction summary
+          if (validationResult.enhancedExtraction) {
+            const summary = validationResult.enhancedExtraction.extractionSummary
+            if (summary.autoAppliedCount > 0) {
+              info(
+                'Smart Field Extraction Complete',
+                `Auto-applied ${summary.autoAppliedCount} fields, ${summary.confirmationCount} need confirmation, ${summary.manualCount} require manual input.`
+              )
+            }
+          } else if (validationResult.extractedFields && Object.keys(validationResult.extractedFields).length > 0) {
             info('Smart Fields Extracted', `Automatically extracted ${Object.keys(validationResult.extractedFields).length} field(s) from your description.`)
           }
 
           if (!validationResult.isValid) {
             console.log(`Validation failed: ${validationResult.missingFields.length} missing fields`)
             console.log('Missing fields:', validationResult.missingFields.map(f => f.jiraFieldId))
-            console.log(`🚫 ${callId} - Validation failed, showing modal and returning`)
-            // Show validation modal with missing fields and suggestions
+            console.log(`🚫 ${callId} - Validation failed, showing enhanced modal and returning`)
+            
+            // Show validation modal with enhanced extraction results
             setValidationMissingFields(validationResult.missingFields)
             setPendingContent({
               ...content,
@@ -476,8 +487,14 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                 ...validationResult.extractedFields
               }
             })
+            
+            // Store enhanced extraction result for the modal
+            if (validationResult.enhancedExtraction) {
+              setEnhancedExtractionResult(validationResult.enhancedExtraction)
+            }
+            
             setShowValidationModal(true)
-            console.log(`🛑 ${callId} - Modal set, RETURNING from handlePushToJira`)
+            console.log(`🛑 ${callId} - Enhanced modal set, RETURNING from handlePushToJira`)
             return
           }
 
@@ -492,7 +509,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
             }
           }
           
-          console.log(`✅ ${callId} - Validation passed, creating Jira issue`)
+          console.log(`✅ ${callId} - Enhanced validation passed, creating Jira issue`)
           await createJiraIssue(content)
         } catch (validationError) {
           console.error('Field validation error:', validationError)
@@ -1079,19 +1096,22 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       )}
 
       {/* Field Validation Modal */}
-      <FieldValidationModal
-        isOpen={showValidationModal}
-        onClose={handleValidationCancel}
-        onSubmit={handleValidationSubmit}
-        content={pendingContent || generatedContent!}
-        template={currentTemplate}
-        jiraFields={jiraFields}
-        missingFields={validationMissingFields}
-        extractedFields={extractedFields}
-        suggestions={fieldSuggestions}
-        jiraConnection={jiraConnection}
-        workItemType={workItemType}
-      />
+      {showValidationModal && (pendingContent || generatedContent) && (
+        <FieldValidationModal
+          isOpen={showValidationModal}
+          onClose={handleValidationCancel}
+          onSubmit={handleValidationSubmit}
+          content={pendingContent || generatedContent!}
+          template={currentTemplate}
+          jiraFields={jiraFields}
+          missingFields={validationMissingFields}
+          extractedFields={extractedFields}
+          suggestions={fieldSuggestions}
+          enhancedExtraction={enhancedExtractionResult || undefined}
+          jiraConnection={jiraConnection}
+          workItemType={workItemType}
+        />
+      )}
 
       {/* Invalid Option Modal */}
       {showInvalidOptionModal && (

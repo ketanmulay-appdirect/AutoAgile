@@ -1,7 +1,7 @@
-import { GeneratedContent, WorkItemType } from '../types'
-import { JiraField, jiraFieldService } from './jira-field-service'
-import { WorkItemTemplate } from './template-service'
+import { GeneratedContent, WorkItemType, JiraField, WorkItemTemplate } from '../types'
+import { jiraFieldService } from './jira-field-service'
 import { fieldExtractionService, FieldExtractionResult } from './field-extraction-service'
+import { EnhancedExtractionResult, ExtractionCandidate } from '../types'
 
 export interface MissingField {
   jiraFieldId: string
@@ -16,11 +16,12 @@ export interface ValidationResult {
   errors: string[]
   extractedFields?: Record<string, any>
   suggestions?: Record<string, any[]>
+  enhancedExtraction?: EnhancedExtractionResult
 }
 
 class FieldValidationService {
   /**
-   * Validate content with smart field extraction
+   * Validate content with enhanced smart field extraction using user configuration
    */
   async validateContentWithExtraction(
     content: GeneratedContent,
@@ -32,31 +33,58 @@ class FieldValidationService {
   ): Promise<ValidationResult> {
     let extractedFields: Record<string, any> = {}
     let suggestions: Record<string, any[]> = {}
+    let enhancedExtraction: EnhancedExtractionResult | undefined
 
-    // Try to extract field values from description
+    // Try enhanced field extraction with user configuration
     if (content.description && jiraFields.length > 0) {
       try {
-        console.log('Starting field extraction for', jiraFields.length, 'fields');
-        const extractionResult = await fieldExtractionService.extractFieldValues(
+        console.log('Starting enhanced field extraction for', jiraFields.length, 'fields');
+        enhancedExtraction = await fieldExtractionService.extractFieldValuesWithConfig(
           content.description,
           jiraFields,
+          workItemType,
           aiProvider,
           apiKey
         )
 
-        // Convert extracted fields to a record
-        for (const extracted of extractionResult.extractedFields) {
-          extractedFields[extracted.fieldId] = extracted.value
-          console.log(`Extracted field ${extracted.fieldId}: ${extracted.value} (${extracted.extractionMethod})`);
+        // Convert auto-applied fields to the expected format
+        extractedFields = Object.fromEntries(enhancedExtraction.autoApplied);
+
+        // Add confirmation-required fields to extracted fields for validation
+        // but mark them as needing confirmation
+        for (const [fieldId, candidate] of enhancedExtraction.requiresConfirmation) {
+          extractedFields[fieldId] = candidate.value;
         }
 
-        suggestions = extractionResult.suggestions
-        console.log('Field extraction completed successfully');
+        // Generate suggestions from both extraction candidates and traditional suggestions
+        suggestions = this.generateEnhancedSuggestions(enhancedExtraction, jiraFields, content.description);
+
+        console.log(`Enhanced extraction completed: ${enhancedExtraction.extractionSummary.autoAppliedCount} auto-applied, ${enhancedExtraction.extractionSummary.confirmationCount} require confirmation`);
       } catch (error) {
-        console.warn('Field extraction failed, continuing with validation:', error)
-        // Continue with validation even if extraction fails
-        extractedFields = {}
-        suggestions = {}
+        console.warn('Enhanced field extraction failed, falling back to basic extraction:', error)
+        
+        // Fall back to basic extraction
+        try {
+          const basicExtractionResult = await fieldExtractionService.extractFieldValues(
+            content.description,
+            jiraFields,
+            aiProvider,
+            apiKey
+          )
+
+          // Convert basic extracted fields to a record
+          for (const extracted of basicExtractionResult.extractedFields) {
+            extractedFields[extracted.fieldId] = extracted.value
+            console.log(`Extracted field ${extracted.fieldId}: ${extracted.value} (${extracted.extractionMethod})`);
+          }
+
+          suggestions = basicExtractionResult.suggestions
+          console.log('Basic field extraction completed successfully');
+        } catch (basicError) {
+          console.warn('Basic field extraction also failed:', basicError)
+          extractedFields = {}
+          suggestions = {}
+        }
       }
     } else {
       console.log('Skipping field extraction: no description or no Jira fields');
@@ -82,8 +110,77 @@ class FieldValidationService {
     return {
       ...validationResult,
       extractedFields,
-      suggestions
+      suggestions,
+      enhancedExtraction
     }
+  }
+
+  /**
+   * Generate enhanced suggestions combining extraction candidates and traditional suggestions
+   */
+  private generateEnhancedSuggestions(
+    enhancedExtraction: EnhancedExtractionResult,
+    jiraFields: JiraField[],
+    description: string
+  ): Record<string, any[]> {
+    const suggestions: Record<string, any[]> = {};
+
+    // Add suggestions from extraction candidates
+    for (const [fieldId, candidate] of enhancedExtraction.requiresConfirmation) {
+      const field = jiraFields.find(f => f.id === fieldId);
+      if (field) {
+        suggestions[fieldId] = this.generateFieldSuggestions(field, candidate, description);
+      }
+    }
+
+    // Add suggestions for manual fields
+    for (const fieldId of enhancedExtraction.manualFields) {
+      const field = jiraFields.find(f => f.id === fieldId);
+      if (field) {
+        suggestions[fieldId] = this.getFieldSuggestions({} as GeneratedContent, field);
+      }
+    }
+
+    return suggestions;
+  }
+
+  /**
+   * Generate suggestions for a specific field with extraction candidate context
+   */
+  private generateFieldSuggestions(
+    jiraField: JiraField,
+    candidate: ExtractionCandidate,
+    description: string
+  ): any[] {
+    const suggestions: any[] = [];
+
+    // Add the extracted value as the primary suggestion
+    if (candidate.value) {
+      suggestions.push({
+        value: candidate.value,
+        label: `${candidate.value} (${Math.round(candidate.confidence * 100)}% confidence)`,
+        confidence: candidate.confidence,
+        extractionMethod: candidate.extractionMethod
+      });
+    }
+
+    // Add traditional field suggestions
+    const traditionalSuggestions = this.getFieldSuggestions({} as GeneratedContent, jiraField);
+    
+    // Add unique traditional suggestions
+    traditionalSuggestions.forEach(suggestion => {
+      const suggestionValue = typeof suggestion === 'string' ? suggestion : suggestion;
+      const exists = suggestions.some(s => s.value === suggestionValue);
+      
+      if (!exists) {
+        suggestions.push({
+          value: suggestionValue,
+          label: typeof suggestion === 'string' ? suggestion : String(suggestion)
+        });
+      }
+    });
+
+    return suggestions.slice(0, 5); // Limit to top 5 suggestions
   }
 
   /**
@@ -140,40 +237,8 @@ class FieldValidationService {
       return content.customFields[jiraField.id]
     }
 
-    // Check template field mappings
-    if (template?.jiraFieldMappings) {
-      const templateFieldId = Object.keys(template.jiraFieldMappings).find(
-        key => template.jiraFieldMappings![key] === jiraField.id
-      )
-      
-      if (templateFieldId) {
-        return this.getContentFieldValue(content, templateFieldId)
-      }
-    }
-
     // Check standard field mappings
     return this.getStandardFieldValue(content, jiraField)
-  }
-
-  /**
-   * Get value from content based on template field ID
-   */
-  private getContentFieldValue(content: GeneratedContent, fieldId: string): any {
-    switch (fieldId) {
-      case 'title':
-      case 'summary':
-        return content.title
-      case 'description':
-        return content.description
-      case 'priority':
-        return content.priority
-      case 'labels':
-        return content.labels
-      case 'storyPoints':
-        return content.storyPoints
-      default:
-        return content.customFields?.[fieldId]
-    }
   }
 
   /**
@@ -218,11 +283,25 @@ class FieldValidationService {
    * Get template field ID that maps to a Jira field
    */
   private getTemplateFieldId(jiraField: JiraField, template: WorkItemTemplate | null): string | undefined {
-    if (!template?.jiraFieldMappings) return undefined
-
-    return Object.keys(template.jiraFieldMappings).find(
-      key => template.jiraFieldMappings![key] === jiraField.id
-    )
+    // Since jiraFieldMappings doesn't exist on WorkItemTemplate, 
+    // we'll use a simple mapping based on field name/id
+    if (!template) return undefined
+    
+    // Map common template fields to Jira fields
+    const fieldName = jiraField.name.toLowerCase()
+    const fieldId = jiraField.id.toLowerCase()
+    
+    if (fieldId === 'summary' || fieldName.includes('summary') || fieldName.includes('title')) {
+      return 'title'
+    }
+    if (fieldId === 'description' || fieldName.includes('description')) {
+      return 'description'
+    }
+    if (fieldId === 'priority' || fieldName.includes('priority')) {
+      return 'priority'
+    }
+    
+    return undefined
   }
 
   /**
@@ -307,7 +386,8 @@ class FieldValidationService {
         }
         break
       
-      case 'text':
+      case 'string':
+      case 'textarea':
         // For quarter fields, suggest current quarter
         if (jiraField.name.toLowerCase().includes('quarter')) {
           const now = new Date()

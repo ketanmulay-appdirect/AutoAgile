@@ -1,44 +1,34 @@
-import { WorkItemType, FieldDefinition } from '../types'
-
-// Define the template interface
-export interface WorkItemTemplate {
-  id: string
-  name: string
-  workItemType: WorkItemType
-  fields: FieldDefinition[]
-  aiPrompt: string
-  jiraFieldMappings?: Record<string, string>
-  createdAt: string
-  updatedAt: string
-}
+import { WorkItemType, JiraField, FieldExtractionConfig, ExtractionPreferences, EnhancedWorkItemTemplate, WorkItemTemplate } from '../types'
 
 // Default templates for each work item type
-const DEFAULT_TEMPLATES: Record<WorkItemType, WorkItemTemplate> = {
+const DEFAULT_TEMPLATES: Record<string, WorkItemTemplate> = {
   initiative: {
     id: 'default_initiative',
     name: 'Default Initiative Template',
-    workItemType: 'initiative',
+    type: 'initiative',
+    description: 'Default template for creating initiatives',
     fields: [
-      { id: 'title', name: 'Title', type: 'text', required: true, description: 'Initiative title/summary' },
-      { id: 'description', name: 'Description', type: 'textarea', required: true, description: 'Detailed description of the initiative' },
-      { id: 'business_value', name: 'Business Value', type: 'textarea', required: false, description: 'Expected business value and outcomes' },
-      { id: 'success_metrics', name: 'Success Metrics', type: 'textarea', required: false, description: 'How success will be measured' },
-      { id: 'timeline', name: 'Timeline', type: 'text', required: false, description: 'Expected timeline or duration' }
+      { id: 'title', name: 'Title', type: 'string', required: true },
+      { id: 'description', name: 'Description', type: 'textarea', required: true },
+      { id: 'business_value', name: 'Business Value', type: 'textarea', required: false },
+      { id: 'success_metrics', name: 'Success Metrics', type: 'textarea', required: false },
+      { id: 'timeline', name: 'Timeline', type: 'string', required: false }
     ],
     aiPrompt: 'Generate a comprehensive initiative based on: {description}. Include business value, success metrics, and high-level scope.',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    createdAt: new Date(),
+    updatedAt: new Date()
   },
   epic: {
     id: 'default_epic',
     name: 'Default Epic Template',
-    workItemType: 'epic',
+    type: 'epic',
+    description: 'Default template for creating epics',
     fields: [
-      { id: 'title', name: 'Title', type: 'text', required: true, description: 'Epic title/summary' },
-      { id: 'description', name: 'Description', type: 'textarea', required: true, description: 'Detailed description of the epic' },
-      { id: 'acceptance_criteria', name: 'Acceptance Criteria', type: 'textarea', required: false, description: 'High-level acceptance criteria' },
-      { id: 'user_stories', name: 'User Stories', type: 'textarea', required: false, description: 'List of user stories to be created' },
-      { id: 'priority', name: 'Priority', type: 'select', required: false, description: 'Priority level' }
+      { id: 'title', name: 'Title', type: 'string', required: true },
+      { id: 'description', name: 'Description', type: 'textarea', required: true },
+      { id: 'acceptance_criteria', name: 'Acceptance Criteria', type: 'textarea', required: false },
+      { id: 'user_stories', name: 'User Stories', type: 'textarea', required: false },
+      { id: 'priority', name: 'Priority', type: 'select', required: false }
     ],
     aiPrompt: `You're an experienced product manager writing Jira Epics in the style used by enterprise technology companies like Amazon, Google, and AppDirect. When given a {description}, respond with a complete Jira Epic formatted using the following structure and tone:
 
@@ -71,23 +61,24 @@ const DEFAULT_TEMPLATES: Record<WorkItemType, WorkItemTemplate> = {
   - Do **not bold** any heading  
   - Do **not** include dividers  
   - Avoid emojis entirely`,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    createdAt: new Date(),
+    updatedAt: new Date()
   },
   story: {
     id: 'default_story',
     name: 'Default Story Template',
-    workItemType: 'story',
+    type: 'story',
+    description: 'Default template for creating user stories',
     fields: [
-      { id: 'title', name: 'Title', type: 'text', required: true, description: 'Story title/summary' },
-      { id: 'description', name: 'Description', type: 'textarea', required: true, description: 'User story description' },
-      { id: 'acceptance_criteria', name: 'Acceptance Criteria', type: 'textarea', required: true, description: 'Specific acceptance criteria' },
-      { id: 'story_points', name: 'Story Points', type: 'number', required: false, description: 'Estimated story points' },
-      { id: 'priority', name: 'Priority', type: 'select', required: false, description: 'Priority level' }
+      { id: 'title', name: 'Title', type: 'string', required: true },
+      { id: 'description', name: 'Description', type: 'textarea', required: true },
+      { id: 'acceptance_criteria', name: 'Acceptance Criteria', type: 'textarea', required: true },
+      { id: 'story_points', name: 'Story Points', type: 'number', required: false },
+      { id: 'priority', name: 'Priority', type: 'select', required: false }
     ],
     aiPrompt: 'Generate a detailed user story based on: {description}. Include specific acceptance criteria and suggest story points.',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    createdAt: new Date(),
+    updatedAt: new Date()
   }
 }
 
@@ -96,30 +87,147 @@ const isBrowser = typeof window !== 'undefined'
 
 class TemplateService {
   private readonly STORAGE_KEY = 'work-item-templates'
+  private readonly ENHANCED_STORAGE_KEY = 'enhanced-work-item-templates'
 
-  // Get all templates
-  getTemplates(): WorkItemTemplate[] {
+  // Get all templates (enhanced version)
+  getEnhancedTemplates(): EnhancedWorkItemTemplate[] {
     if (!isBrowser) {
       // Return default templates on server-side
-      return Object.values(DEFAULT_TEMPLATES)
+      return this.convertToEnhanced(Object.values(DEFAULT_TEMPLATES))
     }
 
     try {
-      const stored = localStorage.getItem(this.STORAGE_KEY)
+      const stored = localStorage.getItem(this.ENHANCED_STORAGE_KEY)
       if (stored) {
-        return JSON.parse(stored)
+        const parsed = JSON.parse(stored)
+        // Convert date strings back to Date objects
+        return parsed.map((template: any) => ({
+          ...template,
+          createdAt: new Date(template.createdAt),
+          updatedAt: new Date(template.updatedAt)
+        }))
       }
     } catch (error) {
-      console.error('Failed to load templates:', error)
+      console.error('Failed to load enhanced templates:', error)
     }
     
     // Return default templates if none stored
-    return Object.values(DEFAULT_TEMPLATES)
+    return this.convertToEnhanced(Object.values(DEFAULT_TEMPLATES))
+  }
+
+  // Get enhanced template by work item type
+  getEnhancedTemplate(workItemType: WorkItemType): EnhancedWorkItemTemplate {
+    const templates = this.getEnhancedTemplates()
+    const found = templates.find(t => t.type === workItemType)
+    if (found) return found
+    
+    // Return default template if not found
+    const defaultTemplate = DEFAULT_TEMPLATES[workItemType]
+    if (defaultTemplate) {
+      return this.convertToEnhanced([defaultTemplate])[0]
+    }
+    
+    // Fallback to epic template
+    return this.convertToEnhanced([DEFAULT_TEMPLATES.epic])[0]
+  }
+
+  // Save enhanced template
+  saveEnhancedTemplate(template: EnhancedWorkItemTemplate): void {
+    if (!isBrowser) {
+      console.warn('Cannot save enhanced template on server-side')
+      return
+    }
+
+    try {
+      const templates = this.getEnhancedTemplates()
+      const existingIndex = templates.findIndex(t => t.id === template.id)
+      
+      const updatedTemplate = {
+        ...template,
+        updatedAt: new Date()
+      }
+
+      if (existingIndex >= 0) {
+        templates[existingIndex] = updatedTemplate
+      } else {
+        templates.push({
+          ...updatedTemplate,
+          createdAt: new Date()
+        })
+      }
+
+      localStorage.setItem(this.ENHANCED_STORAGE_KEY, JSON.stringify(templates))
+    } catch (error) {
+      console.error('Failed to save enhanced template:', error)
+      throw new Error('Failed to save enhanced template')
+    }
+  }
+
+  // Update field extraction configuration
+  updateFieldExtractionConfig(
+    workItemType: WorkItemType, 
+    fieldConfigs: FieldExtractionConfig[], 
+    preferences: ExtractionPreferences
+  ): void {
+    const template = this.getEnhancedTemplate(workItemType)
+    const updatedTemplate: EnhancedWorkItemTemplate = {
+      ...template,
+      fieldExtractionConfig: fieldConfigs,
+      extractionPreferences: preferences,
+      updatedAt: new Date()
+    }
+    this.saveEnhancedTemplate(updatedTemplate)
+  }
+
+  // Get field extraction configuration for a work item type
+  getFieldExtractionConfig(workItemType: WorkItemType): {
+    fieldConfigs: FieldExtractionConfig[]
+    preferences: ExtractionPreferences
+  } {
+    const template = this.getEnhancedTemplate(workItemType)
+    return {
+      fieldConfigs: template.fieldExtractionConfig || [],
+      preferences: template.extractionPreferences || this.getDefaultExtractionPreferences()
+    }
+  }
+
+  // Convert regular templates to enhanced templates
+  private convertToEnhanced(templates: WorkItemTemplate[]): EnhancedWorkItemTemplate[] {
+    return templates.map(template => ({
+      ...template,
+      fieldExtractionConfig: [],
+      extractionPreferences: this.getDefaultExtractionPreferences()
+    }))
+  }
+
+  // Get default extraction preferences
+  private getDefaultExtractionPreferences(): ExtractionPreferences {
+    return {
+      defaultMethod: 'ai',
+      globalConfidenceThreshold: 0.7,
+      requireConfirmationForAll: false,
+      enableSmartDefaults: true
+    }
+  }
+
+  // Get all templates (backward compatibility)
+  getTemplates(): WorkItemTemplate[] {
+    const enhanced = this.getEnhancedTemplates()
+    return enhanced.map(template => ({
+      id: template.id,
+      name: template.name,
+      type: template.type,
+      description: template.description,
+      fields: template.fields,
+      aiPrompt: template.aiPrompt,
+      createdAt: template.createdAt,
+      updatedAt: template.updatedAt
+    }))
   }
 
   // Get templates by work item type
   getTemplatesByType(workItemType: WorkItemType): WorkItemTemplate[] {
-    return this.getTemplates().filter(template => template.workItemType === workItemType)
+    return this.getTemplates().filter(template => template.type === workItemType)
   }
 
   // Get a specific template by ID
@@ -131,39 +239,24 @@ class TemplateService {
   // Get default template for a work item type
   getDefaultTemplate(workItemType: WorkItemType): WorkItemTemplate {
     const templates = this.getTemplatesByType(workItemType)
-    return templates.find(t => t.id.startsWith('default_')) || DEFAULT_TEMPLATES[workItemType]
+    const found = templates.find(t => t.id.startsWith('default_'))
+    if (found) return found
+    
+    const defaultTemplate = DEFAULT_TEMPLATES[workItemType]
+    if (defaultTemplate) return defaultTemplate
+    
+    return DEFAULT_TEMPLATES.epic // fallback
   }
 
-  // Save a template
+  // Save a template (backward compatibility)
   saveTemplate(template: WorkItemTemplate): void {
-    if (!isBrowser) {
-      console.warn('Cannot save template on server-side')
-      return
+    // Convert to enhanced template and save
+    const enhanced: EnhancedWorkItemTemplate = {
+      ...template,
+      fieldExtractionConfig: [],
+      extractionPreferences: this.getDefaultExtractionPreferences()
     }
-
-    try {
-      const templates = this.getTemplates()
-      const existingIndex = templates.findIndex(t => t.id === template.id)
-      
-      const updatedTemplate = {
-        ...template,
-        updatedAt: new Date().toISOString()
-      }
-
-      if (existingIndex >= 0) {
-        templates[existingIndex] = updatedTemplate
-      } else {
-        templates.push({
-          ...updatedTemplate,
-          createdAt: new Date().toISOString()
-        })
-      }
-
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(templates))
-    } catch (error) {
-      console.error('Failed to save template:', error)
-      throw new Error('Failed to save template')
-    }
+    this.saveEnhancedTemplate(enhanced)
   }
 
   // Delete a template
@@ -174,9 +267,9 @@ class TemplateService {
     }
 
     try {
-      const templates = this.getTemplates()
+      const templates = this.getEnhancedTemplates()
       const filtered = templates.filter(template => template.id !== id)
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filtered))
+      localStorage.setItem(this.ENHANCED_STORAGE_KEY, JSON.stringify(filtered))
     } catch (error) {
       console.error('Failed to delete template:', error)
       throw new Error('Failed to delete template')
@@ -200,19 +293,22 @@ class TemplateService {
     const hasDescription = template.fields.some(f => f.id === 'description' || f.name.toLowerCase().includes('description'))
 
     if (!hasTitle) {
-      errors.push('Template should include a title field')
+      errors.push('Template must include a title field')
     }
 
     if (!hasDescription) {
-      errors.push('Template should include a description field')
+      errors.push('Template must include a description field')
     }
 
-    // Check for duplicate field names
-    const fieldNames = template.fields.map(f => f.name.toLowerCase())
-    const duplicates = fieldNames.filter((name, index) => fieldNames.indexOf(name) !== index)
-    if (duplicates.length > 0) {
-      errors.push(`Duplicate field names: ${duplicates.join(', ')}`)
-    }
+    // Validate field definitions
+    template.fields.forEach((field, index) => {
+      if (!field.id.trim()) {
+        errors.push(`Field ${index + 1}: ID is required`)
+      }
+      if (!field.name.trim()) {
+        errors.push(`Field ${index + 1}: Name is required`)
+      }
+    })
 
     return {
       isValid: errors.length === 0,
@@ -232,7 +328,7 @@ class TemplateService {
       .map(f => f.name)
       .join(', ')
 
-    return `Generate a ${template.workItemType} with the following required fields: ${fieldDescriptions}. Base it on this description: ${userDescription}`
+    return `Generate a ${template.type} with the following required fields: ${fieldDescriptions}. Base it on this description: ${userDescription}`
   }
 }
 

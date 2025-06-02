@@ -612,7 +612,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
               value={instructionText}
               onChange={(e) => setInstructionText(e.target.value)}
               rows={12}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical font-mono text-sm"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y font-mono text-sm"
               placeholder="Enter detailed instructions for AI content generation..."
             />
             <div className="mt-3 p-4 bg-blue-50 rounded-lg">

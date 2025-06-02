@@ -191,4 +191,49 @@ export interface WorkItemHistory {
   jiraIssue?: JiraIssue
   templateUsed: string
   createdAt: Date
+}
+
+export interface FieldExtractionConfig {
+  fieldId: string
+  jiraFieldId: string
+  extractionEnabled: boolean
+  extractionMethod: 'ai' | 'pattern' | 'manual'
+  confirmationRequired: boolean
+  confidenceThreshold: number
+  autoApply: boolean
+  displayName: string
+}
+
+export interface ExtractionPreferences {
+  defaultMethod: 'ai' | 'pattern' | 'manual'
+  globalConfidenceThreshold: number
+  requireConfirmationForAll: boolean
+  enableSmartDefaults: boolean
+}
+
+export interface EnhancedWorkItemTemplate extends WorkItemTemplate {
+  fieldExtractionConfig?: FieldExtractionConfig[]
+  extractionPreferences?: ExtractionPreferences
+}
+
+export interface ExtractionCandidate {
+  fieldId: string
+  value: any
+  confidence: number
+  extractionMethod: 'ai' | 'pattern' | 'default'
+  suggestion?: string
+}
+
+export interface EnhancedExtractionResult {
+  autoApplied: Map<string, any>
+  requiresConfirmation: Map<string, ExtractionCandidate>
+  manualFields: string[]
+  skippedFields: string[]
+  extractionSummary: {
+    totalFields: number
+    autoAppliedCount: number
+    confirmationCount: number
+    manualCount: number
+    skippedCount: number
+  }
 } 

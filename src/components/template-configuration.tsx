@@ -1,285 +1,554 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { WorkItemType, ContentType } from '../types'
-import { WorkTypeFormatConfig } from './work-type-format-config'
-import { templateService, type WorkItemTemplate } from '../lib/template-service'
+import { ContentType, WorkItemType, FieldExtractionConfig, ExtractionPreferences, EnhancedWorkItemTemplate } from '../types'
+import { JiraField, jiraFieldService } from '../lib/jira-field-service'
+import { templateService } from '../lib/template-service'
 import { contentInstructionService } from '../lib/content-instruction-service'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
-import { Alert, AlertDescription, AlertTitle } from './ui/alert'
 import { Icons } from './ui/icons'
+import { FieldExtractionConfigEditor } from './field-extraction-config-editor'
 
 interface TemplateConfigurationProps {
   onClose: () => void
 }
 
-type ConfigSection = 'work-items' | 'content-generation'
+type ConfigSection = 'work-items' | 'content-generation' | 'field-extraction'
 type ContentTemplateType = 'quarterly-presentation' | 'customer-webinar' | 'feature-newsletter'
+type WorkItemConfigType = 'epic' | 'story' | 'initiative'
 
 export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
   const [activeSection, setActiveSection] = useState<ConfigSection>('work-items')
-  const [selectedWorkItemType, setSelectedWorkItemType] = useState<WorkItemType>('epic')
   const [selectedContentType, setSelectedContentType] = useState<ContentTemplateType>('quarterly-presentation')
-  const [editingContentInstructions, setEditingContentInstructions] = useState<ContentTemplateType | null>(null)
-  const [contentInstructions, setContentInstructions] = useState('')
+  const [selectedWorkItemType, setSelectedWorkItemType] = useState<WorkItemConfigType>('epic')
+  
+  // Content instructions state
+  const [instructions, setInstructions] = useState('')
+  const [hasInstructionChanges, setHasInstructionChanges] = useState(false)
+  
+  // Field extraction state
+  const [jiraFields, setJiraFields] = useState<JiraField[]>([])
+  const [loadingJiraFields, setLoadingJiraFields] = useState(false)
+  const [showFieldExtractionEditor, setShowFieldExtractionEditor] = useState(false)
 
-  const handleEditContentInstructions = (contentType: ContentTemplateType) => {
-    const instructions = contentInstructionService.getActiveInstructions(contentType)
-    setContentInstructions(instructions)
-    setEditingContentInstructions(contentType)
+  // Work item instructions state
+  const [workItemInstructions, setWorkItemInstructions] = useState('')
+  const [hasWorkItemChanges, setHasWorkItemChanges] = useState(false)
+
+  useEffect(() => {
+    if (activeSection === 'content-generation') {
+      loadContentInstructions()
+    } else if (activeSection === 'field-extraction') {
+      loadJiraFields()
+    }
+  }, [activeSection, selectedContentType, selectedWorkItemType])
+
+  useEffect(() => {
+    loadContentInstructions()
+  }, [selectedContentType])
+
+  // Load work item instructions when work item type changes
+  useEffect(() => {
+    const loadWorkItemInstructions = () => {
+      const template = templateService.getDefaultTemplate(selectedWorkItemType as WorkItemType)
+      setWorkItemInstructions(template.aiPrompt)
+      setHasWorkItemChanges(false)
+    }
+    loadWorkItemInstructions()
+  }, [selectedWorkItemType])
+
+  const loadContentInstructions = () => {
+    const template = contentInstructionService.getTemplate(selectedContentType)
+    setInstructions(template.userInstructions || template.defaultInstructions)
+    setHasInstructionChanges(false)
+  }
+
+  const loadJiraFields = async () => {
+    setLoadingJiraFields(true)
+    try {
+      // Try to get cached field mapping first
+      const fieldMapping = jiraFieldService.getFieldMapping(selectedWorkItemType)
+      if (fieldMapping) {
+        setJiraFields(fieldMapping.fields)
+      } else {
+        setJiraFields([])
+      }
+    } catch (error) {
+      console.error('Failed to load Jira fields:', error)
+      setJiraFields([])
+    } finally {
+      setLoadingJiraFields(false)
+    }
   }
 
   const handleSaveContentInstructions = () => {
-    if (editingContentInstructions) {
-      const template = contentInstructionService.getTemplate(editingContentInstructions)
-      const updatedTemplate = {
-        ...template,
-        userInstructions: contentInstructions,
-        isCustomized: true
-      }
-      contentInstructionService.saveTemplate(updatedTemplate)
-      setEditingContentInstructions(null)
-      setContentInstructions('')
+    const template = contentInstructionService.getTemplate(selectedContentType)
+    const updatedTemplate = {
+      ...template,
+      userInstructions: instructions,
+      isCustomized: true,
+      updatedAt: new Date()
     }
+    contentInstructionService.saveTemplate(updatedTemplate)
+    setHasInstructionChanges(false)
   }
 
   const handleResetContentInstructions = () => {
-    if (editingContentInstructions) {
-      contentInstructionService.resetToDefault(editingContentInstructions)
-      const defaultInstructions = contentInstructionService.getActiveInstructions(editingContentInstructions)
-      setContentInstructions(defaultInstructions)
+    const template = contentInstructionService.resetToDefault(selectedContentType)
+    setInstructions(template.defaultInstructions)
+    setHasInstructionChanges(false)
+  }
+
+  const handleFieldExtractionSave = (config: FieldExtractionConfig[], preferences: ExtractionPreferences) => {
+    templateService.updateFieldExtractionConfig(selectedWorkItemType, config, preferences)
+    setShowFieldExtractionEditor(false)
+  }
+
+  const handleOpenFieldExtractionEditor = () => {
+    if (jiraFields.length === 0) {
+      alert('No Jira fields available. Please ensure you have a Jira connection configured and field discovery has been run.')
+      return
+    }
+    setShowFieldExtractionEditor(true)
+  }
+
+  const getSectionIcon = (section: ConfigSection) => {
+    switch (section) {
+      case 'work-items': return Icons.FileText
+      case 'content-generation': return Icons.Sparkles
+      case 'field-extraction': return Icons.Settings
+      default: return Icons.FileText
     }
   }
 
-  const contentTemplates = [
-    {
-      type: 'quarterly-presentation' as ContentTemplateType,
-      title: 'Quarterly Presentation',
-      description: 'Executive slide deck for quarterly business reviews',
-      icon: '📊',
-      phase: 'Planning Phase'
-    },
-    {
-      type: 'customer-webinar' as ContentTemplateType,
-      title: 'Customer Webinar',
-      description: 'Customer-facing presentation content',
-      icon: '🎯',
-      phase: 'Planning Phase'
-    },
-    {
-      type: 'feature-newsletter' as ContentTemplateType,
-      title: 'Feature Newsletter',
-      description: 'Newsletter content for feature announcement',
-      icon: '📰',
-      phase: 'Post-Completion'
+  const getSectionTitle = (section: ConfigSection) => {
+    switch (section) {
+      case 'work-items': return 'Work Item Templates'
+      case 'content-generation': return 'AI Content Generation'
+      case 'field-extraction': return 'Smart Field Extraction'
+      default: return section
     }
-  ]
+  }
+
+  const getSectionDescription = (section: ConfigSection) => {
+    switch (section) {
+      case 'work-items': return 'Configure templates and formats for different work item types'
+      case 'content-generation': return 'Customize AI instructions for generating different content types'
+      case 'field-extraction': return 'Configure how fields are extracted and validated when pushing to Jira'
+      default: return ''
+    }
+  }
+
+  if (showFieldExtractionEditor) {
+    const template = templateService.getEnhancedTemplate(selectedWorkItemType)
+    return (
+      <FieldExtractionConfigEditor
+        workItemType={selectedWorkItemType}
+        template={template}
+        jiraFields={jiraFields}
+        onSave={handleFieldExtractionSave}
+        onCancel={() => setShowFieldExtractionEditor(false)}
+      />
+    )
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl flex items-center">
-            <Icons.Settings size="lg" autoContrast className="mr-3" />
-            Configure Templates
-          </CardTitle>
-          <CardDescription>
-          Customize AI instructions and templates for work item creation and content generation.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-        {/* Section Selector */}
-        <div className="flex space-x-4">
-            <Button
-              variant={activeSection === 'work-items' ? 'default' : 'outline'}
-            onClick={() => setActiveSection('work-items')}
-          >
-              <Icons.FileText size="sm" autoContrast className="mr-2" />
-            Work Item Templates
-            </Button>
-            <Button
-              variant={activeSection === 'content-generation' ? 'default' : 'outline'}
-            onClick={() => setActiveSection('content-generation')}
-          >
-              <Icons.FileText size="sm" autoContrast className="mr-2" />
-            Content Generation Templates
-            </Button>
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">Configuration</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Customize templates, AI instructions, and field extraction settings
+            </p>
+          </div>
+          <Button variant="outline" onClick={onClose}>
+            <Icons.X size="sm" className="mr-2" />
+            Close
+          </Button>
         </div>
-        </CardContent>
-      </Card>
+      </div>
 
-      {/* Work Item Templates Section */}
-      {activeSection === 'work-items' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Icons.FileText size="md" autoContrast className="mr-2" />
-                Work Item Templates
-              </CardTitle>
-              <CardDescription>
-              Configure fields and AI prompts for creating different types of Jira work items.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-            <div className="flex space-x-4 mb-6">
-              {(['epic', 'story', 'initiative'] as WorkItemType[]).map((type) => (
-                  <Button
-                  key={type}
-                    variant={selectedWorkItemType === type ? 'default' : 'outline'}
-                  onClick={() => setSelectedWorkItemType(type)}
+      <div className="flex-1 flex">
+        {/* Sidebar */}
+        <div className="w-64 bg-white border-r border-gray-200">
+          <nav className="mt-4">
+            {(['work-items', 'content-generation', 'field-extraction'] as ConfigSection[]).map((section) => {
+              const IconComponent = getSectionIcon(section)
+              const isActive = activeSection === section
+              return (
+                <button
+                  key={section}
+                  onClick={() => setActiveSection(section)}
+                  className={`w-full flex items-center px-4 py-3 text-left text-sm font-medium border-r-2 transition-colors ${
+                    isActive 
+                      ? 'text-blue-700 bg-blue-50 border-blue-700' 
+                      : 'text-gray-700 bg-white border-transparent hover:bg-gray-50'
+                  }`}
                 >
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </Button>
-              ))}
-            </div>
-            </CardContent>
-          </Card>
-
-          <WorkTypeFormatConfig
-            workItemType={selectedWorkItemType}
-            template={templateService.getDefaultTemplate(selectedWorkItemType)}
-            onSave={onClose}
-            onCancel={onClose}
-          />
+                  <IconComponent size="sm" className="mr-3" />
+                  {getSectionTitle(section)}
+                </button>
+              )
+            })}
+          </nav>
         </div>
-      )}
 
-      {/* Content Generation Templates Section */}
-      {activeSection === 'content-generation' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Icons.FileText size="md" autoContrast className="mr-2" />
-                Content Generation Templates
-              </CardTitle>
-              <CardDescription>
-              Configure AI instructions for generating different types of presentation and marketing content.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-            {/* Content Template Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {contentTemplates.map((template) => {
-                const templateData = contentInstructionService.getTemplate(template.type)
-                const isCustomized = templateData.isCustomized
-                
-                return (
-                    <Card key={template.type} className="hover:shadow-md transition-all duration-200">
-                      <CardHeader>
-                        <div className="text-3xl mb-2">{template.icon}</div>
-                        <CardTitle className="text-lg">{template.title}</CardTitle>
-                        <CardDescription>{template.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                    <div className="flex items-center justify-between mb-4">
-                          <Badge variant="secondary">
-                        {template.phase}
-                          </Badge>
-                      {isCustomized && (
-                            <Badge variant="success">
-                          Customized
-                            </Badge>
-                      )}
-                    </div>
-                        <Button
-                      onClick={() => handleEditContentInstructions(template.type)}
-                          className="w-full"
-                          size="sm"
-                    >
-                          <Icons.Edit size="sm" className="mr-2" />
-                      Edit Instructions
-                        </Button>
-                      </CardContent>
-                    </Card>
-                )
-              })}
-            </div>
-            </CardContent>
-          </Card>
+        {/* Main Content */}
+        <div className="flex-1 p-6">
+          {/* Section Header */}
+          <div className="mb-6">
+            <h2 className="text-lg font-medium text-gray-900">
+              {getSectionTitle(activeSection)}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {getSectionDescription(activeSection)}
+            </p>
+          </div>
 
-          {/* Content Instructions Editor Modal */}
-          {editingContentInstructions && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-              <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        Edit {contentTemplates.find(t => t.type === editingContentInstructions)?.title} Instructions
-                      </h3>
-                      <p className="text-gray-600 mt-1">
-                        Customize the AI instructions for generating this type of content.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setEditingContentInstructions(null)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+          {/* Work Items Section */}
+          {activeSection === 'work-items' && (
+            <div className="space-y-6">
+              {/* Work Item Type Selector */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Work Item Type</CardTitle>
+                  <CardDescription>
+                    Select the work item type to configure template and format settings
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                      { type: 'epic', title: 'Epic', description: 'Configure template for Epic work items', icon: 'Target' },
+                      { type: 'story', title: 'Story', description: 'Configure template for Story work items', icon: 'BookOpen' },
+                      { type: 'initiative', title: 'Initiative', description: 'Configure template for Initiative work items', icon: 'Zap' }
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        onClick={() => setSelectedWorkItemType(item.type as WorkItemConfigType)}
+                        className={`p-4 text-left border rounded-lg transition-colors ${
+                          selectedWorkItemType === item.type
+                            ? 'border-blue-500 bg-blue-50 text-blue-900'
+                            : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center mb-2">
+                          <Icons.Target size="sm" className="mr-2" />
+                          <h3 className="font-medium">{item.title}</h3>
+                        </div>
+                        <p className="text-sm text-gray-600">{item.description}</p>
+                      </button>
+                    ))}
                   </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              {/* Template Configuration */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>{selectedWorkItemType.charAt(0).toUpperCase() + selectedWorkItemType.slice(1)} Template Configuration</span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const defaultTemplate = templateService.getDefaultTemplate(selectedWorkItemType as WorkItemType)
+                          setWorkItemInstructions(defaultTemplate.aiPrompt)
+                          setHasWorkItemChanges(true)
+                        }}
+                      >
+                        Reset to Default
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          // Save work item template
+                          const currentTemplate = templateService.getDefaultTemplate(selectedWorkItemType as WorkItemType)
+                          const updatedTemplate = {
+                            ...currentTemplate,
+                            aiPrompt: workItemInstructions,
+                            updatedAt: new Date()
+                          }
+                          templateService.saveTemplate(updatedTemplate)
+                          setHasWorkItemChanges(false)
+                          
+                          // Show success feedback
+                          if (window.dispatchEvent) {
+                            window.dispatchEvent(new CustomEvent('show-toast', {
+                              detail: {
+                                type: 'success',
+                                title: 'Template Saved',
+                                message: `${selectedWorkItemType.charAt(0).toUpperCase() + selectedWorkItemType.slice(1)} template has been updated successfully.`
+                              }
+                            }))
+                          }
+                        }}
+                        disabled={!hasWorkItemChanges}
+                        className="jira-btn-primary"
+                      >
+                        Save Template
+                      </Button>
+                    </div>
+                  </CardTitle>
+                  <CardDescription>
+                    Configure the AI prompt template and field mappings for {selectedWorkItemType} work items
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
                   <div className="space-y-4">
+                    {/* AI Prompt Template */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        AI Instructions
+                      <label className="block text-sm font-medium text-gray-900 mb-2">
+                        AI Prompt Template
                       </label>
                       <textarea
-                        value={contentInstructions}
-                        onChange={(e) => setContentInstructions(e.target.value)}
-                        className="w-full h-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-                        placeholder="Enter AI instructions for content generation..."
+                        value={workItemInstructions}
+                        onChange={(e) => {
+                          setWorkItemInstructions(e.target.value)
+                          setHasWorkItemChanges(true)
+                        }}
+                        className="jira-textarea w-full h-48 font-mono text-sm"
+                        placeholder={`Enter AI prompt template for ${selectedWorkItemType}...`}
                       />
+                      <p className="text-xs text-gray-500 mt-2">
+                        Use {'{description}'} as a placeholder for the user's input description. This template controls how AI generates content for {selectedWorkItemType} work items.
+                      </p>
                     </div>
 
+                    {/* Template Preview */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Current Template Fields</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                        {templateService.getDefaultTemplate(selectedWorkItemType as WorkItemType).fields.map((field) => (
+                          <div key={field.id} className="flex items-center text-gray-600">
+                            <Icons.CheckCircle size="xs" className="mr-1 text-green-600" />
+                            {field.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Template Info */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="font-medium text-blue-900 mb-2">💡 Tips for Writing Instructions</h4>
-                      <ul className="text-sm text-blue-800 space-y-1">
-                        <li>• Be specific about the desired format and structure</li>
-                        <li>• Include examples of the tone and style you want</li>
-                        <li>• Specify what information should be included or excluded</li>
-                        <li>• Use placeholders like {`{workItem.summary}`} to reference work item data</li>
-                      </ul>
+                      <div className="flex items-start">
+                        <Icons.Info size="sm" className="text-blue-600 mr-2 mt-0.5" />
+                        <div>
+                          <h4 className="text-sm font-medium text-blue-900">Template Usage</h4>
+                          <p className="text-sm text-blue-800 mt-1">
+                            This template is used when generating {selectedWorkItemType} content in the Create & Push section. 
+                            The AI will use these instructions along with the user's description to create structured work item content.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
-                <div className="p-6 border-t border-gray-200 flex justify-between">
-                  <button
-                    onClick={handleResetContentInstructions}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors font-medium"
-                  >
-                    Reset to Default
-                  </button>
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => setEditingContentInstructions(null)}
-                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveContentInstructions}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Save Instructions
-                    </button>
+          {/* Content Generation Section */}
+          {activeSection === 'content-generation' && (
+            <div className="space-y-6">
+              {/* Content Type Selector */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Content Type</CardTitle>
+                  <CardDescription>
+                    Select the content type to configure AI generation instructions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                      { type: 'quarterly-presentation', title: 'Quarterly Presentation', description: 'Executive presentations for quarterly reviews' },
+                      { type: 'customer-webinar', title: 'Customer Webinar', description: 'Customer-facing webinar content' },
+                      { type: 'feature-newsletter', title: 'Feature Newsletter', description: 'Internal feature announcements' }
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        onClick={() => setSelectedContentType(item.type as ContentTemplateType)}
+                        className={`p-4 text-left border rounded-lg transition-colors ${
+                          selectedContentType === item.type
+                            ? 'border-blue-500 bg-blue-50 text-blue-900'
+                            : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'
+                        }`}
+                      >
+                        <h3 className="font-medium">{item.title}</h3>
+                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                      </button>
+                    ))}
                   </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
+
+              {/* Instructions Editor */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>AI Instructions</span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResetContentInstructions}
+                        disabled={!hasInstructionChanges}
+                      >
+                        Reset to Default
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveContentInstructions}
+                        disabled={!hasInstructionChanges}
+                        className="jira-btn-primary"
+                      >
+                        Save Instructions
+                      </Button>
+                    </div>
+                  </CardTitle>
+                  <CardDescription>
+                    Customize the AI instructions for generating {selectedContentType.replace('-', ' ')} content
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <textarea
+                    value={instructions}
+                    onChange={(e) => {
+                      setInstructions(e.target.value)
+                      setHasInstructionChanges(true)
+                    }}
+                    className="jira-textarea w-full h-64 font-mono text-sm"
+                    placeholder="Enter AI instructions..."
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Use {'{description}'} as a placeholder for the user's input description
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Field Extraction Section */}
+          {activeSection === 'field-extraction' && (
+            <div className="space-y-6">
+              {/* Work Item Type Selector */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Work Item Type</CardTitle>
+                  <CardDescription>
+                    Select the work item type to configure field extraction settings
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                      { type: 'epic', title: 'Epic', description: 'Configure field extraction for Epics' },
+                      { type: 'story', title: 'Story', description: 'Configure field extraction for Stories' },
+                      { type: 'initiative', title: 'Initiative', description: 'Configure field extraction for Initiatives' }
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        onClick={() => setSelectedWorkItemType(item.type as WorkItemConfigType)}
+                        className={`p-4 text-left border rounded-lg transition-colors ${
+                          selectedWorkItemType === item.type
+                            ? 'border-blue-500 bg-blue-50 text-blue-900'
+                            : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'
+                        }`}
+                      >
+                        <h3 className="font-medium">{item.title}</h3>
+                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Field Extraction Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>Field Extraction Configuration</span>
+                    <Button
+                      size="sm"
+                      onClick={handleOpenFieldExtractionEditor}
+                      className="jira-btn-primary"
+                      disabled={loadingJiraFields}
+                    >
+                      {loadingJiraFields ? (
+                        <>
+                          <Icons.Loader size="sm" className="animate-spin mr-2" />
+                          Loading Fields...
+                        </>
+                      ) : (
+                        <>
+                          <Icons.Settings size="sm" className="mr-2" />
+                          Configure Extraction
+                        </>
+                      )}
+                    </Button>
+                  </CardTitle>
+                  <CardDescription>
+                    Configure how fields are extracted when pushing {selectedWorkItemType} content to Jira
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-start">
+                        <Icons.Info size="sm" className="text-blue-600 mr-2 mt-0.5" />
+                        <div>
+                          <h4 className="text-sm font-medium text-blue-900">Smart Field Extraction</h4>
+                          <p className="text-sm text-blue-800 mt-1">
+                            Configure extraction methods (AI, Pattern Matching, Manual) for each Jira field. 
+                            Set confidence thresholds and choose which fields should auto-apply vs require confirmation.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {jiraFields.length > 0 && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-gray-900 mb-2">
+                          Discovered Jira Fields ({jiraFields.length})
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                          {jiraFields.slice(0, 12).map((field) => (
+                            <div key={field.id} className="flex items-center text-gray-600">
+                              <Icons.CheckCircle size="xs" className="mr-1 text-green-600" />
+                              {field.name}
+                              {field.required && <span className="text-red-500 ml-1">*</span>}
+                            </div>
+                          ))}
+                          {jiraFields.length > 12 && (
+                            <div className="text-gray-500">+{jiraFields.length - 12} more fields</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {jiraFields.length === 0 && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div className="flex items-center">
+                          <Icons.AlertTriangle size="sm" className="text-yellow-600 mr-2" />
+                          <p className="text-sm text-yellow-800">
+                            No Jira fields discovered yet. Configure field extraction after connecting to Jira 
+                            and selecting a project in the Create & Push section.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 } 

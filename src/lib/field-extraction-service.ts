@@ -1,4 +1,6 @@
 import { JiraField } from './jira-field-service';
+import { FieldExtractionConfig, ExtractionPreferences, EnhancedExtractionResult, ExtractionCandidate, WorkItemType } from '../types';
+import { templateService } from './template-service';
 
 export interface ExtractedFieldValue {
   fieldId: string;
@@ -23,6 +25,241 @@ export class FieldExtractionService {
     return FieldExtractionService.instance;
   }
 
+  /**
+   * Enhanced field extraction using user configuration
+   */
+  async extractFieldValuesWithConfig(
+    description: string,
+    jiraFields: JiraField[],
+    workItemType: WorkItemType,
+    aiProvider?: string,
+    apiKey?: string
+  ): Promise<EnhancedExtractionResult> {
+    const { fieldConfigs, preferences } = templateService.getFieldExtractionConfig(workItemType);
+    
+    console.log(`Starting enhanced extraction for ${workItemType} with ${fieldConfigs.length} configured fields`);
+    
+    // Initialize result categories
+    const autoApplied = new Map<string, any>();
+    const requiresConfirmation = new Map<string, ExtractionCandidate>();
+    const manualFields: string[] = [];
+    const skippedFields: string[] = [];
+    
+    // Track extraction progress
+    let totalFields = 0;
+    let autoAppliedCount = 0;
+    let confirmationCount = 0;
+    let manualCount = 0;
+    let skippedCount = 0;
+
+    // Process each field based on configuration
+    for (const jiraField of jiraFields) {
+      if (!jiraField.required) continue; // Only process required fields for now
+      
+      totalFields++;
+      const fieldConfig = fieldConfigs.find(config => config.jiraFieldId === jiraField.id);
+      
+      if (!fieldConfig) {
+        // No configuration found - use default behavior
+        await this.processFieldWithDefaults(
+          description, jiraField, preferences, autoApplied, requiresConfirmation, manualFields, skippedFields, aiProvider, apiKey
+        );
+        continue;
+      }
+
+      // Process field based on user configuration
+      if (!fieldConfig.extractionEnabled) {
+        skippedFields.push(jiraField.id);
+        skippedCount++;
+        continue;
+      }
+
+      if (fieldConfig.extractionMethod === 'manual') {
+        manualFields.push(jiraField.id);
+        manualCount++;
+        continue;
+      }
+
+      // Extract field value using configured method
+      const extractedValue = await this.extractSingleFieldValue(
+        description, jiraField, fieldConfig, aiProvider, apiKey
+      );
+
+      if (extractedValue) {
+        const candidate: ExtractionCandidate = {
+          fieldId: jiraField.id,
+          value: extractedValue.value,
+          confidence: extractedValue.confidence,
+          extractionMethod: extractedValue.extractionMethod,
+          suggestion: this.generateFieldSuggestion(jiraField, description)
+        };
+
+        // Determine if field should be auto-applied or require confirmation
+        const shouldAutoApply = this.shouldAutoApplyField(fieldConfig, candidate, preferences);
+        
+        if (shouldAutoApply) {
+          autoApplied.set(jiraField.id, extractedValue.value);
+          autoAppliedCount++;
+        } else {
+          requiresConfirmation.set(jiraField.id, candidate);
+          confirmationCount++;
+        }
+      } else {
+        // No value extracted - requires manual input
+        manualFields.push(jiraField.id);
+        manualCount++;
+      }
+    }
+
+    console.log(`Enhanced extraction completed: ${autoAppliedCount} auto-applied, ${confirmationCount} require confirmation, ${manualCount} manual`);
+
+    return {
+      autoApplied,
+      requiresConfirmation,
+      manualFields,
+      skippedFields,
+      extractionSummary: {
+        totalFields,
+        autoAppliedCount,
+        confirmationCount,
+        manualCount,
+        skippedCount
+      }
+    };
+  }
+
+  /**
+   * Extract a single field value using the specified configuration
+   */
+  private async extractSingleFieldValue(
+    description: string,
+    jiraField: JiraField,
+    fieldConfig: FieldExtractionConfig,
+    aiProvider?: string,
+    apiKey?: string
+  ): Promise<ExtractedFieldValue | null> {
+    try {
+      if (fieldConfig.extractionMethod === 'ai' && aiProvider && apiKey) {
+        const aiExtracted = await this.extractWithAI(description, [jiraField], aiProvider, apiKey);
+        if (aiExtracted.length > 0 && aiExtracted[0].confidence >= fieldConfig.confidenceThreshold) {
+          return aiExtracted[0];
+        }
+      }
+      
+      // Fall back to pattern extraction
+      if (fieldConfig.extractionMethod === 'ai' || fieldConfig.extractionMethod === 'pattern') {
+        const patternExtracted = this.extractWithPatterns(description, [jiraField]);
+        if (patternExtracted.length > 0 && patternExtracted[0].confidence >= fieldConfig.confidenceThreshold) {
+          return patternExtracted[0];
+        }
+      }
+    } catch (error) {
+      console.warn(`Field extraction failed for ${jiraField.id}:`, error);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Determine if a field should be auto-applied based on configuration
+   */
+  private shouldAutoApplyField(
+    fieldConfig: FieldExtractionConfig,
+    candidate: ExtractionCandidate,
+    preferences: ExtractionPreferences
+  ): boolean {
+    // Global setting overrides individual field settings
+    if (preferences.requireConfirmationForAll) {
+      return false;
+    }
+    
+    // Field-specific confirmation requirement
+    if (fieldConfig.confirmationRequired) {
+      return false;
+    }
+    
+    // Auto-apply setting and confidence check
+    return fieldConfig.autoApply && candidate.confidence >= fieldConfig.confidenceThreshold;
+  }
+
+  /**
+   * Process a field without specific configuration using default behavior
+   */
+  private async processFieldWithDefaults(
+    description: string,
+    jiraField: JiraField,
+    preferences: ExtractionPreferences,
+    autoApplied: Map<string, any>,
+    requiresConfirmation: Map<string, ExtractionCandidate>,
+    manualFields: string[],
+    skippedFields: string[],
+    aiProvider?: string,
+    apiKey?: string
+  ): Promise<void> {
+    // Use default extraction method
+    const extractedValue = await this.extractSingleFieldWithDefaults(
+      description, jiraField, preferences, aiProvider, apiKey
+    );
+
+    if (extractedValue && extractedValue.confidence >= preferences.globalConfidenceThreshold) {
+      const candidate: ExtractionCandidate = {
+        fieldId: jiraField.id,
+        value: extractedValue.value,
+        confidence: extractedValue.confidence,
+        extractionMethod: extractedValue.extractionMethod,
+        suggestion: this.generateFieldSuggestion(jiraField, description)
+      };
+
+      // Use global preferences for decision
+      if (preferences.requireConfirmationForAll || extractedValue.confidence < 0.8) {
+        requiresConfirmation.set(jiraField.id, candidate);
+      } else {
+        autoApplied.set(jiraField.id, extractedValue.value);
+      }
+    } else {
+      manualFields.push(jiraField.id);
+    }
+  }
+
+  /**
+   * Extract field value using default behavior
+   */
+  private async extractSingleFieldWithDefaults(
+    description: string,
+    jiraField: JiraField,
+    preferences: ExtractionPreferences,
+    aiProvider?: string,
+    apiKey?: string
+  ): Promise<ExtractedFieldValue | null> {
+    try {
+      if (preferences.defaultMethod === 'ai' && aiProvider && apiKey) {
+        const aiExtracted = await this.extractWithAI(description, [jiraField], aiProvider, apiKey);
+        if (aiExtracted.length > 0) {
+          return aiExtracted[0];
+        }
+      }
+      
+      // Fall back to pattern extraction
+      const patternExtracted = this.extractWithPatterns(description, [jiraField]);
+      if (patternExtracted.length > 0) {
+        return patternExtracted[0];
+      }
+    } catch (error) {
+      console.warn(`Default field extraction failed for ${jiraField.id}:`, error);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Generate a suggestion for a field based on description
+   */
+  private generateFieldSuggestion(jiraField: JiraField, description: string): string {
+    const suggestions = this.generateSuggestions(jiraField, description);
+    return suggestions.length > 0 ? `Consider: ${suggestions.slice(0, 3).join(', ')}` : '';
+  }
+
+  // Keep the existing extractFieldValues method for backward compatibility
   async extractFieldValues(
     description: string,
     jiraFields: JiraField[],
