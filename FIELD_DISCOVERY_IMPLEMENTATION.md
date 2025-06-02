@@ -146,6 +146,38 @@ When fields are discovered and added:
 - **Reduced Training**: Intuitive discovery process
 - **Flexible Configuration**: Adapt to different project needs
 
+## Improved User Experience (Latest Update)
+
+### Two-Column Layout Design
+The field extraction configuration now uses an optimized layout that prioritizes user experience:
+
+#### Primary Focus Area (Left Column - 60%)
+- **Field Configuration**: Main extraction settings prominently displayed
+- **Immediate Visibility**: Users see the primary configuration interface immediately
+- **Action Buttons**: Save/Cancel buttons easily accessible in the main column
+- **Responsive Grid**: Adapts to different screen sizes with proper spacing
+
+#### Secondary Panel (Right Column - 40%)
+- **Global Preferences**: Compact display of default settings and bulk actions
+- **Field Discovery**: Streamlined discovery interface with search functionality
+- **Quick Actions**: Grid layout for common bulk operations
+- **Collapsible Sections**: Space-efficient organization
+
+### UX Improvements
+- **Reduced Scrolling**: Main configuration visible without scrolling
+- **Better Information Hierarchy**: Primary tasks get primary visual space
+- **Compact Discovery Cards**: Optimized for sidebar display with limited preview
+- **Responsive Design**: Works seamlessly across desktop and tablet views
+- **Quick Access**: Common actions readily available without context switching
+
+### Visual Enhancements
+- **Clear Section Separation**: Distinct visual boundaries between main and secondary content
+- **Consistent Spacing**: Proper padding and margins for optimal readability
+- **Action Button Placement**: Logical flow with save/cancel in the main workflow area
+- **Status Indicators**: Clear visual feedback for field configuration state
+
+This layout ensures that users can immediately see and configure their field extraction settings while keeping advanced features easily accessible without cluttering the primary interface.
+
 ## Future Enhancements
 
 ### Analytics Integration
