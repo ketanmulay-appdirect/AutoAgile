@@ -397,37 +397,189 @@ class JiraFieldService {
 
   // Format field name for display
   private formatFieldName(fieldId: string): string {
-    // Handle custom fields
-    if (fieldId.startsWith('customfield_')) {
-      // Try to get a better name based on common patterns
-      const commonNames: Record<string, string> = {
-        'customfield_26362': 'Delivery Quarter',
-        'customfield_26360': 'Include on Roadmap',
-        'customfield_17950': 'Priority',
-        'customfield_10002': 'Story Points'
-      }
-      
-      if (commonNames[fieldId]) {
-        return commonNames[fieldId]
-      }
-      
-      // Generic custom field name
-      return `Custom Field (${fieldId})`
-    }
-    
-    // Handle standard fields
+    // Standard field names mapping
     const standardNames: Record<string, string> = {
-      'summary': 'Summary',
-      'description': 'Description',
-      'issuetype': 'Issue Type',
-      'project': 'Project',
-      'reporter': 'Reporter',
-      'assignee': 'Assignee',
-      'priority': 'Priority',
-      'labels': 'Labels'
+      summary: 'Title',
+      description: 'Description', 
+      assignee: 'Assignee',
+      reporter: 'Reporter',
+      priority: 'Priority',
+      issuetype: 'Issue Type',
+      project: 'Project',
+      fixVersions: 'Fix Version/s',
+      versions: 'Affects Version/s',
+      components: 'Component/s',
+      labels: 'Labels',
+      duedate: 'Due Date',
+      resolution: 'Resolution',
+      status: 'Status',
+      created: 'Created',
+      updated: 'Updated',
+      resolutiondate: 'Resolved',
+      worklog: 'Work Log',
+      attachment: 'Attachment',
+      comment: 'Comments',
+      issuelinks: 'Linked Issues',
+      subtasks: 'Sub-tasks',
+      parent: 'Parent',
+      customfield_10000: 'Story Points',
+      customfield_10001: 'Epic Name',
+      customfield_10002: 'Epic Link'
     }
-    
+
     return standardNames[fieldId] || fieldId.charAt(0).toUpperCase() + fieldId.slice(1)
+  }
+
+  // Get ALL available fields for comprehensive discovery
+  async getAllAvailableFields(jiraConnection: JiraInstance, issueTypeId?: string): Promise<JiraField[]> {
+    try {
+      console.log('Discovering all available fields...')
+
+      // Method 1: Get all fields from the global fields endpoint
+      const allFields = await this.fetchAllSystemFields(jiraConnection)
+      
+      // Method 2: If we have a specific issue type, get its create metadata
+      let issueTypeFields: JiraField[] = []
+      if (issueTypeId) {
+        issueTypeFields = await this.getFieldsForIssueType(jiraConnection, issueTypeId)
+      }
+
+      // Combine and deduplicate fields
+      const fieldMap = new Map<string, JiraField>()
+      
+      // Add all system fields
+      allFields.forEach(field => fieldMap.set(field.id, field))
+      
+      // Overlay issue-type specific fields (they have more context)
+      issueTypeFields.forEach(field => fieldMap.set(field.id, field))
+
+      const discoveredFields = Array.from(fieldMap.values())
+      
+      console.log(`Discovered ${discoveredFields.length} total available fields`)
+      return discoveredFields
+    } catch (error) {
+      console.error('Error getting all available fields:', error)
+      return []
+    }
+  }
+
+  // Fetch all system fields from Jira
+  private async fetchAllSystemFields(jiraConnection: JiraInstance): Promise<JiraField[]> {
+    const auth = btoa(`${jiraConnection.email}:${jiraConnection.apiToken}`)
+    
+    try {
+      const response = await fetch(`${jiraConnection.url}/rest/api/3/field`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch fields: ${response.status}`)
+      }
+
+      const fieldsData = await response.json()
+      return this.parseFieldMetadata(fieldsData)
+    } catch (error) {
+      console.error('Error fetching all system fields:', error)
+      return []
+    }
+  }
+
+  // Search for fields by name or description
+  searchFields(fields: JiraField[], searchTerm: string): JiraField[] {
+    if (!searchTerm.trim()) return fields
+
+    const term = searchTerm.toLowerCase()
+    return fields.filter(field => 
+      field.name.toLowerCase().includes(term) ||
+      field.id.toLowerCase().includes(term) ||
+      field.description?.toLowerCase().includes(term)
+    )
+  }
+
+  // Categorize fields for better UX
+  categorizeFields(fields: JiraField[]): {
+    commonly_used: JiraField[]
+    project_specific: JiraField[]
+    optional_standard: JiraField[]
+    system_fields: JiraField[]
+  } {
+    const commonly_used = fields.filter(field => this.isCommonlyUsedField(field))
+    const project_specific = fields.filter(field => this.isProjectSpecificField(field))
+    const system_fields = fields.filter(field => this.isSystemField(field))
+    const optional_standard = fields.filter(field => 
+      !commonly_used.includes(field) && 
+      !project_specific.includes(field) && 
+      !system_fields.includes(field)
+    )
+
+    return {
+      commonly_used,
+      project_specific,
+      optional_standard,
+      system_fields
+    }
+  }
+
+  // Check if field is commonly used
+  private isCommonlyUsedField(field: JiraField): boolean {
+    const commonFieldIds = [
+      'assignee', 'priority', 'fixVersions', 'components', 'labels',
+      'duedate', 'customfield_10000', // Story Points
+      'customfield_10001', // Epic Name
+      'customfield_10002', // Epic Link
+    ]
+    
+    const commonFieldNames = [
+      'story points', 'assignee', 'priority', 'labels', 'component',
+      'fix version', 'due date', 'epic', 'sprint'
+    ]
+
+    return commonFieldIds.includes(field.id) ||
+           commonFieldNames.some(name => field.name.toLowerCase().includes(name))
+  }
+
+  // Check if field is project specific (custom fields)
+  private isProjectSpecificField(field: JiraField): boolean {
+    return field.id.startsWith('customfield_') && !this.isCommonlyUsedField(field)
+  }
+
+  // Check if field is a system field
+  private isSystemField(field: JiraField): boolean {
+    const systemFields = [
+      'created', 'updated', 'creator', 'reporter', 'status', 'resolution',
+      'resolutiondate', 'worklog', 'attachment', 'comment', 'issuelinks',
+      'subtasks', 'parent', 'project', 'issuetype'
+    ]
+    
+    return systemFields.includes(field.id) || field.id.includes('time') || field.id.includes('log')
+  }
+
+  // Get field usage statistics (mock implementation for now)
+  getFieldUsageStats(field: JiraField): { usage_percentage: number; is_popular: boolean } {
+    // In a real implementation, this could call Jira analytics APIs
+    // For now, we'll use heuristics based on field type and name
+    
+    let usage_percentage = 50 // Default
+    
+    if (this.isCommonlyUsedField(field)) {
+      usage_percentage = 85
+    } else if (field.required) {
+      usage_percentage = 95
+    } else if (this.isSystemField(field)) {
+      usage_percentage = 30
+    } else if (this.isProjectSpecificField(field)) {
+      usage_percentage = 40
+    }
+
+    return {
+      usage_percentage,
+      is_popular: usage_percentage > 70
+    }
   }
 
   // Main method to discover fields for a work item type

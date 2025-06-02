@@ -16,6 +16,21 @@ interface FieldExtractionConfigEditorProps {
   onCancel: () => void
 }
 
+interface DiscoveredField extends JiraField {
+  usage_stats: {
+    usage_percentage: number
+    is_popular: boolean
+  }
+  is_configured: boolean
+}
+
+interface CategorizedFields {
+  commonly_used: DiscoveredField[]
+  project_specific: DiscoveredField[]
+  optional_standard: DiscoveredField[]
+  system_fields: DiscoveredField[]
+}
+
 export function FieldExtractionConfigEditor({
   workItemType,
   template,
@@ -31,6 +46,14 @@ export function FieldExtractionConfigEditor({
     enableSmartDefaults: true
   })
   const [hasChanges, setHasChanges] = useState(false)
+
+  // Field discovery state
+  const [showFieldDiscovery, setShowFieldDiscovery] = useState(false)
+  const [discoveredFields, setDiscoveredFields] = useState<CategorizedFields | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isScanning, setIsScanning] = useState(false)
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null)
+  const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     initializeConfigs()
@@ -122,6 +145,102 @@ export function FieldExtractionConfigEditor({
 
   const handleSave = () => {
     onSave(fieldConfigs, preferences)
+  }
+
+  // Field discovery methods
+  const handleDiscoverAllFields = async () => {
+    setIsScanning(true)
+    setDiscoveryError(null)
+    
+    try {
+      // Get Jira connection from localStorage
+      const jiraConnection = JSON.parse(localStorage.getItem('jira-connection') || '{}')
+      
+      if (!jiraConnection.url) {
+        throw new Error('No Jira connection found')
+      }
+
+      const response = await fetch('/api/jira/discover-all-fields', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jiraInstance: jiraConnection,
+          workItemType,
+          searchTerm: searchTerm || undefined
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to discover fields')
+      }
+
+      const data = await response.json()
+      setDiscoveredFields(data.fields)
+      setShowFieldDiscovery(true)
+    } catch (error) {
+      setDiscoveryError(error instanceof Error ? error.message : 'Failed to discover fields')
+    } finally {
+      setIsScanning(false)
+    }
+  }
+
+  const handleSearchFields = async () => {
+    if (!searchTerm.trim()) {
+      setDiscoveredFields(null)
+      return
+    }
+    
+    await handleDiscoverAllFields()
+  }
+
+  const handleAddSelectedFields = () => {
+    if (!discoveredFields || selectedFields.size === 0) return
+
+    const allDiscoveredFields = [
+      ...discoveredFields.commonly_used,
+      ...discoveredFields.project_specific,
+      ...discoveredFields.optional_standard,
+      ...discoveredFields.system_fields
+    ]
+
+    const fieldsToAdd = allDiscoveredFields.filter(field => selectedFields.has(field.id))
+    
+    const newConfigs: FieldExtractionConfig[] = fieldsToAdd.map(field => ({
+      fieldId: field.id,
+      jiraFieldId: field.id,
+      extractionEnabled: true,
+      extractionMethod: getDefaultExtractionMethod(field),
+      confirmationRequired: !field.usage_stats.is_popular,
+      confidenceThreshold: field.usage_stats.is_popular ? 0.8 : 0.7,
+      autoApply: field.usage_stats.is_popular && field.usage_stats.usage_percentage > 80,
+      displayName: field.name
+    }))
+
+    setFieldConfigs(prev => [...prev, ...newConfigs])
+    setSelectedFields(new Set())
+    setShowFieldDiscovery(false)
+    setHasChanges(true)
+  }
+
+  const toggleFieldSelection = (fieldId: string) => {
+    setSelectedFields(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(fieldId)) {
+        newSet.delete(fieldId)
+      } else {
+        newSet.add(fieldId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllInCategory = (fields: DiscoveredField[]) => {
+    const unconfiguredFields = fields.filter(f => !f.is_configured)
+    setSelectedFields(prev => {
+      const newSet = new Set(prev)
+      unconfiguredFields.forEach(field => newSet.add(field.id))
+      return newSet
+    })
   }
 
   const getMethodIcon = (method: string) => {
@@ -294,6 +413,227 @@ export function FieldExtractionConfigEditor({
         </CardContent>
       </Card>
 
+      {/* Discover More Fields Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Icons.Search size="sm" autoContrast className="mr-2" />
+              Discover More Fields
+            </div>
+            <div className="text-sm text-gray-600">
+              {fieldConfigs.length} fields currently configured
+            </div>
+          </CardTitle>
+          <CardDescription>
+            Find and add additional Jira fields that can be extracted from your content
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Discovery Actions */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              onClick={handleDiscoverAllFields}
+              disabled={isScanning}
+              className="jira-btn-primary flex-1"
+            >
+              {isScanning ? (
+                <>
+                  <Icons.Loader size="sm" className="animate-spin mr-2" />
+                  Scanning All Available Fields...
+                </>
+              ) : (
+                <>
+                  <Icons.Search size="sm" className="mr-2" />
+                  Scan All Available Fields
+                </>
+              )}
+            </Button>
+            
+            <div className="flex gap-2 flex-1">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearchFields()}
+                  placeholder="Search for specific fields..."
+                  className="jira-input w-full pr-10"
+                />
+                <button
+                  onClick={handleSearchFields}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <Icons.Search size="sm" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Discovery Status */}
+          {discoveryError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-center">
+                <Icons.AlertTriangle size="sm" className="text-red-600 mr-2" />
+                <span className="text-sm text-red-800">{discoveryError}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Available Fields Count */}
+          {!showFieldDiscovery && fieldConfigs.length < jiraFields.length && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Icons.Info size="sm" className="text-blue-600 mr-2" />
+                  <span className="text-sm text-blue-800">
+                    Currently showing {fieldConfigs.length} of {jiraFields.length}+ available fields
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDiscoverAllFields}
+                  className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                >
+                  Discover More
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Field Discovery Results */}
+          {showFieldDiscovery && discoveredFields && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-gray-900">Available Fields</h4>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">
+                    {selectedFields.size} selected
+                  </span>
+                  <Button
+                    onClick={handleAddSelectedFields}
+                    disabled={selectedFields.size === 0}
+                    size="sm"
+                    className="jira-btn-primary"
+                  >
+                    <Icons.Plus size="sm" className="mr-1" />
+                    Add Selected ({selectedFields.size})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowFieldDiscovery(false)}
+                  >
+                    <Icons.X size="sm" className="mr-1" />
+                    Close
+                  </Button>
+                </div>
+              </div>
+
+              {/* Commonly Used Fields */}
+              {discoveredFields.commonly_used.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Icons.Star size="sm" className="text-yellow-500 mr-2" />
+                        Commonly Used ({discoveredFields.commonly_used.length})
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => selectAllInCategory(discoveredFields.commonly_used)}
+                      >
+                        Select All Available
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {discoveredFields.commonly_used.map(field => (
+                        <FieldDiscoveryCard
+                          key={field.id}
+                          field={field}
+                          isSelected={selectedFields.has(field.id)}
+                          onToggle={() => toggleFieldSelection(field.id)}
+                        />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Project Specific Fields */}
+              {discoveredFields.project_specific.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Icons.Settings size="sm" className="text-blue-500 mr-2" />
+                        Project Specific ({discoveredFields.project_specific.length})
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => selectAllInCategory(discoveredFields.project_specific)}
+                      >
+                        Select All Available
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {discoveredFields.project_specific.map(field => (
+                        <FieldDiscoveryCard
+                          key={field.id}
+                          field={field}
+                          isSelected={selectedFields.has(field.id)}
+                          onToggle={() => toggleFieldSelection(field.id)}
+                        />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Optional Standard Fields */}
+              {discoveredFields.optional_standard.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Icons.FileText size="sm" className="text-green-500 mr-2" />
+                        Optional Standard ({discoveredFields.optional_standard.length})
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => selectAllInCategory(discoveredFields.optional_standard)}
+                      >
+                        Select All Available
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {discoveredFields.optional_standard.map(field => (
+                        <FieldDiscoveryCard
+                          key={field.id}
+                          field={field}
+                          isSelected={selectedFields.has(field.id)}
+                          onToggle={() => toggleFieldSelection(field.id)}
+                        />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Field Configuration */}
       <Card>
         <CardHeader>
@@ -412,6 +752,98 @@ export function FieldExtractionConfigEditor({
         >
           Save Configuration
         </Button>
+      </div>
+    </div>
+  )
+}
+
+// Field Discovery Card Component
+interface FieldDiscoveryCardProps {
+  field: DiscoveredField
+  isSelected: boolean
+  onToggle: () => void
+}
+
+function FieldDiscoveryCard({ field, isSelected, onToggle }: FieldDiscoveryCardProps) {
+  const getFieldTypeIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'select': return '📋'
+      case 'multiselect': return '📋'
+      case 'user': return '👤'
+      case 'date': return '📅'
+      case 'number': return '🔢'
+      case 'textarea': return '📝'
+      default: return '📄'
+    }
+  }
+
+  const getUsageColor = (percentage: number) => {
+    if (percentage >= 80) return 'text-green-600'
+    if (percentage >= 60) return 'text-yellow-600'
+    return 'text-gray-600'
+  }
+
+  return (
+    <div 
+      className={`border rounded-lg p-3 cursor-pointer transition-all ${
+        field.is_configured 
+          ? 'border-gray-300 bg-gray-50 opacity-60' 
+          : isSelected 
+            ? 'border-blue-500 bg-blue-50' 
+            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+      }`}
+      onClick={field.is_configured ? undefined : onToggle}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center mb-1">
+            <span className="mr-2">{getFieldTypeIcon(field.type)}</span>
+            <h4 className="font-medium text-sm text-gray-900">{field.name}</h4>
+            {field.required && <span className="text-red-500 text-xs ml-1">*</span>}
+          </div>
+          
+          <div className="text-xs text-gray-600 mb-2">
+            {field.id} • {field.type}
+            {field.allowedValues && field.allowedValues.length > 0 && (
+              <span> • {field.allowedValues.length} options</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className={`text-xs ${getUsageColor(field.usage_stats.usage_percentage)}`}>
+              {field.usage_stats.usage_percentage}% usage
+            </div>
+            
+            {field.usage_stats.is_popular && (
+              <Badge variant="outline" className="text-xs px-1 py-0">
+                Popular
+              </Badge>
+            )}
+            
+            {field.required && (
+              <Badge variant="outline" className="text-xs px-1 py-0 border-red-300 text-red-700">
+                Required
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <div className="ml-2">
+          {field.is_configured ? (
+            <div className="flex items-center text-xs text-gray-500">
+              <Icons.CheckCircle size="sm" className="text-green-600 mr-1" />
+              Configured
+            </div>
+          ) : (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onToggle}
+              className="w-4 h-4"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
