@@ -625,7 +625,7 @@ export function FieldExtractionConfigEditor({
               )}
 
               {/* Discovered Fields - Compact Display */}
-              {Object.keys(discoveredFields).some(key => discoveredFields[key as keyof CategorizedFields].length > 0) && (
+              {discoveredFields && Object.keys(discoveredFields).some(key => discoveredFields[key as keyof CategorizedFields].length > 0) && (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {/* Commonly Used Fields */}
                   {discoveredFields.commonly_used.length > 0 && (
