@@ -476,10 +476,55 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
           if (!validationResult.isValid) {
             console.log(`Validation failed: ${validationResult.missingFields.length} missing fields`)
             console.log('Missing fields:', validationResult.missingFields.map(f => f.jiraFieldId))
-            console.log(`🚫 ${callId} - Validation failed, showing enhanced modal and returning`)
+            
+            // Filter out system fields that are auto-populated and hidden from user
+            const isSystemField = (fieldId: string, fieldName: string): boolean => {
+              const id = fieldId.toLowerCase();
+              const name = fieldName.toLowerCase();
+              
+              return (
+                id === 'issuetype' || 
+                name.includes('issue type') ||
+                id === 'project' ||
+                name.includes('project') ||
+                id === 'summary' ||
+                name.includes('summary') ||
+                name.includes('title')
+              );
+            };
+            
+            // Only show modal if there are user-visible missing fields
+            const userVisibleMissingFields = validationResult.missingFields.filter(field => 
+              !isSystemField(field.jiraField.id, field.jiraField.name)
+            );
+            
+            console.log('System fields filtered out:', validationResult.missingFields
+              .filter(field => isSystemField(field.jiraField.id, field.jiraField.name))
+              .map(f => `${f.jiraField.id} (${f.jiraField.name})`)
+            );
+            console.log('User-visible missing fields:', userVisibleMissingFields.map(f => `${f.jiraField.id} (${f.jiraField.name})`));
+            
+            if (userVisibleMissingFields.length === 0) {
+              console.log('All missing fields are system fields (auto-populated), proceeding with creation');
+              // Update content with extracted fields and proceed
+              if (validationResult.extractedFields && Object.keys(validationResult.extractedFields).length > 0) {
+                content = {
+                  ...content,
+                  customFields: {
+                    ...content.customFields,
+                    ...validationResult.extractedFields
+                  }
+                }
+              }
+              console.log(`✅ ${callId} - System fields auto-populated, creating Jira issue`)
+              await createJiraIssue(content)
+              return
+            }
+            
+            console.log(`🚫 ${callId} - ${userVisibleMissingFields.length} user-visible fields missing, showing modal`)
             
             // Show validation modal with enhanced extraction results
-            setValidationMissingFields(validationResult.missingFields)
+            setValidationMissingFields(validationResult.missingFields) // Keep original for processing
             setPendingContent({
               ...content,
               customFields: {

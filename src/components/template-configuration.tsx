@@ -200,11 +200,11 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
         {/* Main Content */}
         <div className="flex-1 p-6">
           {/* Section Header */}
-          <div className="mb-6">
+          <div>
             <h2 className="text-lg font-medium text-gray-900">
               {getSectionTitle(activeSection)}
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-gray-600 mt-1 mb-6">
               {getSectionDescription(activeSection)}
             </p>
           </div>
@@ -223,9 +223,9 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {[
-                      { type: 'epic', title: 'Epic', description: 'Configure template for Epic work items', icon: 'Target' },
-                      { type: 'story', title: 'Story', description: 'Configure template for Story work items', icon: 'BookOpen' },
-                      { type: 'initiative', title: 'Initiative', description: 'Configure template for Initiative work items', icon: 'Zap' }
+                      { type: 'epic', title: 'Epic', description: 'Configure template for Epic work items' },
+                      { type: 'story', title: 'Story', description: 'Configure template for Story work items' },
+                      { type: 'initiative', title: 'Initiative', description: 'Configure template for Initiative work items' }
                     ].map((item) => (
                       <button
                         key={item.type}
@@ -236,8 +236,7 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
                             : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'
                         }`}
                       >
-                        <div className="flex items-center mb-2">
-                          <Icons.Target size="sm" className="mr-2" />
+                        <div className="mb-2">
                           <h3 className="font-medium">{item.title}</h3>
                         </div>
                         <p className="text-sm text-gray-600">{item.description}</p>

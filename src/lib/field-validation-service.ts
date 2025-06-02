@@ -90,6 +90,10 @@ class FieldValidationService {
       console.log('Skipping field extraction: no description or no Jira fields');
     }
 
+    // Auto-populate system fields that should be hidden from user
+    const systemFields = this.autoPopulateSystemFields(content, workItemType, jiraFields, extractedFields);
+    extractedFields = { ...extractedFields, ...systemFields };
+
     // Create enhanced content with extracted fields
     const enhancedContent: GeneratedContent = {
       ...content,
@@ -113,6 +117,90 @@ class FieldValidationService {
       suggestions,
       enhancedExtraction
     }
+  }
+
+  /**
+   * Auto-populate system fields like project and issue type that should be handled automatically
+   */
+  private autoPopulateSystemFields(
+    content: GeneratedContent,
+    workItemType: WorkItemType,
+    jiraFields: JiraField[],
+    extractedFields: Record<string, any>
+  ): Record<string, any> {
+    const systemFields: Record<string, any> = {};
+
+    // Auto-populate issue type based on work item type
+    const issueTypeField = jiraFields.find(field => 
+      field.id.toLowerCase() === 'issuetype' || 
+      field.name.toLowerCase().includes('issue type')
+    );
+
+    if (issueTypeField && !extractedFields[issueTypeField.id]) {
+      const issueTypeMap: Record<string, string> = {
+        'epic': 'Epic',
+        'story': 'Story', 
+        'task': 'Task',
+        'initiative': 'Initiative',
+        'bug': 'Bug'
+      };
+      
+      const mappedIssueType = issueTypeMap[workItemType.toLowerCase()] || 'Task';
+      
+      // Find the correct issue type from allowed values
+      if (issueTypeField.allowedValues) {
+        const matchingIssueType = issueTypeField.allowedValues.find((value: any) => {
+          const name = typeof value === 'string' ? value : (value.name || value.value);
+          return name && name.toLowerCase() === mappedIssueType.toLowerCase();
+        });
+        
+        if (matchingIssueType) {
+          systemFields[issueTypeField.id] = typeof matchingIssueType === 'string' 
+            ? matchingIssueType 
+            : matchingIssueType;
+          console.log(`Auto-populated issue type: ${issueTypeField.id} = ${JSON.stringify(matchingIssueType)}`);
+        }
+      }
+    }
+
+    // Auto-populate project field from Jira connection
+    const projectField = jiraFields.find(field => 
+      field.id.toLowerCase() === 'project' || 
+      field.name.toLowerCase().includes('project')
+    );
+
+    if (projectField && !extractedFields[projectField.id]) {
+      // Try to get project key from localStorage (jira connection)
+      if (typeof window !== 'undefined') {
+        try {
+          const jiraConnection = JSON.parse(localStorage.getItem('jira-connection') || '{}');
+          if (jiraConnection.projectKey) {
+            // Find matching project from allowed values
+            if (projectField.allowedValues) {
+              const matchingProject = projectField.allowedValues.find((value: any) => {
+                const key = typeof value === 'string' ? value : (value.key || value.value);
+                return key === jiraConnection.projectKey;
+              });
+              
+              if (matchingProject) {
+                systemFields[projectField.id] = typeof matchingProject === 'string' 
+                  ? matchingProject 
+                  : matchingProject;
+                console.log(`Auto-populated project: ${projectField.id} = ${JSON.stringify(matchingProject)}`);
+              }
+            } else {
+              // If no allowed values, use the project key directly
+              systemFields[projectField.id] = { key: jiraConnection.projectKey };
+              console.log(`Auto-populated project: ${projectField.id} = ${jiraConnection.projectKey}`);
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to auto-populate project from jira connection:', error);
+        }
+      }
+    }
+
+    return systemFields;
   }
 
   /**
@@ -201,8 +289,9 @@ class FieldValidationService {
     // Check each required field
     for (const jiraField of requiredFields) {
       const fieldValue = this.getFieldValue(content, jiraField, template)
+      const isEmpty = this.isFieldEmpty(fieldValue);
       
-      if (this.isFieldEmpty(fieldValue)) {
+      if (isEmpty) {
         missingFields.push({
           jiraFieldId: jiraField.id,
           jiraField,
@@ -248,8 +337,13 @@ class FieldValidationService {
     const fieldId = jiraField.id.toLowerCase()
     const fieldName = jiraField.name.toLowerCase()
 
-    // Map common fields
-    if (fieldId === 'summary' || fieldName.includes('summary') || fieldName.includes('title')) {
+    // Map common fields - Enhanced summary field matching
+    if (fieldId === 'summary' || 
+        fieldId.includes('summary') ||
+        fieldName.includes('summary') || 
+        fieldName.includes('title') ||
+        fieldName === 'summary' ||
+        fieldId === 'title') {
       return content.title
     }
     
@@ -265,18 +359,25 @@ class FieldValidationService {
       return content.labels
     }
 
-    // For project, issuetype, assignee - these should be considered empty unless explicitly set in customFields
-    if (fieldId === 'project' || fieldId === 'issuetype' || fieldId === 'assignee') {
+    // For project and issuetype, check customFields (where auto-populated values will be)
+    if (fieldId === 'project' || fieldId === 'issuetype') {
+      const value = content.customFields?.[jiraField.id];
+      return value;
+    }
+    
+    // For assignee, only use if explicitly set in customFields
+    if (fieldId === 'assignee') {
       return content.customFields?.[jiraField.id]
     }
     
-    // Reporter and priority fields are often auto-set by Jira or not settable via API
-    if (fieldId === 'reporter' || fieldId === 'priority') {
+    // Reporter field is often auto-set by Jira or not settable via API
+    if (fieldId === 'reporter') {
       return 'auto-set'
     }
 
     // Check custom fields for everything else
-    return content.customFields?.[jiraField.id]
+    const customValue = content.customFields?.[jiraField.id];
+    return customValue;
   }
 
   /**

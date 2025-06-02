@@ -146,4 +146,69 @@ We've successfully implemented a comprehensive **4-Phase Enhanced Field Extracti
 
 ---
 
-**🎉 The Enhanced Field Extraction System is now complete and ready for comprehensive testing!** 
+**🎉 The Enhanced Field Extraction System is now complete and ready for comprehensive testing!**
+
+# Enhanced Field Extraction Testing
+
+## Testing Changes Made
+
+### 1. Issue Type Auto-population
+**Expected**: Issue type should be auto-populated based on workItemType and hidden from user in validation modal.
+- Epic workItemType → Epic issue type
+- Story workItemType → Story issue type  
+- Task workItemType → Task issue type
+
+### 2. Project Pre-population
+**Expected**: Project should be auto-populated from jiraConnection.projectKey and hidden from user.
+
+### 3. Title to Summary Mapping
+**Expected**: Summary field should not appear as missing when title is provided.
+
+## Test Scenarios
+
+### Scenario 1: Epic Creation
+1. Navigate to Create & Push
+2. Select "Epic" as work item type
+3. Enter description: "Create a new analytics dashboard for hardware monitoring"
+4. Generate content using AI
+5. Click "Push to Jira"
+6. **Verify**: 
+   - Issue type field should NOT appear in validation modal
+   - Project field should NOT appear in validation modal  
+   - Summary field should NOT appear as missing
+   - Only actual missing fields (like custom fields) should be shown
+
+### Scenario 2: Story Creation
+1. Select "Story" as work item type
+2. Enter description: "As a user, I want to see hardware metrics on my dashboard"
+3. Generate and push to Jira
+4. **Verify**: Same as above but issue type = Story
+
+### Scenario 3: Task Creation
+1. Select "Task" as work item type
+2. Enter description: "Fix the login button styling issue"
+3. Generate and push to Jira
+4. **Verify**: Same as above but issue type = Task
+
+## Console Verification
+
+Check browser console for these log messages:
+- `Auto-populated issue type: issuetype = "Epic"` (or Story/Task)
+- `Auto-populated project: project = {"key": "your-project-key"}`
+- `Auto-populated issue type in modal: issuetype = "Epic"`
+- `Auto-populated project in modal: project = {"key": "your-project-key"}`
+
+## Success Criteria
+
+✅ **Issue Type**: Never visible in validation modal, automatically set
+✅ **Project**: Never visible in validation modal, automatically set from connection
+✅ **Summary**: Never appears as missing field when title exists
+✅ **User Experience**: Only fields requiring user input are shown
+✅ **Functionality**: Jira issues are created successfully with all fields
+
+## Known Working Features
+
+- Field extraction continues to work for other fields (priority, custom fields, etc.)
+- Smart suggestions still appear for user-visible fields
+- Auto-applied and confirmation-required fields still function normally
+- All existing functionality preserved 

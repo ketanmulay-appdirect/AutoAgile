@@ -64,11 +64,104 @@ export function FieldValidationModal({
         }
       }
 
+      // Auto-populate system fields (project and issue type) - these will be hidden from user
+      const systemFields = autoPopulateSystemFields(initialValues);
+      Object.assign(initialValues, systemFields);
+
       setFieldValues(initialValues)
       setConfirmedExtractions(new Set())
       setValidationErrors({})
     }
-  }, [isOpen, extractedFields, content?.customFields, enhancedExtraction, content])
+  }, [isOpen, extractedFields, content?.customFields, enhancedExtraction, content, jiraConnection, workItemType])
+
+  /**
+   * Auto-populate system fields like project and issue type that should be handled automatically
+   */
+  const autoPopulateSystemFields = (currentValues: Record<string, any>): Record<string, any> => {
+    const systemFields: Record<string, any> = {};
+
+    if (!jiraFields || !workItemType) return systemFields;
+
+    // Auto-populate issue type based on work item type
+    const issueTypeField = jiraFields.find(field => 
+      field.id.toLowerCase() === 'issuetype' || 
+      field.name.toLowerCase().includes('issue type')
+    );
+
+    if (issueTypeField && !currentValues[issueTypeField.id]) {
+      const issueTypeMap: Record<string, string> = {
+        'epic': 'Epic',
+        'story': 'Story', 
+        'task': 'Task',
+        'initiative': 'Initiative',
+        'bug': 'Bug'
+      };
+      
+      const mappedIssueType = issueTypeMap[workItemType.toLowerCase()] || 'Task';
+      
+      // Find the correct issue type from allowed values
+      if (issueTypeField.allowedValues) {
+        const matchingIssueType = issueTypeField.allowedValues.find((value: any) => {
+          const name = typeof value === 'string' ? value : (value.name || value.value);
+          return name && name.toLowerCase() === mappedIssueType.toLowerCase();
+        });
+        
+        if (matchingIssueType) {
+          systemFields[issueTypeField.id] = typeof matchingIssueType === 'string' 
+            ? matchingIssueType 
+            : matchingIssueType;
+          console.log(`Auto-populated issue type in modal: ${issueTypeField.id} = ${JSON.stringify(matchingIssueType)}`);
+        }
+      }
+    }
+
+    // Auto-populate project field from Jira connection
+    const projectField = jiraFields.find(field => 
+      field.id.toLowerCase() === 'project' || 
+      field.name.toLowerCase().includes('project')
+    );
+
+    if (projectField && !currentValues[projectField.id] && jiraConnection?.projectKey) {
+      // Find matching project from allowed values
+      if (projectField.allowedValues) {
+        const matchingProject = projectField.allowedValues.find((value: any) => {
+          const key = typeof value === 'string' ? value : (value.key || value.value);
+          return key === jiraConnection.projectKey;
+        });
+        
+        if (matchingProject) {
+          systemFields[projectField.id] = typeof matchingProject === 'string' 
+            ? matchingProject 
+            : matchingProject;
+          console.log(`Auto-populated project in modal: ${projectField.id} = ${JSON.stringify(matchingProject)}`);
+        }
+      } else {
+        // If no allowed values, use the project key directly
+        systemFields[projectField.id] = { key: jiraConnection.projectKey };
+        console.log(`Auto-populated project in modal: ${projectField.id} = ${jiraConnection.projectKey}`);
+      }
+    }
+
+    return systemFields;
+  };
+
+  /**
+   * Check if a field should be hidden from the user (auto-populated system fields)
+   */
+  const isSystemField = (field: JiraField): boolean => {
+    const fieldId = field.id.toLowerCase();
+    const fieldName = field.name.toLowerCase();
+    
+    return (
+      fieldId === 'issuetype' || 
+      fieldName.includes('issue type') ||
+      fieldId === 'project' ||
+      fieldName.includes('project') ||
+      fieldId === 'summary' ||
+      fieldName.includes('summary') ||
+      fieldName.includes('title')
+    );
+  };
 
   const handleFieldChange = (fieldId: string, value: any) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }))
@@ -114,7 +207,23 @@ export function FieldValidationModal({
   }
 
   const handleSubmit = async () => {
-    if (!validateFields()) {
+    // Validate only user-visible fields (system fields are auto-populated and don't need validation)
+    const errors: Record<string, string> = {}
+    let isValid = true
+
+    // Validate user-visible required fields
+    userVisibleFields.filter(f => f.required).forEach(field => {
+      const value = fieldValues[field.id]
+      const validation = fieldValidationService.validateFieldValue(field, value)
+      
+      if (!validation.isValid && validation.error) {
+        errors[field.id] = validation.error
+        isValid = false
+      }
+    })
+
+    setValidationErrors(errors)
+    if (!isValid) {
       return
     }
 
@@ -129,7 +238,7 @@ export function FieldValidationModal({
         ...content,
         customFields: {
           ...(content.customFields || {}),
-          ...fieldValues
+          ...fieldValues // This includes both user fields and auto-populated system fields
         }
       }
 
@@ -168,10 +277,13 @@ export function FieldValidationModal({
 
   const requiredFields = jiraFields.filter(f => f.required)
   
-  const autoAppliedFields = requiredFields.filter(f => getFieldSection(f) === 'auto-applied')
-  const confirmationFields = requiredFields.filter(f => getFieldSection(f) === 'confirmation')
-  const manualFields = requiredFields.filter(f => getFieldSection(f) === 'manual')
-  const otherMissingFields = requiredFields.filter(f => 
+  // Filter out system fields from the fields shown to the user
+  const userVisibleFields = requiredFields.filter(f => !isSystemField(f))
+  
+  const autoAppliedFields = userVisibleFields.filter(f => getFieldSection(f) === 'auto-applied')
+  const confirmationFields = userVisibleFields.filter(f => getFieldSection(f) === 'confirmation')
+  const manualFields = userVisibleFields.filter(f => getFieldSection(f) === 'manual')
+  const otherMissingFields = userVisibleFields.filter(f => 
     getFieldSection(f) === 'missing' && 
     !autoAppliedFields.includes(f) && 
     !confirmationFields.includes(f) && 
@@ -381,7 +493,7 @@ export function FieldValidationModal({
         <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-600">
-              {requiredFields.length} required fields • {autoAppliedFields.length} auto-applied • {confirmationFields.length + manualFields.length + otherMissingFields.length} need attention
+              {userVisibleFields.length} required fields • {autoAppliedFields.length} auto-applied • {confirmationFields.length + manualFields.length + otherMissingFields.length} need attention
             </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={onClose}>

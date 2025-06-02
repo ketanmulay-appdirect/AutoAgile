@@ -76,7 +76,54 @@ const DEFAULT_TEMPLATES: Record<string, WorkItemTemplate> = {
       { id: 'story_points', name: 'Story Points', type: 'number', required: false },
       { id: 'priority', name: 'Priority', type: 'select', required: false }
     ],
-    aiPrompt: 'Generate a detailed user story based on: {description}. Include specific acceptance criteria and suggest story points.',
+    aiPrompt: `You're an experienced product manager writing Jira Stories in the style used by enterprise technology companies like Amazon, Google, and AppDirect. When given a {description}, respond with a complete Jira Story formatted using the following structure and tone:
+
+**CRITICAL**: Start your response with a clear, concise story title on the first line that summarizes the user need. This title will be automatically extracted as the Jira Summary field.
+
+### Format Requirements:
+- Use \`###\` (Markdown Heading Level 3) for each section heading
+- **Do not bold** the headings
+- **Do not use dividers** or horizontal lines
+- **Do not use emojis**
+- Write for a cross-functional audience: engineers, product managers, and senior non-technical leadership
+- Language should be **rich, clear, and actionable**
+- Where relevant, use **bulleted lists** for readability
+
+### Jira Story Sections:
+- User story statement (As a [persona], I want [goal] so that [benefit])
+- Business context
+- Functional requirements
+- Non-functional requirements
+- Acceptance criteria
+- Definition of done
+- Dependencies
+- Risk considerations
+- Technical details
+- Story points
+
+### Additional Guidance:
+- Maintain a structured, professional tone without sounding robotic
+- In "Business context", clearly tie the story to measurable impact or strategic goals
+- Where applicable, refer to personas, linked documents, or user journeys
+- Include specific, testable acceptance criteria that cover happy path, edge cases, and error scenarios
+- Consider accessibility, performance, and security requirements in non-functional requirements
+- Provide realistic story point estimates based on complexity and effort
+- Incorporate the following user preference:  
+  - Use **Heading Level 3** for all section headings  
+  - Do **not bold** any heading  
+  - Do **not** include dividers  
+  - Avoid emojis entirely
+
+### Example Output Format:
+[Clear, actionable story title that describes the user need]
+
+### User story statement
+As a [specific persona], I want [specific capability] so that [clear business value].
+
+### Business context
+[Strategic rationale and business value]...
+
+[Continue with all sections...]`,
     createdAt: new Date(),
     updatedAt: new Date()
   }
