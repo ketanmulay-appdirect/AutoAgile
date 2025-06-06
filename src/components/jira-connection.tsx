@@ -15,6 +15,15 @@ interface JiraConnectionProps {
   onConnectionRemoved?: () => void
 }
 
+// Helper function to mask API tokens for display
+const maskToken = (token: string): string => {
+  if (!token || token.length < 8) return token
+  const start = token.substring(0, 4)
+  const end = token.substring(token.length - 4)
+  const middle = '•'.repeat(Math.max(20, token.length - 8))
+  return `${start}${middle}${end}`
+}
+
 export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraConnectionProps) {
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -203,11 +212,12 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
             API Token *
           </label>
             <Input
-            type="password"
-            value={connection.apiToken || ''}
+            type={isConnected ? "text" : "password"}
+            value={isConnected ? maskToken(connection.apiToken || '') : (connection.apiToken || '')}
             onChange={(e) => handleInputChange('apiToken', e.target.value)}
             placeholder="Your Jira API token"
             disabled={isConnected}
+            readOnly={isConnected}
           />
             <p className="mt-1 text-sm text-cloud-600">
             <a 

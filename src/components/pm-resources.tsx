@@ -159,22 +159,15 @@ export function PMResources({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-navy-950 mb-1">Resources Hub</h1>
-          <p className="text-cloud-600">
-            Curated tools to enhance your workflow
-          </p>
-        </div>
-        
-        {view !== 'overview' && (
+      {/* Navigation */}
+      {view !== 'overview' && (
+        <div className="flex justify-end">
           <Button variant="outline" onClick={clearFilters}>
             <Icons.ArrowLeft size="sm" className="mr-2" />
             Back to Overview
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Quick Access Bar */}
       <div className="bg-gradient-to-r from-royal-50 to-sky-50 rounded-lg p-4 border border-royal-100">

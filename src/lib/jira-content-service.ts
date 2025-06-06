@@ -120,14 +120,27 @@ class JiraContentService {
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
+        let errorText = ''
+        try {
+          errorText = await response.text()
+        } catch (textError) {
+          errorText = `HTTP ${response.status} ${response.statusText}`
+        }
+        
         console.error('Work items API error:', {
           status: response.status,
           statusText: response.statusText,
-          errorBody: errorText,
+          errorBody: errorText || 'No error details available',
           params: { projectKey, workItemType, deliveryQuarter }
         })
-        return [] // Return empty array instead of throwing
+        
+        // Return empty array for these common error cases instead of throwing
+        if (response.status === 400 || response.status === 404 || response.status === 403) {
+          console.warn(`Returning empty work items list due to API error: ${response.status}`)
+          return []
+        }
+        
+        return [] // Return empty array instead of throwing for any other errors
       }
 
       const data = await response.json()

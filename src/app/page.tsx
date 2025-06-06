@@ -125,8 +125,8 @@ export default function Home() {
         }
       case 'pm-resources':
         return {
-          title: 'PM Resources Hub',
-          description: 'Curated tools to enhance your product management workflow'
+          title: 'Resources Hub',
+          description: 'Curated tools to enhance your workflow'
         }
       default:
         return {

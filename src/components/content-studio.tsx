@@ -160,9 +160,17 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       )
       setWorkItems(items)
       setSelectedWorkItem(null)
+      
+      // Show a helpful message if no work items were found
+      if (items.length === 0) {
+        console.log(`No ${workItemType} work items found for project ${selectedProject}${selectedQuarter ? ` in ${selectedQuarter}` : ''}`)
+      }
     } catch (err) {
-      setError('Failed to load work items.')
-      console.error(err)
+      const errorMessage = err instanceof Error 
+        ? `Failed to load work items: ${err.message}` 
+        : 'Failed to load work items. Please check your Jira connection and project permissions.'
+      setError(errorMessage)
+      console.error('loadWorkItems error:', err)
     } finally {
       setIsLoadingWorkItems(false)
     }

@@ -402,7 +402,8 @@ export function WorkItemsPage({ jiraConnection }: WorkItemsPageProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => setSelectedItem(item)}
-                            className="text-cloud-600 hover:text-navy-950"
+                            className="text-royal-950 hover:text-royal-800 hover:bg-royal-50"
+                            title="View details"
                           >
                             <Icons.Eye size="sm" />
                           </Button>
@@ -410,7 +411,8 @@ export function WorkItemsPage({ jiraConnection }: WorkItemsPageProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDelete(item.id)}
-                            className="text-coral-500 hover:text-coral-700"
+                            className="text-coral-500 hover:text-coral-700 hover:bg-coral-50"
+                            title="Delete work item"
                           >
                             <Icons.Trash2 size="sm" />
                           </Button>

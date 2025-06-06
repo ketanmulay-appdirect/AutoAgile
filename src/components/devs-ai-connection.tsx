@@ -18,6 +18,15 @@ interface DevsAIConnectionProps {
   onConnectionRemoved?: () => void
 }
 
+// Helper function to mask API tokens for display
+const maskToken = (token: string): string => {
+  if (!token || token.length < 8) return token
+  const start = token.substring(0, 4)
+  const end = token.substring(token.length - 4)
+  const middle = '•'.repeat(Math.max(20, token.length - 8))
+  return `${start}${middle}${end}`
+}
+
 export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: DevsAIConnectionProps) {
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -118,11 +127,12 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
             API Token *
           </label>
           <Input
-            type="password"
-            value={connection.apiToken || ''}
+            type={isConnected ? "text" : "password"}
+            value={isConnected ? maskToken(connection.apiToken || '') : (connection.apiToken || '')}
             onChange={(e) => handleInputChange('apiToken', e.target.value)}
             placeholder="Your Devs.ai secret key (starts with sk-)"
             disabled={isConnected}
+            readOnly={isConnected}
           />
           <p className="mt-1 text-sm text-cloud-600">
             Your Devs.ai secret key from the API Keys page
