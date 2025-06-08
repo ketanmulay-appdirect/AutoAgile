@@ -381,75 +381,100 @@ export function PMResources({
       {/* Search Results */}
       {currentView === 'search' && (
         <div className="space-y-6">
-          {/* Use Case Specific Results */}
-          {filters.useCase && (() => {
-            const useCaseResults = getToolsByUseCase(filters.useCase)
-            return (
-              <div className="space-y-6">
 
-                {/* Primary Tools */}
-                {useCaseResults.primary.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-navy-950 mb-4 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-royal-500 rounded-full"></span>
-                      Best Tools for This Use Case
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {useCaseResults.primary.filter(tool => filteredTools.some(ft => ft.id === tool.id)).map((tool) => (
-                        <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} isPrimary={true} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Supporting Tools */}
-                {useCaseResults.supporting.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-navy-950 mb-4 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-cloud-400 rounded-full"></span>
-                      Supporting Tools
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {useCaseResults.supporting.filter(tool => filteredTools.some(ft => ft.id === tool.id)).map((tool) => (
-                        <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })()}
-
-          {/* General Search Results */}
-          {!filters.useCase && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-navy-950">
-                  Search Results
-                </h2>
-                <Badge variant="info">{filteredTools.length} items found</Badge>
-              </div>
-
-              {filteredTools.length === 0 ? (
-                <div className="bg-white rounded-lg border border-cloud-200 p-8 text-center">
-                  <Icons.Search size="xl" variant="secondary" className="mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-cloud-700 mb-2">No items found</h3>
-                  <p className="text-cloud-600 mb-4">
-                    Try adjusting your search terms or filters
-                  </p>
-                  <Button variant="outline" onClick={clearFilters}>
-                    Clear filters
-                  </Button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredTools.map((tool) => (
-                    <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} />
-                  ))}
-                </div>
-              )}
+          {/* Results Display - Unified Logic */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-navy-950">
+                Search Results
+              </h2>
+              <Badge variant="info">{filteredTools.length} items found</Badge>
             </div>
-          )}
+
+            {filteredTools.length === 0 ? (
+              <div className="bg-white rounded-lg border border-cloud-200 p-8 text-center">
+                <Icons.Search size="xl" variant="secondary" className="mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-cloud-700 mb-2">No items found</h3>
+                <p className="text-cloud-600 mb-4">
+                  Try adjusting your search terms or filters
+                </p>
+                <Button variant="outline" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Use Case Specific Organization */}
+                {filters.useCase && (() => {
+                  const useCaseResults = getToolsByUseCase(filters.useCase)
+                  const filteredPrimaryTools = useCaseResults.primary.filter(tool => filteredTools.some(ft => ft.id === tool.id))
+                  const filteredSupportingTools = useCaseResults.supporting.filter(tool => filteredTools.some(ft => ft.id === tool.id))
+                  
+                  return (
+                    <div className="space-y-6">
+                      {/* Primary Tools */}
+                      {filteredPrimaryTools.length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-navy-950 mb-4 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-royal-500 rounded-full"></span>
+                            Best Tools for This Use Case
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {filteredPrimaryTools.map((tool) => (
+                              <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} isPrimary={true} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Supporting Tools */}
+                      {filteredSupportingTools.length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-navy-950 mb-4 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-cloud-400 rounded-full"></span>
+                            Supporting Tools
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {filteredSupportingTools.map((tool) => (
+                              <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Show any remaining tools that don't fit in primary/supporting */}
+                      {(() => {
+                        const organizedToolIds = new Set([...filteredPrimaryTools.map(t => t.id), ...filteredSupportingTools.map(t => t.id)])
+                        const remainingTools = filteredTools.filter(tool => !organizedToolIds.has(tool.id))
+                        
+                        return remainingTools.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-navy-950 mb-4">Other Relevant Tools</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {remainingTools.map((tool) => (
+                                <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} />
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )
+                })()}
+
+                {/* General Search Results (no use case) */}
+                {!filters.useCase && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredTools.map((tool) => (
+                      <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+
         </div>
       )}
     </div>
