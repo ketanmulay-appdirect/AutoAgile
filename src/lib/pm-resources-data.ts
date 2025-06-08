@@ -50,6 +50,13 @@ export const PM_TOOL_CATEGORIES: PMToolCategory_Info[] = [
     description: 'Estimation, sprint planning, and development tools',
     icon: '⚙️',
     color: 'navy-950'
+  },
+  {
+    id: 'essential-reading',
+    name: 'Essential Reading',
+    description: 'Newsletters, blogs, and AI resources for product managers',
+    icon: '📚',
+    color: 'purple-600'
   }
 ]
 
@@ -623,11 +630,208 @@ export const PM_TOOLS: PMTool[] = [
     isPopular: true,
     tags: ['api-testing', 'api-documentation', 'collaboration', 'automation', 'testing'],
     useCases: ['API testing', 'API documentation', 'Integration testing', 'Team collaboration']
+  },
+
+  // Essential Reading
+  {
+    id: 'lennys-newsletter',
+    name: "Lenny's Newsletter",
+    description: 'The most popular newsletter for product managers. Weekly insights on product management, growth, and career advice from Lenny Rachitsky.',
+    shortDescription: 'Weekly product management insights and career advice',
+    category: 'essential-reading',
+    type: 'freemium',
+    complexity: 'beginner',
+    url: 'https://lennysnewsletter.com',
+    isPopular: true,
+    tags: ['product-management', 'growth', 'career', 'newsletter', 'insights'],
+    useCases: ['Product management learning', 'Career development', 'Industry insights', 'Best practices'],
+    features: ['Weekly newsletter', 'Deep dives on PM topics', 'Guest interviews', 'Free and paid tiers'],
+    pros: ['High-quality content', 'Actionable insights', 'Strong community', 'Great for all PM levels'],
+    cons: ['Premium content requires subscription', 'Email format only'],
+    pricing: 'Free newsletter available, premium content starts at $10/month',
+    rating: 4.9,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'superhuman-newsletter',
+    name: 'Superhuman Newsletter',
+    description: 'AI and productivity insights delivered weekly. Learn how to leverage AI tools and optimize your workflow for maximum productivity.',
+    shortDescription: 'Weekly AI and productivity insights for modern professionals',
+    category: 'essential-reading',
+    type: 'free',
+    complexity: 'beginner',
+    url: 'https://superhuman.beehiiv.com',
+    isPopular: true,
+    tags: ['ai', 'productivity', 'automation', 'newsletter', 'efficiency'],
+    useCases: ['AI tool discovery', 'Productivity optimization', 'Workflow automation', 'Tech trends'],
+    features: ['Weekly AI updates', 'Tool recommendations', 'Productivity tips', 'Case studies'],
+    pros: ['Completely free', 'Practical AI insights', 'Tool recommendations', 'Easy to implement tips'],
+    rating: 4.7,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'ai-breakdown',
+    name: 'AI Breakdown',
+    description: 'Daily AI news and insights. Stay updated with the latest developments in artificial intelligence, from breakthrough research to practical applications.',
+    shortDescription: 'Daily AI news and practical applications',
+    category: 'essential-reading',
+    type: 'freemium',
+    complexity: 'intermediate',
+    url: 'https://aibreakdown.beehiiv.com',
+    isPopular: true,
+    tags: ['ai', 'machine-learning', 'technology', 'news', 'research'],
+    useCases: ['AI trend monitoring', 'Technology updates', 'Research insights', 'Business applications'],
+    features: ['Daily AI news', 'Research summaries', 'Business insights', 'Tool spotlights'],
+    pros: ['Daily updates', 'Comprehensive coverage', 'Business-focused', 'Expert analysis'],
+    cons: ['Can be overwhelming with daily frequency', 'Premium features behind paywall'],
+    pricing: 'Free newsletter available, premium content available',
+    rating: 4.6,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'reforge-briefing',
+    name: 'Reforge Briefing',
+    description: 'Weekly insights on growth, product, and marketing from Reforge. Learn from experts at top tech companies about scaling products and teams.',
+    shortDescription: 'Weekly growth and product insights from tech experts',
+    category: 'essential-reading',
+    type: 'free',
+    complexity: 'intermediate',
+    url: 'https://reforge.com/briefing',
+    isPopular: true,
+    tags: ['growth', 'product-management', 'marketing', 'scaling', 'strategy'],
+    useCases: ['Growth strategy', 'Product scaling', 'Marketing insights', 'Team building'],
+    features: ['Expert insights', 'Case studies', 'Framework deep-dives', 'Industry trends'],
+    pros: ['High-quality content', 'Expert contributors', 'Actionable frameworks', 'Free access'],
+    cons: ['Advanced topics may be overwhelming for beginners'],
+    rating: 4.8,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'first-round-review',
+    name: 'First Round Review',
+    description: 'In-depth articles on building and scaling startups. Tactical advice from successful founders, operators, and investors.',
+    shortDescription: 'Tactical startup and leadership advice from industry experts',
+    category: 'essential-reading',
+    type: 'free',
+    complexity: 'intermediate',
+    url: 'https://review.firstround.com',
+    isPopular: true,
+    tags: ['startups', 'leadership', 'management', 'scaling', 'operations'],
+    useCases: ['Leadership development', 'Startup operations', 'Team management', 'Strategic planning'],
+    features: ['Long-form articles', 'Expert interviews', 'Tactical frameworks', 'Case studies'],
+    pros: ['Extremely high-quality content', 'Tactical and actionable', 'Free access', 'Diverse topics'],
+    rating: 4.9,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'julie-zhuo-blog',
+    name: "Julie Zhuo's Blog",
+    description: 'Insights on product design, management, and leadership from the former VP of Product Design at Facebook. Thoughtful perspectives on building great products.',
+    shortDescription: 'Product design and leadership insights from former Facebook VP',
+    category: 'essential-reading',
+    type: 'free',
+    complexity: 'intermediate',
+    url: 'https://medium.com/@joulee',
+    isPopular: true,
+    tags: ['product-design', 'leadership', 'management', 'facebook', 'meta'],
+    useCases: ['Design leadership', 'Product strategy', 'Team management', 'Career growth'],
+    features: ['Personal insights', 'Leadership lessons', 'Design thinking', 'Management advice'],
+    pros: ['Real experience from top company', 'Thoughtful and nuanced', 'Free access', 'Regular updates'],
+    rating: 4.7,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'ken-norton-newsletter',
+    name: 'Ken Norton Newsletter',
+    description: 'Product management insights from a partner at Google Ventures. Learn from someone who built products at Google and now invests in product teams.',
+    shortDescription: 'Product management insights from Google Ventures partner',
+    category: 'essential-reading',
+    type: 'free',
+    complexity: 'intermediate',
+    url: 'https://newsletter.bringthedonuts.com',
+    isPopular: true,
+    tags: ['product-management', 'google', 'venture-capital', 'strategy', 'leadership'],
+    useCases: ['Product strategy', 'PM career development', 'Team building', 'Investment insights'],
+    features: ['PM frameworks', 'Career advice', 'Industry insights', 'Investment perspective'],
+    pros: ['Google/GV experience', 'Practical frameworks', 'Free content', 'Dual perspective (PM + VC)'],
+    rating: 4.8,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'the-beautiful-mess',
+    name: 'The Beautiful Mess',
+    description: 'John Cutler\'s insights on product management, systems thinking, and continuous improvement. Focus on the messy realities of product work.',
+    shortDescription: 'Real-world product management and systems thinking insights',
+    category: 'essential-reading',
+    type: 'free',
+    complexity: 'intermediate',
+    url: 'https://cutlefish.substack.com',
+    isPopular: true,
+    tags: ['product-management', 'systems-thinking', 'continuous-improvement', 'reality'],
+    useCases: ['Systems thinking', 'Product operations', 'Team dynamics', 'Process improvement'],
+    features: ['Systems perspective', 'Real-world examples', 'Process insights', 'Team dynamics'],
+    pros: ['Honest and realistic', 'Systems thinking approach', 'Free content', 'Frequent updates'],
+    rating: 4.6,
+    lastUpdated: '2024-12-01'
   }
 ]
 
 // Popular tools for quick access
 export const POPULAR_TOOLS = PM_TOOLS.filter(tool => tool.isPopular)
+
+// Smart tool recommendations based on workflows
+export const TOOL_RECOMMENDATIONS: Record<string, string[]> = {
+  // Planning & Roadmapping workflow
+  'roadmunk': ['figma', 'miro', 'confluence', 'jira'],
+  'productplan': ['figma', 'amplitude', 'confluence', 'linear'],
+  'milanote': ['figma', 'canva', 'notion'],
+  'gantt-project': ['github', 'linear', 'notion'],
+
+  // Design & Prototyping workflow  
+  'figma': ['miro', 'notion', 'loom', 'github'],
+  'balsamiq': ['figma', 'miro', 'notion'],
+  'canva': ['figma', 'notion', 'loom'],
+  'invision': ['figma', 'miro', 'hotjar'],
+
+  // Diagramming & Visualization workflow
+  'draw-io': ['notion', 'confluence', 'github'],
+  'lucidchart': ['figma', 'miro', 'confluence'],
+  'whimsical': ['figma', 'notion', 'miro'],
+  'miro': ['figma', 'notion', 'loom', 'typeform'],
+  'excalidraw': ['figma', 'notion', 'github'],
+
+  // Documentation & Requirements workflow
+  'notion': ['figma', 'miro', 'loom', 'typeform'],
+  'confluence': ['jira', 'figma', 'loom'],
+  'gitbook': ['github', 'figma', 'postman'],
+  'obsidian': ['notion', 'miro'],
+
+  // Analysis & Metrics workflow
+  'google-analytics': ['hotjar', 'typeform', 'amplitude'],
+  'hotjar': ['google-analytics', 'typeform', 'figma'],
+  'amplitude': ['hotjar', 'mixpanel', 'linear'],
+  'mixpanel': ['amplitude', 'hotjar', 'linear'],
+
+  // Collaboration & Communication workflow
+  'slack': ['loom', 'calendly', 'github', 'linear'],
+  'loom': ['slack', 'notion', 'figma'],
+  'typeform': ['notion', 'hotjar', 'calendly'],
+  'calendly': ['slack', 'typeform', 'loom'],
+
+  // Development Workflow
+  'github': ['linear', 'figma', 'postman', 'slack'],
+  'linear': ['github', 'figma', 'slack'],
+  'postman': ['github', 'notion', 'linear'],
+  'planning-poker': ['linear', 'github', 'slack']
+}
+
+export const getToolRecommendations = (toolId: string): PMTool[] => {
+  const recommendedIds = TOOL_RECOMMENDATIONS[toolId] || []
+  return recommendedIds
+    .map(id => PM_TOOLS.find(tool => tool.id === id))
+    .filter((tool): tool is PMTool => tool !== undefined)
+    .slice(0, 4) // Max 4 recommendations
+}
 
 // Common use cases for filtering
 export const COMMON_USE_CASES = [

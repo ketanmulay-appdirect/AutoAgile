@@ -247,6 +247,7 @@ export type PMToolCategory =
   | 'analysis-metrics'
   | 'collaboration-communication'
   | 'development-workflow'
+  | 'essential-reading'
 
 export type PMToolType = 'free' | 'paid' | 'freemium'
 export type PMToolComplexity = 'beginner' | 'intermediate' | 'advanced'

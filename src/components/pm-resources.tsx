@@ -12,8 +12,10 @@ import {
   COMMON_USE_CASES,
   getToolsByCategory,
   getCategoryInfo,
-  searchTools
+  searchTools,
+  getToolRecommendations
 } from '../lib/pm-resources-data'
+
 import { 
   PMTool, 
   PMToolCategory, 
@@ -60,6 +62,17 @@ export function PMResources({
     suggestedCategory || null
   )
 
+  // Automatically set view based on active filters
+  const currentView = useMemo(() => {
+    if (filters.searchTerm || filters.useCase || filters.type || filters.complexity) {
+      return 'search'
+    }
+    if (filters.category) {
+      return 'category'
+    }
+    return view
+  }, [filters.searchTerm, filters.useCase, filters.type, filters.complexity, filters.category, view])
+
   // Filter and search tools
   const filteredTools = useMemo(() => {
     let tools = PM_TOOLS
@@ -91,7 +104,12 @@ export function PMResources({
     // Apply search filter
     if (filters.searchTerm || filters.search) {
       const searchQuery = filters.searchTerm || filters.search || ''
-      tools = searchTools(searchQuery)
+      tools = tools.filter(tool => 
+        tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tool.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tool.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        tool.useCases.some(useCase => useCase.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
     }
 
     // Apply popular filter
@@ -114,6 +132,10 @@ export function PMResources({
     } else {
       window.open(tool.url, '_blank', 'noopener,noreferrer')
     }
+  }
+
+  const handleUseCaseClick = (useCase: string) => {
+    setFilters({ ...filters, useCase, searchTerm: undefined })
   }
 
   const clearFilters = () => {
@@ -160,7 +182,7 @@ export function PMResources({
   return (
     <div className="space-y-6">
       {/* Navigation */}
-      {view !== 'overview' && (
+      {currentView !== 'overview' && (
         <div className="flex justify-end">
           <Button variant="outline" onClick={clearFilters}>
             <Icons.ArrowLeft size="sm" className="mr-2" />
@@ -168,35 +190,6 @@ export function PMResources({
           </Button>
         </div>
       )}
-
-      {/* Quick Access Bar */}
-      <div className="bg-gradient-to-r from-royal-50 to-sky-50 rounded-lg p-4 border border-royal-100">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-royal-950">Popular Tools</h2>
-          <Badge variant="info">{POPULAR_TOOLS.length} tools</Badge>
-        </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-          {POPULAR_TOOLS.slice(0, 6).map((tool) => (
-            <Button
-              key={tool.id}
-              variant="ghost"
-              size="sm"
-              className="justify-start h-auto p-2 text-left"
-              onClick={() => handleToolClick(tool)}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-medium text-royal-950 truncate">
-                  {tool.name}
-                </div>
-                <div className="text-xs text-cloud-600 truncate">
-                  {getCategoryInfo(tool.category)?.icon} {tool.shortDescription || tool.description}
-                </div>
-              </div>
-            </Button>
-          ))}
-        </div>
-      </div>
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg border border-cloud-200 p-4">
@@ -212,7 +205,6 @@ export function PMResources({
                 value={filters.searchTerm || ''}
                 onChange={(e) => {
                   setFilters({ ...filters, searchTerm: e.target.value })
-                  setView('search')
                 }}
               />
             </div>
@@ -317,7 +309,7 @@ export function PMResources({
       </div>
 
       {/* Main Content */}
-      {view === 'overview' && (
+      {currentView === 'overview' && (
         <div className="space-y-6">
           {/* Categories Grid */}
           <div>
@@ -333,7 +325,7 @@ export function PMResources({
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="text-2xl">{category.icon}</div>
-                      <Badge variant="secondary">{toolCount} tools</Badge>
+                      <Badge variant="secondary">{toolCount} items</Badge>
                     </div>
                     <h3 className="font-semibold text-navy-950 mb-2 group-hover:text-royal-950">
                       {category.name}
@@ -342,7 +334,7 @@ export function PMResources({
                       {category.description}
                     </p>
                     <div className="mt-3 flex items-center text-royal-950 text-sm font-medium">
-                      Explore tools
+                      Explore resources
                       <Icons.ArrowRight size="sm" className="ml-2 group-hover:translate-x-1 transition-transform" />
                     </div>
                   </div>
@@ -351,12 +343,12 @@ export function PMResources({
             </div>
           </div>
 
-          {/* Featured Tools */}
+          {/* Featured Resources */}
           <div>
-            <h2 className="text-xl font-semibold text-navy-950 mb-4">Featured Tools</h2>
+            <h2 className="text-xl font-semibold text-navy-950 mb-4">Featured Resources</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {POPULAR_TOOLS.slice(0, 6).map((tool) => (
-                <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} />
+                <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} />
               ))}
             </div>
           </div>
@@ -364,7 +356,7 @@ export function PMResources({
       )}
 
       {/* Category View */}
-      {view === 'category' && selectedCategory && (
+      {currentView === 'category' && selectedCategory && (
         <div className="space-y-6">
           <div className="bg-white rounded-lg border border-cloud-200 p-6">
             <div className="flex items-center gap-3 mb-3">
@@ -376,31 +368,31 @@ export function PMResources({
                 <p className="text-cloud-600">{getCategoryInfo(selectedCategory)?.description}</p>
               </div>
             </div>
-            <Badge variant="info">{filteredTools.length} tools available</Badge>
+            <Badge variant="info">{filteredTools.length} items available</Badge>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredTools.map((tool) => (
-              <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} />
+              <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} />
             ))}
           </div>
         </div>
       )}
 
       {/* Search Results */}
-      {view === 'search' && (
+      {currentView === 'search' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-navy-950">
               Search Results
             </h2>
-            <Badge variant="info">{filteredTools.length} tools found</Badge>
+            <Badge variant="info">{filteredTools.length} items found</Badge>
           </div>
 
           {filteredTools.length === 0 ? (
             <div className="bg-white rounded-lg border border-cloud-200 p-8 text-center">
               <Icons.Search size="xl" variant="secondary" className="mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-cloud-700 mb-2">No tools found</h3>
+              <h3 className="text-lg font-medium text-cloud-700 mb-2">No items found</h3>
               <p className="text-cloud-600 mb-4">
                 Try adjusting your search terms or filters
               </p>
@@ -411,7 +403,7 @@ export function PMResources({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredTools.map((tool) => (
-                <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} />
+                <ToolCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool)} onUseCaseClick={handleUseCaseClick} />
               ))}
             </div>
           )}
@@ -425,9 +417,10 @@ export function PMResources({
 interface ToolCardProps {
   tool: PMTool
   onClick: () => void
+  onUseCaseClick?: (useCase: string) => void
 }
 
-function ToolCard({ tool, onClick }: ToolCardProps) {
+function ToolCard({ tool, onClick, onUseCaseClick }: ToolCardProps) {
   const categoryInfo = getCategoryInfo(tool.category)
   
   return (
@@ -438,9 +431,6 @@ function ToolCard({ tool, onClick }: ToolCardProps) {
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="text-lg">{categoryInfo?.icon}</div>
-          {tool.isPopular && (
-            <Badge variant="warning" className="text-xs">Popular</Badge>
-          )}
         </div>
         <Icons.ExternalLink size="sm" variant="secondary" className="group-hover:text-royal-950" />
       </div>
@@ -464,20 +454,25 @@ function ToolCard({ tool, onClick }: ToolCardProps) {
         </div>
       </div>
 
-      {/* Use cases */}
+      {/* Use Cases */}
       {tool.useCases.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-cloud-100">
-          <div className="flex flex-wrap gap-1">
-            {tool.useCases.slice(0, 2).map((useCase) => (
-              <span key={useCase} className="text-xs text-cloud-500 bg-cloud-50 px-2 py-1 rounded">
-                {useCase}
-              </span>
-            ))}
-            {tool.useCases.length > 2 && (
-              <span className="text-xs text-cloud-500">
-                +{tool.useCases.length - 2} more
-              </span>
-            )}
+        <div className="mt-3 pt-3 border-t border-cloud-100 space-y-2">
+          <div>
+            <div className="text-xs font-medium text-cloud-700 mb-1">Best for:</div>
+            <div className="flex flex-wrap gap-1 items-center">
+              {tool.useCases.slice(0, 3).map((useCase) => (
+                <button
+                  key={useCase}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onUseCaseClick?.(useCase)
+                  }}
+                  className="text-xs text-royal-700 bg-royal-50 hover:bg-royal-100 px-2 py-1 rounded transition-colors border border-royal-200 hover:border-royal-300"
+                >
+                  {useCase}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

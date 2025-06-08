@@ -9,7 +9,10 @@ import { TemplateConfiguration } from '../components/template-configuration'
 import { ContentStudio } from '../components/content-studio'
 import { WorkItemsPage } from '../components/work-items-page'
 import { PMResources } from '../components/pm-resources'
+
 import { AppLayout } from '../components/app-layout'
+
+
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio' | 'work-items' | 'pm-resources'>('create')
@@ -126,7 +129,7 @@ export default function Home() {
       case 'pm-resources':
         return {
           title: 'Resources Hub',
-          description: 'Curated tools to enhance your workflow'
+          description: 'Curated tools, newsletters, blogs, and AI resources for product managers'
         }
       default:
         return {
