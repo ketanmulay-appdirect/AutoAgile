@@ -485,7 +485,7 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
                         </>
                       ) : (
                         <>
-                          <Icons.Settings size="sm" className="mr-2" />
+                          <Icons.Settings size="sm" autoContrast className="mr-2" />
                           Configure Extraction
                         </>
                       )}
