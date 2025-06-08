@@ -757,6 +757,140 @@ export const PM_TOOLS: PMTool[] = [
     rating: 4.8,
     lastUpdated: '2024-12-01'
   },
+
+  // Additional Essential Tools for Use Cases
+  {
+    id: 'airtable',
+    name: 'Airtable',
+    description: 'Organize anything with the power of a database and the simplicity of a spreadsheet. Perfect for product backlogs, user research, and project tracking.',
+    shortDescription: 'Database-spreadsheet hybrid for organizing product data',
+    category: 'documentation-requirements',
+    type: 'freemium',
+    complexity: 'intermediate',
+    url: 'https://airtable.com',
+    isPopular: true,
+    tags: ['database', 'spreadsheet', 'organization', 'collaboration', 'project-management'],
+    useCases: ['Manage product backlog', 'Track project progress', 'Analyze competitors', 'Document requirements'],
+    features: ['Database functionality', 'Multiple views', 'Real-time collaboration', 'API integration'],
+    pros: ['Powerful yet simple', 'Great templates', 'Excellent collaboration', 'Mobile app'],
+    cons: ['Can be complex for simple needs', 'Pricing scales quickly'],
+    pricing: 'Free plan available, paid plans start at $10/month',
+    rating: 4.6,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'jira',
+    name: 'Jira',
+    description: 'Industry-standard project management and issue tracking for agile teams. Plan, track, and manage software development projects.',
+    shortDescription: 'Professional project management for agile development',
+    category: 'development-workflow',
+    type: 'freemium',
+    complexity: 'advanced',
+    url: 'https://atlassian.com/jira',
+    isPopular: true,
+    tags: ['project-management', 'agile', 'scrum', 'issue-tracking', 'software-development'],
+    useCases: ['Plan sprints', 'Track project progress', 'Manage product backlog', 'Estimate story points'],
+    features: ['Agile workflows', 'Custom fields', 'Advanced reporting', 'Integrations'],
+    pros: ['Industry standard', 'Highly customizable', 'Powerful reporting', 'Enterprise-ready'],
+    cons: ['Complex setup', 'Can be overwhelming', 'Expensive for large teams'],
+    pricing: 'Free for small teams, paid plans start at $7.75/month',
+    rating: 4.2,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'linear',
+    name: 'Linear',
+    description: 'The issue tracking tool you\'ll enjoy using. Built for high-performance teams. Fast, focused, and beautifully designed.',
+    shortDescription: 'Modern, fast issue tracking for product teams',
+    category: 'development-workflow',
+    type: 'freemium',
+    complexity: 'intermediate',
+    url: 'https://linear.app',
+    isPopular: true,
+    tags: ['project-management', 'issue-tracking', 'product-management', 'agile', 'modern'],
+    useCases: ['Plan sprints', 'Track project progress', 'Manage product backlog', 'Build product roadmaps'],
+    features: ['Lightning fast', 'Keyboard shortcuts', 'Git integration', 'Roadmap planning'],
+    pros: ['Extremely fast', 'Beautiful design', 'Great keyboard shortcuts', 'Modern workflow'],
+    cons: ['Less customization than Jira', 'Newer platform'],
+    pricing: 'Free for small teams, paid plans start at $8/month',
+    rating: 4.8,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'calendly',
+    name: 'Calendly',
+    description: 'Scheduling made simple. Eliminate the back-and-forth emails for finding time. Connect your calendar and let others book time with you.',
+    shortDescription: 'Simple scheduling and calendar booking tool',
+    category: 'collaboration-communication',
+    type: 'freemium',
+    complexity: 'beginner',
+    url: 'https://calendly.com',
+    isPopular: true,
+    tags: ['scheduling', 'calendar', 'meetings', 'automation', 'productivity'],
+    useCases: ['Conduct user research', 'Collect user feedback', 'Collaborate with team'],
+    features: ['Calendar integration', 'Automated scheduling', 'Meeting preferences', 'Team scheduling'],
+    pros: ['Super simple to use', 'Great automation', 'Professional appearance', 'Good integrations'],
+    cons: ['Limited customization on free plan', 'Can feel impersonal'],
+    pricing: 'Free plan available, paid plans start at $8/month',
+    rating: 4.7,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'planning-poker',
+    name: 'Planning Poker Online',
+    description: 'Free online estimation tool for agile teams. Estimate story points collaboratively with your team using the planning poker technique.',
+    shortDescription: 'Online tool for agile story point estimation',
+    category: 'development-workflow',
+    type: 'free',
+    complexity: 'beginner',
+    url: 'https://planningpoker.com',
+    isPopular: false,
+    tags: ['agile', 'estimation', 'scrum', 'planning-poker', 'story-points'],
+    useCases: ['Estimate story points', 'Plan sprints'],
+    features: ['Real-time collaboration', 'Multiple estimation scales', 'Team management', 'History tracking'],
+    pros: ['Completely free', 'Simple to use', 'No registration required', 'Real-time sync'],
+    cons: ['Basic features only', 'Limited customization'],
+    rating: 4.3,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    description: 'The world\'s leading software development platform. Where millions of developers and companies build, ship, and maintain their software.',
+    shortDescription: 'Code repository and collaboration platform',
+    category: 'development-workflow',
+    type: 'freemium',
+    complexity: 'intermediate',
+    url: 'https://github.com',
+    isPopular: true,
+    tags: ['code-repository', 'version-control', 'collaboration', 'development', 'git'],
+    useCases: ['Track project progress', 'Plan sprints', 'Manage product backlog', 'Build product roadmaps'],
+    features: ['Git repositories', 'Issue tracking', 'Project boards', 'Code review'],
+    pros: ['Industry standard', 'Excellent collaboration', 'Free for public repos', 'Great integrations'],
+    cons: ['Learning curve for non-developers', 'Can be complex'],
+    pricing: 'Free for public repositories, paid plans start at $4/month',
+    rating: 4.8,
+    lastUpdated: '2024-12-01'
+  },
+  {
+    id: 'usabilityhub',
+    name: 'UsabilityHub',
+    description: 'Remote user research platform. Get feedback on designs and prototypes from real users. Run first click tests, preference tests, and more.',
+    shortDescription: 'Remote user testing and research platform',
+    category: 'analysis-metrics',
+    type: 'freemium',
+    complexity: 'intermediate',
+    url: 'https://usabilityhub.com',
+    isPopular: false,
+    tags: ['user-testing', 'user-research', 'feedback', 'usability', 'remote-testing'],
+    useCases: ['Conduct user research', 'Collect user feedback', 'Analyze user behavior'],
+    features: ['First click tests', 'Preference tests', 'Five second tests', 'User panel'],
+    pros: ['Easy to set up tests', 'Quality user panel', 'Good test variety', 'Clear results'],
+    cons: ['Limited free tier', 'Can be expensive for frequent testing'],
+    pricing: 'Free plan available, paid plans start at $89/month',
+    rating: 4.4,
+    lastUpdated: '2024-12-01'
+  },
   {
     id: 'the-beautiful-mess',
     name: 'The Beautiful Mess',
@@ -833,21 +967,163 @@ export const getToolRecommendations = (toolId: string): PMTool[] => {
     .slice(0, 4) // Max 4 recommendations
 }
 
-// Common use cases for filtering
-export const COMMON_USE_CASES = [
-  'Create user flows',
-  'Build product roadmaps',
-  'Design wireframes',
-  'Collect user feedback',
-  'Document requirements',
-  'Analyze user behavior',
-  'Plan sprints',
-  'Create presentations',
-  'Map user journeys',
-  'Estimate story points',
-  'Track project progress',
-  'Collaborate with team'
-]
+// Enhanced use cases with smart tool mappings
+export const USE_CASE_MAPPINGS: Record<string, {
+  label: string;
+  description: string;
+  primaryTools: string[];
+  supportingTools: string[];
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  category: string;
+}> = {
+  'create-user-flows': {
+    label: 'Create user flows',
+    description: 'Design and visualize user journeys through your product',
+    primaryTools: ['whimsical', 'draw-io', 'lucidchart', 'miro'],
+    supportingTools: ['figma', 'excalidraw', 'eraser-io'],
+    difficulty: 'intermediate',
+    category: 'design'
+  },
+  'build-product-roadmaps': {
+    label: 'Build product roadmaps',
+    description: 'Create strategic product plans and timelines',
+    primaryTools: ['roadmunk', 'productplan', 'notion', 'linear'],
+    supportingTools: ['miro', 'confluence', 'airtable', 'github'],
+    difficulty: 'intermediate',
+    category: 'planning'
+  },
+  'design-wireframes': {
+    label: 'Design wireframes',
+    description: 'Create low-fidelity mockups and interface designs',
+    primaryTools: ['figma', 'balsamiq', 'whimsical', 'canva'],
+    supportingTools: ['storyset', 'invision', 'marvel-app'],
+    difficulty: 'beginner',
+    category: 'design'
+  },
+  'collect-user-feedback': {
+    label: 'Collect user feedback',
+    description: 'Gather insights and opinions from your users',
+    primaryTools: ['typeform', 'hotjar', 'usabilityhub', 'calendly'],
+    supportingTools: ['google-analytics', 'loom', 'slack'],
+    difficulty: 'beginner',
+    category: 'research'
+  },
+  'document-requirements': {
+    label: 'Document requirements',
+    description: 'Write and organize product specifications and requirements',
+    primaryTools: ['notion', 'confluence', 'gitbook', 'obsidian'],
+    supportingTools: ['miro', 'figma', 'airtable'],
+    difficulty: 'intermediate',
+    category: 'documentation'
+  },
+  'analyze-user-behavior': {
+    label: 'Analyze user behavior',
+    description: 'Study how users interact with your product',
+    primaryTools: ['google-analytics', 'hotjar', 'amplitude', 'mixpanel'],
+    supportingTools: ['typeform', 'usabilityhub', 'calendly'],
+    difficulty: 'advanced',
+    category: 'analytics'
+  },
+  'plan-sprints': {
+    label: 'Plan sprints',
+    description: 'Organize and schedule development work',
+    primaryTools: ['linear', 'jira', 'github', 'planning-poker'],
+    supportingTools: ['notion', 'confluence', 'slack'],
+    difficulty: 'intermediate',
+    category: 'development'
+  },
+  'create-presentations': {
+    label: 'Create presentations',
+    description: 'Build compelling slides and visual presentations',
+    primaryTools: ['canva', 'figma', 'gamma-app', 'beautiful-ai'],
+    supportingTools: ['storyset', 'loom', 'notion'],
+    difficulty: 'beginner',
+    category: 'communication'
+  },
+  'map-user-journeys': {
+    label: 'Map user journeys',
+    description: 'Visualize complete user experience paths',
+    primaryTools: ['miro', 'whimsical', 'lucidchart', 'figma'],
+    supportingTools: ['hotjar', 'draw-io', 'notion'],
+    difficulty: 'intermediate',
+    category: 'design'
+  },
+  'estimate-story-points': {
+    label: 'Estimate story points',
+    description: 'Estimate development effort and complexity',
+    primaryTools: ['planning-poker', 'linear', 'jira', 'scrum-poker-online'],
+    supportingTools: ['slack', 'github', 'notion'],
+    difficulty: 'intermediate',
+    category: 'development'
+  },
+  'track-project-progress': {
+    label: 'Track project progress',
+    description: 'Monitor and report on project status and milestones',
+    primaryTools: ['linear', 'notion', 'airtable', 'github'],
+    supportingTools: ['gantt-project', 'jira', 'slack'],
+    difficulty: 'beginner',
+    category: 'management'
+  },
+  'collaborate-with-team': {
+    label: 'Collaborate with team',
+    description: 'Work together efficiently with remote and in-person teams',
+    primaryTools: ['slack', 'miro', 'loom', 'calendly'],
+    supportingTools: ['notion', 'figma', 'typeform'],
+    difficulty: 'beginner',
+    category: 'communication'
+  },
+  'prototype-interactions': {
+    label: 'Prototype interactions',
+    description: 'Create interactive mockups and test user flows',
+    primaryTools: ['figma', 'invision', 'marvel-app', 'protopie'],
+    supportingTools: ['whimsical', 'loom', 'usabilityhub'],
+    difficulty: 'intermediate',
+    category: 'design'
+  },
+  'conduct-user-research': {
+    label: 'Conduct user research',
+    description: 'Plan and execute user interviews and usability tests',
+    primaryTools: ['calendly', 'loom', 'typeform', 'usabilityhub'],
+    supportingTools: ['hotjar', 'notion', 'miro'],
+    difficulty: 'intermediate',
+    category: 'research'
+  },
+  'manage-product-backlog': {
+    label: 'Manage product backlog',
+    description: 'Prioritize and organize product features and improvements',
+    primaryTools: ['linear', 'notion', 'airtable', 'productplan'],
+    supportingTools: ['jira', 'github', 'confluence'],
+    difficulty: 'intermediate',
+    category: 'management'
+  },
+  'design-system-architecture': {
+    label: 'Design system architecture',
+    description: 'Plan technical system structure and components',
+    primaryTools: ['draw-io', 'lucidchart', 'eraser-io', 'whimsical'],
+    supportingTools: ['figma', 'notion', 'confluence'],
+    difficulty: 'advanced',
+    category: 'technical'
+  },
+  'create-mockups': {
+    label: 'Create mockups',
+    description: 'Design high-fidelity visual representations of interfaces',
+    primaryTools: ['figma', 'canva', 'balsamiq', 'marvel-app'],
+    supportingTools: ['storyset', 'invision', 'loom'],
+    difficulty: 'intermediate',
+    category: 'design'
+  },
+  'analyze-competitors': {
+    label: 'Analyze competitors',
+    description: 'Research and compare competitive products and strategies',
+    primaryTools: ['notion', 'airtable', 'miro', 'confluence'],
+    supportingTools: ['google-analytics', 'hotjar', 'loom'],
+    difficulty: 'intermediate',
+    category: 'strategy'
+  }
+}
+
+// Generate the dropdown list from use case mappings
+export const COMMON_USE_CASES = Object.values(USE_CASE_MAPPINGS).map(mapping => mapping.label)
 
 // Helper functions
 export const getToolsByCategory = (category: PMToolCategory): PMTool[] => {
@@ -866,4 +1142,84 @@ export const searchTools = (query: string): PMTool[] => {
     tool.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery)) ||
     tool.useCases.some(useCase => useCase.toLowerCase().includes(lowercaseQuery))
   )
-} 
+}
+
+// Get tools by use case with smart ranking
+export const getToolsByUseCase = (useCase: string): {
+  primary: PMTool[];
+  supporting: PMTool[];
+  metadata: {
+    description: string;
+    difficulty: string;
+    category: string;
+  };
+} => {
+  // Find the use case mapping
+  const useCaseKey = Object.keys(USE_CASE_MAPPINGS).find(
+    key => USE_CASE_MAPPINGS[key].label.toLowerCase() === useCase.toLowerCase()
+  )
+  
+  if (!useCaseKey) {
+    // Fallback to search if no specific mapping found
+    const searchResults = searchTools(useCase)
+    return {
+      primary: searchResults.slice(0, 4),
+      supporting: searchResults.slice(4, 8),
+      metadata: {
+        description: `Tools related to "${useCase}"`,
+        difficulty: 'intermediate',
+        category: 'general'
+      }
+    }
+  }
+  
+  const mapping = USE_CASE_MAPPINGS[useCaseKey]
+  
+  // Get primary tools
+  const primaryTools = mapping.primaryTools
+    .map(id => PM_TOOLS.find(tool => tool.id === id))
+    .filter((tool): tool is PMTool => tool !== undefined)
+    .sort((a, b) => {
+      // Prioritize by popularity, then by rating
+      if (a.isPopular && !b.isPopular) return -1
+      if (!a.isPopular && b.isPopular) return 1
+      return (b.rating || 0) - (a.rating || 0)
+    })
+  
+  // Get supporting tools
+  const supportingTools = mapping.supportingTools
+    .map(id => PM_TOOLS.find(tool => tool.id === id))
+    .filter((tool): tool is PMTool => tool !== undefined)
+    .filter(tool => !primaryTools.includes(tool)) // Don't duplicate
+    .sort((a, b) => {
+      // Prioritize by popularity, then by rating
+      if (a.isPopular && !b.isPopular) return -1
+      if (!a.isPopular && b.isPopular) return 1
+      return (b.rating || 0) - (a.rating || 0)
+    })
+  
+  return {
+    primary: primaryTools,
+    supporting: supportingTools,
+    metadata: {
+      description: mapping.description,
+      difficulty: mapping.difficulty,
+      category: mapping.category
+    }
+  }
+}
+
+// Get use case suggestions based on current tools
+export const getUseCaseSuggestions = (toolIds: string[]): string[] => {
+  const suggestions = new Set<string>()
+  
+  toolIds.forEach(toolId => {
+    Object.entries(USE_CASE_MAPPINGS).forEach(([key, mapping]) => {
+      if (mapping.primaryTools.includes(toolId) || mapping.supportingTools.includes(toolId)) {
+        suggestions.add(mapping.label)
+      }
+    })
+  })
+  
+  return Array.from(suggestions).slice(0, 6) // Return top 6 suggestions
+}
