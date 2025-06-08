@@ -1,4 +1,5 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 import { LoadingSpinner } from './loading-spinner'
 import { Icons } from './icons'
 import { cn } from '../../lib/utils'
@@ -51,9 +52,12 @@ export function PageLoader({
 
   const variantStyles = getVariantStyles()
 
-  return (
+  // Only render on client-side and use portal to render at document body level
+  if (typeof window === 'undefined') return null
+
+  const loaderContent = (
     <div className={cn(
-      "fixed inset-0 z-50 flex items-center justify-center",
+      "fixed inset-0 z-[9999] flex items-center justify-center",
       "backdrop-blur-sm bg-black/20",
       className
     )}>
@@ -165,4 +169,6 @@ export function PageLoader({
       </div>
     </div>
   )
+
+  return createPortal(loaderContent, document.body)
 } 
