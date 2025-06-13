@@ -32,6 +32,7 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
   const [jiraFields, setJiraFields] = useState<JiraField[]>([])
   const [loadingJiraFields, setLoadingJiraFields] = useState(false)
   const [showFieldExtractionEditor, setShowFieldExtractionEditor] = useState(false)
+  const [isDiscoveringFields, setIsDiscoveringFields] = useState(false)
 
   // Work item instructions state
   const [workItemInstructions, setWorkItemInstructions] = useState('')
@@ -112,6 +113,83 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
       return
     }
     setShowFieldExtractionEditor(true)
+  }
+
+  const handleDiscoverFields = async () => {
+    setIsDiscoveringFields(true)
+    try {
+      // Get Jira connection from localStorage
+      const jiraConnection = JSON.parse(localStorage.getItem('jira-connection') || '{}')
+      
+      if (!jiraConnection.url) {
+        alert('No Jira connection found. Please configure your Jira connection first.')
+        return
+      }
+
+      // Call the same API endpoint that Create & Push uses
+      const response = await fetch('/api/jira/discover-fields', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jiraConnection,
+          workItemType: selectedWorkItemType
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Transform the API response to match JiraField interface
+        const jiraFieldsData: JiraField[] = data.fields.map((field: any) => ({
+          id: field.id,
+          name: field.name,
+          type: field.type as JiraField['type'], 
+          required: field.required,
+          allowedValues: field.allowedValues?.map((v: any) => 
+            typeof v === 'object' ? (v.name || v.value || v.id) : v
+          ),
+          description: field.description,
+          schema: field.schema,
+          isMultiSelect: field.isMultiSelect
+        }))
+        
+        // Save to localStorage cache manually (since saveFieldMapping is private)
+        const fieldMapping = {
+          workItemType: selectedWorkItemType,
+          issueType: data.issueTypeName || 'Epic',
+          fields: jiraFieldsData,
+          discoveredAt: new Date().toISOString()
+        }
+        
+        try {
+          const stored = localStorage.getItem('jira-field-mappings')
+          const mappings = stored ? JSON.parse(stored) : []
+          
+          // Remove existing mapping for this work item type
+          const filtered = mappings.filter((m: any) => m.workItemType !== selectedWorkItemType)
+          filtered.push(fieldMapping)
+          
+          localStorage.setItem('jira-field-mappings', JSON.stringify(filtered))
+        } catch (error) {
+          console.error('Failed to save field mapping:', error)
+        }
+        
+        // Update local state
+        setJiraFields(jiraFieldsData)
+        
+        alert(`Successfully discovered ${jiraFieldsData.length} fields for ${selectedWorkItemType}!`)
+      } else {
+        const errorData = await response.json()
+        alert(`Failed to discover fields: ${errorData.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error discovering fields:', error)
+      alert('Failed to discover fields. Please check your connection and try again.')
+    } finally {
+      setIsDiscoveringFields(false)
+    }
   }
 
   const getSectionIcon = (section: ConfigSection) => {
@@ -472,24 +550,46 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <span>Field Extraction Configuration</span>
-                    <Button
-                      size="sm"
-                      onClick={handleOpenFieldExtractionEditor}
-                      className="jira-btn-primary"
-                      disabled={loadingJiraFields}
-                    >
-                      {loadingJiraFields ? (
-                        <>
-                          <Icons.Loader size="sm" className="animate-spin mr-2" />
-                          Loading Fields...
-                        </>
-                      ) : (
-                        <>
-                          <Icons.Settings size="sm" autoContrast className="mr-2" />
-                          Configure Extraction
-                        </>
+                    <div className="flex gap-2">
+                      {jiraFields.length === 0 && (
+                        <Button
+                          size="sm"
+                          onClick={handleDiscoverFields}
+                          className="jira-btn-primary"
+                          disabled={loadingJiraFields || isDiscoveringFields}
+                        >
+                          {isDiscoveringFields ? (
+                            <>
+                              <Icons.Loader size="sm" className="animate-spin mr-2" />
+                              Discovering...
+                            </>
+                          ) : (
+                            <>
+                              <Icons.Search size="sm" autoContrast className="mr-2" />
+                              Discover Fields
+                            </>
+                          )}
+                        </Button>
                       )}
-                    </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleOpenFieldExtractionEditor}
+                        className="jira-btn-primary"
+                        disabled={loadingJiraFields || jiraFields.length === 0}
+                      >
+                        {loadingJiraFields ? (
+                          <>
+                            <Icons.Loader size="sm" className="animate-spin mr-2" />
+                            Loading Fields...
+                          </>
+                        ) : (
+                          <>
+                            <Icons.Settings size="sm" autoContrast className="mr-2" />
+                            Configure Extraction
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </CardTitle>
                   <CardDescription>
                     Configure how fields are extracted when pushing {selectedWorkItemType} content to Jira
