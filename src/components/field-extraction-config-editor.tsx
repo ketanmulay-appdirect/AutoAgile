@@ -54,6 +54,7 @@ export function FieldExtractionConfigEditor({
   const [isScanning, setIsScanning] = useState(false)
   const [discoveryError, setDiscoveryError] = useState<string | null>(null)
   const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set())
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     initializeConfigs()
@@ -177,6 +178,14 @@ export function FieldExtractionConfigEditor({
       const data = await response.json()
       setDiscoveredFields(data.fields)
       setShowFieldDiscovery(true)
+      
+      // Auto-expand all categories when searching to show all results
+      if (searchTerm.trim() && data.fields) {
+        const categories = Object.keys(data.fields).filter(key => 
+          data.fields[key as keyof CategorizedFields].length > 0
+        )
+        setExpandedCategories(new Set(categories))
+      }
     } catch (error) {
       setDiscoveryError(error instanceof Error ? error.message : 'Failed to discover fields')
     } finally {
@@ -187,10 +196,13 @@ export function FieldExtractionConfigEditor({
   const handleSearchFields = async () => {
     if (!searchTerm.trim()) {
       setDiscoveredFields(null)
+      setExpandedCategories(new Set()) // Reset expanded state when clearing search
       return
     }
     
     await handleDiscoverAllFields()
+    // Auto-expand all categories when searching to show all results
+    // This will be set after the API call completes and discoveredFields is updated
   }
 
   const handleAddSelectedFields = () => {
@@ -229,6 +241,18 @@ export function FieldExtractionConfigEditor({
         newSet.delete(fieldId)
       } else {
         newSet.add(fieldId)
+      }
+      return newSet
+    })
+  }
+
+  const toggleCategoryExpansion = (categoryName: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(categoryName)) {
+        newSet.delete(categoryName)
+      } else {
+        newSet.add(categoryName)
       }
       return newSet
     })
@@ -647,7 +671,10 @@ export function FieldExtractionConfigEditor({
                         </div>
                       </div>
                       <div className="p-3 space-y-2">
-                        {discoveredFields.commonly_used.slice(0, 3).map(field => (
+                        {(expandedCategories.has('commonly_used') || searchTerm.trim() 
+                          ? discoveredFields.commonly_used 
+                          : discoveredFields.commonly_used.slice(0, 3)
+                        ).map(field => (
                           <FieldDiscoveryCard
                             key={field.id}
                             field={field}
@@ -655,10 +682,21 @@ export function FieldExtractionConfigEditor({
                             onToggle={() => toggleFieldSelection(field.id)}
                           />
                         ))}
-                        {discoveredFields.commonly_used.length > 3 && (
-                          <p className="text-xs text-gray-500 text-center pt-2">
-                            +{discoveredFields.commonly_used.length - 3} more fields
-                          </p>
+                        {discoveredFields.commonly_used.length > 3 && !expandedCategories.has('commonly_used') && !searchTerm.trim() && (
+                          <button
+                            onClick={() => toggleCategoryExpansion('commonly_used')}
+                            className="w-full text-xs text-blue-600 hover:text-blue-800 text-center pt-2 transition-colors"
+                          >
+                            Show {discoveredFields.commonly_used.length - 3} more fields
+                          </button>
+                        )}
+                        {expandedCategories.has('commonly_used') && !searchTerm.trim() && discoveredFields.commonly_used.length > 3 && (
+                          <button
+                            onClick={() => toggleCategoryExpansion('commonly_used')}
+                            className="w-full text-xs text-gray-600 hover:text-gray-800 text-center pt-2 transition-colors"
+                          >
+                            Show less
+                          </button>
                         )}
                       </div>
                     </div>
@@ -684,7 +722,10 @@ export function FieldExtractionConfigEditor({
                         </div>
                       </div>
                       <div className="p-3 space-y-2">
-                        {discoveredFields.project_specific.slice(0, 2).map(field => (
+                        {(expandedCategories.has('project_specific') || searchTerm.trim() 
+                          ? discoveredFields.project_specific 
+                          : discoveredFields.project_specific.slice(0, 2)
+                        ).map(field => (
                           <FieldDiscoveryCard
                             key={field.id}
                             field={field}
@@ -692,10 +733,123 @@ export function FieldExtractionConfigEditor({
                             onToggle={() => toggleFieldSelection(field.id)}
                           />
                         ))}
-                        {discoveredFields.project_specific.length > 2 && (
-                          <p className="text-xs text-gray-500 text-center pt-2">
-                            +{discoveredFields.project_specific.length - 2} more fields
-                          </p>
+                        {discoveredFields.project_specific.length > 2 && !expandedCategories.has('project_specific') && !searchTerm.trim() && (
+                          <button
+                            onClick={() => toggleCategoryExpansion('project_specific')}
+                            className="w-full text-xs text-blue-600 hover:text-blue-800 text-center pt-2 transition-colors"
+                          >
+                            Show {discoveredFields.project_specific.length - 2} more fields
+                          </button>
+                        )}
+                        {expandedCategories.has('project_specific') && !searchTerm.trim() && discoveredFields.project_specific.length > 2 && (
+                          <button
+                            onClick={() => toggleCategoryExpansion('project_specific')}
+                            className="w-full text-xs text-gray-600 hover:text-gray-800 text-center pt-2 transition-colors"
+                          >
+                            Show less
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Optional Standard Fields */}
+                  {discoveredFields.optional_standard.length > 0 && (
+                    <div className="border border-gray-200 rounded-lg">
+                      <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-sm">
+                            <Icons.FileText size="sm" className="text-gray-500 mr-2" />
+                            <span className="font-medium">Optional Standard ({discoveredFields.optional_standard.length})</span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => selectAllInCategory(discoveredFields.optional_standard)}
+                            className="text-xs"
+                          >
+                            Select All
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        {(expandedCategories.has('optional_standard') || searchTerm.trim() 
+                          ? discoveredFields.optional_standard 
+                          : discoveredFields.optional_standard.slice(0, 2)
+                        ).map(field => (
+                          <FieldDiscoveryCard
+                            key={field.id}
+                            field={field}
+                            isSelected={selectedFields.has(field.id)}
+                            onToggle={() => toggleFieldSelection(field.id)}
+                          />
+                        ))}
+                        {discoveredFields.optional_standard.length > 2 && !expandedCategories.has('optional_standard') && !searchTerm.trim() && (
+                          <button
+                            onClick={() => toggleCategoryExpansion('optional_standard')}
+                            className="w-full text-xs text-blue-600 hover:text-blue-800 text-center pt-2 transition-colors"
+                          >
+                            Show {discoveredFields.optional_standard.length - 2} more fields
+                          </button>
+                        )}
+                        {expandedCategories.has('optional_standard') && !searchTerm.trim() && discoveredFields.optional_standard.length > 2 && (
+                          <button
+                            onClick={() => toggleCategoryExpansion('optional_standard')}
+                            className="w-full text-xs text-gray-600 hover:text-gray-800 text-center pt-2 transition-colors"
+                          >
+                            Show less
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* System Fields */}
+                  {discoveredFields.system_fields.length > 0 && (
+                    <div className="border border-gray-200 rounded-lg">
+                      <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-sm">
+                            <Icons.Settings size="sm" className="text-gray-500 mr-2" />
+                            <span className="font-medium">System Fields ({discoveredFields.system_fields.length})</span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => selectAllInCategory(discoveredFields.system_fields)}
+                            className="text-xs"
+                          >
+                            Select All
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        {(expandedCategories.has('system_fields') || searchTerm.trim() 
+                          ? discoveredFields.system_fields 
+                          : discoveredFields.system_fields.slice(0, 2)
+                        ).map(field => (
+                          <FieldDiscoveryCard
+                            key={field.id}
+                            field={field}
+                            isSelected={selectedFields.has(field.id)}
+                            onToggle={() => toggleFieldSelection(field.id)}
+                          />
+                        ))}
+                        {discoveredFields.system_fields.length > 2 && !expandedCategories.has('system_fields') && !searchTerm.trim() && (
+                          <button
+                            onClick={() => toggleCategoryExpansion('system_fields')}
+                            className="w-full text-xs text-blue-600 hover:text-blue-800 text-center pt-2 transition-colors"
+                          >
+                            Show {discoveredFields.system_fields.length - 2} more fields
+                          </button>
+                        )}
+                        {expandedCategories.has('system_fields') && !searchTerm.trim() && discoveredFields.system_fields.length > 2 && (
+                          <button
+                            onClick={() => toggleCategoryExpansion('system_fields')}
+                            className="w-full text-xs text-gray-600 hover:text-gray-800 text-center pt-2 transition-colors"
+                          >
+                            Show less
+                          </button>
                         )}
                       </div>
                     </div>
