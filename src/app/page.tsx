@@ -4,20 +4,26 @@ import React, { useState } from 'react'
 import { JiraInstance } from '../types'
 import { JiraConnection } from '../components/jira-connection'
 import { DevsAIConnection, type DevsAIConnection as DevsAIConnectionType } from '../components/devs-ai-connection'
+import { OpenAIConnection } from '../components/openai-connection'
+import { AnthropicConnection } from '../components/anthropic-connection'
 import { EnhancedWorkItemCreator } from '../components/enhanced-work-item-creator'
 import { TemplateConfiguration } from '../components/template-configuration'
 import { ContentStudio } from '../components/content-studio'
 import { WorkItemsPage } from '../components/work-items-page'
 import { PMResources } from '../components/pm-resources'
+import { AIModelsHub } from '../components/ai-models-hub'
 
 import { AppLayout } from '../components/app-layout'
 
-
+import { type OpenAIConnection as OpenAIConnectionType } from '../lib/openai-service'
+import { type AnthropicConnection as AnthropicConnectionType } from '../lib/anthropic-service'
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio' | 'work-items' | 'pm-resources'>('create')
+  const [currentView, setCurrentView] = useState<'create' | 'jira' | 'ai-models' | 'config' | 'content-studio' | 'work-items' | 'pm-resources'>('create')
   const [jiraConnection, setJiraConnection] = useState<JiraInstance | null>(null)
   const [devsAIConnection, setDevsAIConnection] = useState<DevsAIConnectionType | null>(null)
+  const [openAIConnection, setOpenAIConnection] = useState<OpenAIConnectionType | null>(null)
+  const [anthropicConnection, setAnthropicConnection] = useState<AnthropicConnectionType | null>(null)
 
   // Load connections from localStorage on mount
   React.useEffect(() => {
@@ -43,6 +49,30 @@ export default function Home() {
         console.error('Failed to parse saved Devs.ai connection:', error)
         localStorage.removeItem('devs-ai-connection')
       }
+    }
+
+    // Load OpenAI connection
+    const savedOpenAIConnection = localStorage.getItem('openai-connection')
+    if (savedOpenAIConnection) {
+        try {
+            const parsed = JSON.parse(savedOpenAIConnection)
+            setOpenAIConnection(parsed)
+        } catch (error) {
+            console.error('Failed to parse saved OpenAI connection:', error)
+            localStorage.removeItem('openai-connection')
+        }
+    }
+
+    // Load Anthropic connection
+    const savedAnthropicConnection = localStorage.getItem('anthropic-connection')
+    if (savedAnthropicConnection) {
+        try {
+            const parsed = JSON.parse(savedAnthropicConnection)
+            setAnthropicConnection(parsed)
+        } catch (error) {
+            console.error('Failed to parse saved Anthropic connection:', error)
+            localStorage.removeItem('anthropic-connection')
+        }
     }
   }, [])
 
@@ -82,15 +112,30 @@ export default function Home() {
 
   const handleDevsAIConnectionSaved = (connection: DevsAIConnectionType) => {
     setDevsAIConnection(connection)
-    setCurrentView('create')
   }
 
   const handleDevsAIConnectionRemoved = () => {
     setDevsAIConnection(null)
   }
 
+  const handleOpenAIConnectionSaved = (connection: OpenAIConnectionType) => {
+    setOpenAIConnection(connection)
+  }
+
+  const handleOpenAIConnectionRemoved = () => {
+    setOpenAIConnection(null)
+  }
+
+  const handleAnthropicConnectionSaved = (connection: AnthropicConnectionType) => {
+    setAnthropicConnection(connection)
+  }
+
+  const handleAnthropicConnectionRemoved = () => {
+    setAnthropicConnection(null)
+  }
+
   const handleViewChange = (view: string) => {
-    setCurrentView(view as 'create' | 'jira' | 'devs-ai' | 'config' | 'content-studio' | 'work-items' | 'pm-resources')
+    setCurrentView(view as 'create' | 'jira' | 'ai-models' | 'config' | 'content-studio' | 'work-items' | 'pm-resources')
   }
 
   // Get current view title and description
@@ -111,10 +156,10 @@ export default function Home() {
           title: 'Jira Connection',
           description: 'Configure your Jira instance connection'
         }
-      case 'devs-ai':
+      case 'ai-models':
         return {
-          title: 'Devs.ai Connection',
-          description: 'Configure AI content generation settings'
+          title: 'AI Models',
+          description: 'Configure your connections to OpenAI, Anthropic, and Devs.ai'
         }
       case 'config':
         return {
@@ -147,6 +192,8 @@ export default function Home() {
       onViewChange={handleViewChange}
       jiraConnection={jiraConnection}
       devsAIConnection={devsAIConnection}
+      openAIConnection={openAIConnection}
+      anthropicConnection={anthropicConnection}
     >
       {/* Header */}
       <header className="bg-white border-b border-cloud-200 shadow-sm">
@@ -169,6 +216,8 @@ export default function Home() {
             <EnhancedWorkItemCreator
               jiraConnection={jiraConnection}
               devsAIConnection={devsAIConnection}
+              openAIConnection={openAIConnection}
+              anthropicConnection={anthropicConnection}
             />
           )}
 
@@ -186,10 +235,14 @@ export default function Home() {
             />
           )}
 
-          {currentView === 'devs-ai' && (
-            <DevsAIConnection 
-              onConnectionSaved={handleDevsAIConnectionSaved}
-              onConnectionRemoved={handleDevsAIConnectionRemoved}
+          {currentView === 'ai-models' && (
+            <AIModelsHub
+              onOpenAIConnectionSaved={handleOpenAIConnectionSaved}
+              onOpenAIConnectionRemoved={handleOpenAIConnectionRemoved}
+              onAnthropicConnectionSaved={handleAnthropicConnectionSaved}
+              onAnthropicConnectionRemoved={handleAnthropicConnectionRemoved}
+              onDevsAIConnectionSaved={handleDevsAIConnectionSaved}
+              onDevsAIConnectionRemoved={handleDevsAIConnectionRemoved}
             />
           )}
 

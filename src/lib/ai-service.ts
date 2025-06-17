@@ -214,12 +214,39 @@ Generate a well-structured ${type} with appropriate sections and professional fo
 let aiServiceInstance: AIService | null = null
 
 export function getAIService(): AIService {
-  if (!aiServiceInstance) {
-    aiServiceInstance = new AIService({
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      defaultProvider: process.env.OPENAI_API_KEY ? 'openai' : 'anthropic'
-    })
+  if (aiServiceInstance) {
+    return aiServiceInstance
   }
+
+  let openaiApiKey = process.env.OPENAI_API_KEY
+  let anthropicApiKey = process.env.ANTHROPIC_API_KEY
+
+  // If on the client-side, try to load from localStorage
+  if (typeof window !== 'undefined') {
+    const savedOpenAI = localStorage.getItem('openai-connection')
+    if (savedOpenAI) {
+      try {
+        openaiApiKey = JSON.parse(savedOpenAI).apiKey
+      } catch (e) {
+        console.error('Failed to parse openai-connection from localStorage', e)
+      }
+    }
+
+    const savedAnthropic = localStorage.getItem('anthropic-connection')
+    if (savedAnthropic) {
+      try {
+        anthropicApiKey = JSON.parse(savedAnthropic).apiKey
+      } catch (e) {
+        console.error('Failed to parse anthropic-connection from localStorage', e)
+      }
+    }
+  }
+
+  aiServiceInstance = new AIService({
+    openaiApiKey,
+    anthropicApiKey,
+    defaultProvider: openaiApiKey ? 'openai' : 'anthropic'
+  })
+  
   return aiServiceInstance
 } 

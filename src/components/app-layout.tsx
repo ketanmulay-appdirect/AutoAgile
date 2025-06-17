@@ -9,6 +9,8 @@ interface AppLayoutProps {
   onViewChange: (view: string) => void
   jiraConnection: any
   devsAIConnection: any
+  openAIConnection?: any
+  anthropicConnection?: any
 }
 
 export function AppLayout({ 
@@ -16,7 +18,9 @@ export function AppLayout({
   currentView, 
   onViewChange, 
   jiraConnection, 
-  devsAIConnection 
+  devsAIConnection,
+  openAIConnection,
+  anthropicConnection
 }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-cloud-100 flex">
@@ -26,6 +30,8 @@ export function AppLayout({
         onViewChange={onViewChange}
         jiraConnection={jiraConnection}
         devsAIConnection={devsAIConnection}
+        openAIConnection={openAIConnection}
+        anthropicConnection={anthropicConnection}
       />
       
       {/* Main Content */}

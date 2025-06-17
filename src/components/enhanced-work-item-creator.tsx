@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { WorkItemType, GeneratedContent, AIModel, JiraInstance, WorkItemTemplate, JiraField, EnhancedExtractionResult, FieldExtractionConfig, ExtractionPreferences, PMToolCategory } from '../types'
+import { type OpenAIConnection } from '../lib/openai-service'
+import { type AnthropicConnection } from '../lib/anthropic-service'
 import { ContentEditor } from './content-editor'
 import { ToastContainer } from './ui/toast'
 import { useToast } from '../hooks/use-toast'
@@ -31,6 +33,8 @@ import { cn } from '../lib/utils'
 interface EnhancedWorkItemCreatorProps {
   jiraConnection: JiraInstance | null
   devsAIConnection?: DevsAIConnection | null
+  openAIConnection?: OpenAIConnection | null
+  anthropicConnection?: AnthropicConnection | null
 }
 
 // Chat message interface
@@ -75,7 +79,7 @@ function parseGeneratedContent(content: string, workItemType: WorkItemType): Gen
   }
 }
 
-export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: EnhancedWorkItemCreatorProps) {
+export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, openAIConnection, anthropicConnection }: EnhancedWorkItemCreatorProps) {
   const [workItemType, setWorkItemType] = useState<WorkItemType>('epic')
   const [description, setDescription] = useState('')
   const [aiModel, setAiModel] = useState<AIModel>('auto')
@@ -89,6 +93,8 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
   const [isEditing, setIsEditing] = useState(false)
   const [jiraIssueUrl, setJiraIssueUrl] = useState<string | null>(null)
   const [isDevsAIReady, setIsDevsAIReady] = useState(false)
+  const [isOpenAIReady, setIsOpenAIReady] = useState(false)
+  const [isAnthropicReady, setIsAnthropicReady] = useState(false)
   const [selectedDevsAIModel, setSelectedDevsAIModel] = useState('gpt-4')
   const [selectedTemplate, setSelectedTemplate] = useState<string>('default')
   
@@ -267,6 +273,28 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
       }
     }
   }, [devsAIConnection])
+
+  // Check for OpenAI connection on component mount
+  useEffect(() => {
+    if (openAIConnection) {
+      setIsOpenAIReady(true)
+    } else {
+      setIsOpenAIReady(false)
+      // Reset to auto if currently set to openai but connection is not available
+      setAiModel(prevModel => prevModel === 'openai' ? 'auto' : prevModel)
+    }
+  }, [openAIConnection])
+
+  // Check for Anthropic connection on component mount
+  useEffect(() => {
+    if (anthropicConnection) {
+      setIsAnthropicReady(true)
+    } else {
+      setIsAnthropicReady(false)
+      // Reset to auto if currently set to anthropic but connection is not available
+      setAiModel(prevModel => prevModel === 'anthropic' ? 'auto' : prevModel)
+    }
+  }, [anthropicConnection])
 
   // Reset template selection when work item type changes
   useEffect(() => {
@@ -913,8 +941,12 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                       disabled={isGenerating || isPushing || isValidating}
                     >
                       <option value="auto">Auto (Free - Gemini)</option>
-                      <option value="openai">OpenAI GPT-4</option>
-                      <option value="anthropic">Anthropic Claude</option>
+                      <option value="openai">
+                        {isOpenAIReady ? 'OpenAI GPT-4' : 'OpenAI GPT-4 - Setup Required'}
+                      </option>
+                      <option value="anthropic">
+                        {isAnthropicReady ? 'Anthropic Claude' : 'Anthropic Claude - Setup Required'}
+                      </option>
                       <option value="devs-ai">
                         {isDevsAIReady ? 'Devs.ai (Multiple LLMs)' : 'Devs.ai (Multiple LLMs) - Setup Required'}
                       </option>
@@ -998,10 +1030,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                           <LoadingSpinner size="sm" variant="white" className="mr-2" />
                           Generating...
                         </>
-                    ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
+                    ) : (aiModel === 'devs-ai' && !isDevsAIReady) || (aiModel === 'openai' && !isOpenAIReady) || (aiModel === 'anthropic' && !isAnthropicReady) ? (
                         <>
                           <Icons.Settings size="sm" autoContrast className="mr-2" />
-                          Setup Devs.ai API Key
+                          Setup API Key
                         </>
                     ) : (
                         <>
@@ -1065,8 +1097,12 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                       disabled={isGenerating || isPushing || isValidating}
                     >
                       <option value="auto">Auto (Free - Gemini)</option>
-                      <option value="openai">OpenAI GPT-4</option>
-                      <option value="anthropic">Anthropic Claude</option>
+                      <option value="openai">
+                        {isOpenAIReady ? 'OpenAI GPT-4' : 'OpenAI GPT-4 - Setup Required'}
+                      </option>
+                      <option value="anthropic">
+                        {isAnthropicReady ? 'Anthropic Claude' : 'Anthropic Claude - Setup Required'}
+                      </option>
                       <option value="devs-ai">
                         {isDevsAIReady ? 'Devs.ai (Multiple LLMs)' : 'Devs.ai (Multiple LLMs) - Setup Required'}
                       </option>
@@ -1150,10 +1186,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
                           <LoadingSpinner size="sm" variant="white" className="mr-2" />
                           Generating...
                         </>
-                    ) : aiModel === 'devs-ai' && !isDevsAIReady ? (
+                    ) : (aiModel === 'devs-ai' && !isDevsAIReady) || (aiModel === 'openai' && !isOpenAIReady) || (aiModel === 'anthropic' && !isAnthropicReady) ? (
                         <>
                           <Icons.Settings size="sm" autoContrast className="mr-2" />
-                          Setup Devs.ai API Key
+                          Setup API Key
                         </>
                     ) : (
                         <>
@@ -1238,20 +1274,14 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection }: En
               {!isEditing && (
                 <CardContent className="bg-cloud-50 border-t">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {jiraConnection ? (
-                        <>
-                          <StatusIcons.Done size="sm" />
-                          <Badge variant="success">Jira Connected</Badge>
-                          <span className="text-xs text-cloud-600">({jiraConnection.url})</span>
-                        </>
-                      ) : (
+                    {!jiraConnection && (
+                      <div className="flex items-center space-x-3">
                         <>
                           <StatusIcons.Error size="sm" />
                           <Badge variant="destructive">Jira Not Connected</Badge>
                         </>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     
                     {!jiraConnection && (
                       <Button
