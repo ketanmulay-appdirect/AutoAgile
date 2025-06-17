@@ -10,9 +10,11 @@ interface SidebarProps {
   onViewChange: (view: string) => void
   jiraConnection: any
   devsAIConnection: any
+  openAIConnection?: any
+  anthropicConnection?: any
 }
 
-export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConnection }: SidebarProps) {
+export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConnection, openAIConnection, anthropicConnection }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   // Grouped navigation structure
@@ -65,11 +67,11 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
           status: jiraConnection ? 'connected' : 'disconnected'
         },
         {
-          id: 'devs-ai',
-          label: 'Devs.ai Connection',
-          icon: Icons.Zap,
-          description: 'Configure AI content generation',
-          status: devsAIConnection ? 'connected' : 'disconnected'
+          id: 'ai-models',
+          label: 'AI Models',
+          icon: Icons.Sparkles,
+          description: 'Configure OpenAI, Anthropic, and Devs.ai',
+          status: (openAIConnection || anthropicConnection || devsAIConnection) ? 'connected' : 'disconnected'
         }
       ]
     },
@@ -123,7 +125,7 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
 
       {/* Navigation Groups */}
       <nav className="flex-1 p-2 overflow-y-auto">
-        <div className="space-y-6">
+        <div className="space-y-4">
           {navigationGroups.map((group, groupIndex) => (
             <div key={group.id}>
               {/* Section Header - only show when expanded */}
@@ -155,7 +157,7 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
                       <Button
                         variant={isActive ? "default" : "ghost"}
                         className={cn(
-                          "w-full justify-start h-auto p-3 relative",
+                          "w-full justify-start h-auto px-3 py-2 relative",
                           isCollapsed ? "px-3" : "px-3"
                         )}
                         onClick={() => onViewChange(item.id)}
@@ -182,7 +184,7 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
                                   </div>
                                 )}
                               </div>
-                              <p className="text-xs text-cloud-600 leading-relaxed break-words whitespace-normal">
+                              <p className="text-xs text-cloud-600 leading-snug break-words whitespace-normal">
                                 {item.description}
                               </p>
                             </div>

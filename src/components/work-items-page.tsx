@@ -316,7 +316,7 @@ export function WorkItemsPage({ jiraConnection }: WorkItemsPageProps) {
               onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-create'))}
               className="inline-flex items-center"
             >
-              <Icons.Plus size="sm" className="mr-2 text-current" />
+              <Icons.Plus size="sm" className="mr-2" />
               Create Work Item
             </Button>
           )}

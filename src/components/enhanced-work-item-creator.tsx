@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect } from 'react'
 import { WorkItemType, GeneratedContent, AIModel, JiraInstance, WorkItemTemplate, JiraField, EnhancedExtractionResult, FieldExtractionConfig, ExtractionPreferences, PMToolCategory } from '../types'
-import { type OpenAIConnection } from '../lib/openai-service'
-import { type AnthropicConnection } from '../lib/anthropic-service'
 import { ContentEditor } from './content-editor'
 import { ToastContainer } from './ui/toast'
 import { useToast } from '../hooks/use-toast'
@@ -1274,14 +1272,20 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
               {!isEditing && (
                 <CardContent className="bg-cloud-50 border-t">
                   <div className="flex items-center justify-between">
-                    {!jiraConnection && (
-                      <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3">
+                      {jiraConnection ? (
+                        <>
+                          <StatusIcons.Done size="sm" />
+                          <Badge variant="success">Jira Connected</Badge>
+                          <span className="text-xs text-cloud-600">({jiraConnection.url})</span>
+                        </>
+                      ) : (
                         <>
                           <StatusIcons.Error size="sm" />
                           <Badge variant="destructive">Jira Not Connected</Badge>
                         </>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     
                     {!jiraConnection && (
                       <Button
