@@ -39,29 +39,43 @@ export class AIService {
     const provider = options.model || this.config.defaultProvider
     const prompt = this.buildPrompt(type, description)
 
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - generateContent called`, {
+      type,
+      provider,
+      options,
+      promptLength: prompt.length
+    })
+
     try {
       if (provider === 'devs-ai') {
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Using DevS.ai provider`)
         return await this.generateWithDevsAI(prompt, options)
       } else if (provider === 'openai' && this.openai) {
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Using OpenAI provider`)
         return await this.generateWithOpenAI(prompt, options)
       } else if (provider === 'anthropic' && this.anthropic) {
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Using Anthropic provider`)
         return await this.generateWithAnthropic(prompt, options)
       } else {
         // Fallback to the other provider if the requested one isn't available
         if (provider === 'openai' && this.anthropic) {
+          console.log(`[AI-DEBUG] ${new Date().toISOString()} - OpenAI requested but not available, falling back to Anthropic`)
           return await this.generateWithAnthropic(prompt, options)
         } else if (provider === 'anthropic' && this.openai) {
+          console.log(`[AI-DEBUG] ${new Date().toISOString()} - Anthropic requested but not available, falling back to OpenAI`)
           return await this.generateWithOpenAI(prompt, options)
         } else {
+          console.error(`[AI-DEBUG] ${new Date().toISOString()} - No AI providers configured`)
           throw new Error('No AI providers configured')
         }
       }
     } catch (error) {
-      console.error(`Error with ${provider}:`, error)
+      console.error(`[AI-DEBUG] ${new Date().toISOString()} - Error with ${provider}:`, error)
       
       // Try fallback provider (but not devs-ai as it's client-side only)
       if (provider !== 'devs-ai') {
         const fallbackProvider = provider === 'openai' ? 'anthropic' : 'openai'
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Attempting fallback to ${fallbackProvider}`)
         if (fallbackProvider === 'anthropic' && this.anthropic) {
           return await this.generateWithAnthropic(prompt, options)
         } else if (fallbackProvider === 'openai' && this.openai) {
@@ -80,6 +94,12 @@ export class AIService {
     if (!this.openai) throw new Error('OpenAI not configured')
 
     const model = 'gpt-4o' // Latest GPT-4 model
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - generateWithOpenAI starting`, {
+      model,
+      maxTokens: options.maxTokens || 2000,
+      temperature: options.temperature || 0.7
+    })
+
     const response = await this.openai.chat.completions.create({
       model,
       messages: [
@@ -99,6 +119,12 @@ export class AIService {
     const content = response.choices[0]?.message?.content
     if (!content) throw new Error('No content generated from OpenAI')
 
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - generateWithOpenAI completed`, {
+      model,
+      contentLength: content.length,
+      usage: response.usage
+    })
+
     return {
       content,
       provider: 'openai',
@@ -113,6 +139,12 @@ export class AIService {
     if (!this.anthropic) throw new Error('Anthropic not configured')
 
     const model = 'claude-3-5-sonnet-20241022' // Latest Claude model
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - generateWithAnthropic starting`, {
+      model,
+      maxTokens: options.maxTokens || 2000,
+      temperature: options.temperature || 0.7
+    })
+
     const response = await this.anthropic.messages.create({
       model,
       max_tokens: options.maxTokens || 2000,
@@ -129,6 +161,12 @@ export class AIService {
     const content = response.content[0]
     if (content.type !== 'text') throw new Error('Unexpected response type from Anthropic')
 
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - generateWithAnthropic completed`, {
+      model,
+      contentLength: content.text.length,
+      usage: response.usage
+    })
+
     return {
       content: content.text,
       provider: 'anthropic',
@@ -140,6 +178,7 @@ export class AIService {
     prompt: string,
     options: AIGenerationOptions
   ): Promise<{ content: string; provider: AIProvider; model: string }> {
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - generateWithDevsAI called - this should not happen on server-side`)
     // DevS.ai is handled on the client-side, so this method should not be called on the server
     // This is a placeholder that will be overridden by client-side logic
     throw new Error('DevS.ai generation must be handled on the client-side')

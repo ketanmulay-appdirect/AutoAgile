@@ -31,8 +31,8 @@ import { cn } from '../lib/utils'
 interface EnhancedWorkItemCreatorProps {
   jiraConnection: JiraInstance | null
   devsAIConnection?: DevsAIConnection | null
-  openAIConnection?: OpenAIConnection | null
-  anthropicConnection?: AnthropicConnection | null
+  openAIConnection?: unknown | null
+  anthropicConnection?: unknown | null
 }
 
 // Chat message interface
@@ -300,49 +300,63 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
   }, [workItemType])
 
   const handleGenerate = async () => {
-    if (!description.trim()) {
-      error('Missing Description', 'Please provide a description for the work item.')
-      return
-    }
-
     if (!currentTemplate) {
-      warning('Template Not Loaded', 'Please wait for templates to load.')
+      error('Template Error', 'No template selected')
       return
     }
 
-    // Handle Devs.ai setup first if needed
-    if (aiModel === 'devs-ai' && !isDevsAIReady) {
-      warning('Devs.ai Not Connected', 'Please connect to Devs.ai first in the Devs.ai Connection tab.')
-      return
-    }
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push handleGenerate called`, {
+      workItemType,
+      aiModel,
+      selectedDevsAIModel,
+      templateName: currentTemplate.name,
+      descriptionLength: description.length,
+      isDevsAIReady,
+      isOpenAIReady,
+      isAnthropicReady
+    })
 
-    setIsGenerating(true)
-    setGeneratingStep(0)
-    setGeneratedContent(null)
-    setJiraIssueUrl(null)
+          setIsGenerating(true)
+      setGeneratingStep(0)
+      setGeneratedContent(null)
 
     try {
-      // Step 1: Preparing request
+      // Step 1: Preparing prompt
       setGeneratingStep(1)
-      await new Promise(resolve => setTimeout(resolve, 300))
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+             // Generate the prompt using the selected template
+       const customPrompt = templateService.generatePrompt(currentTemplate, description)
 
-      // Generate custom prompt using template
-      const customPrompt = templateService.generatePrompt(currentTemplate, description)
-      
-      // Store the original prompt for chat refiner
-      setOriginalPrompt(customPrompt)
-      
-      // Step 2: Sending to AI
+      console.log(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push prompt generated`, {
+        templateName: currentTemplate.name,
+        promptLength: customPrompt.length,
+        aiModel
+      })
+
+      // Step 2: Generating content
       setGeneratingStep(2)
+      await new Promise(resolve => setTimeout(resolve, 300))
       
       // Handle Devs.ai separately
       if (aiModel === 'devs-ai') {
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push using DevS.ai`, {
+          selectedDevsAIModel,
+          hasApiToken: !!devsAIConnection?.apiToken
+        })
+        
         if (!devsAIConnection?.apiToken) {
+          console.error(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push DevS.ai not configured`)
           throw new Error('DevS.ai connection not configured. Please set up your DevS.ai connection first.')
         }
 
         // Use Devs.ai service to generate content with custom prompt
         const devsAIContent = await devsAIService.generateContent(customPrompt, selectedDevsAIModel)
+        
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push DevS.ai content generated`, {
+          model: selectedDevsAIModel,
+          contentLength: devsAIContent.length
+        })
         
         // Step 3: Processing response
         setGeneratingStep(3)
@@ -360,6 +374,11 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
         success('Content Generated', `${workItemType} content has been generated successfully using Devs.ai (${selectedDevsAIModel}) with ${currentTemplate.name}.`)
         setIsUsingMockContent(false) // Real AI was used
       } else {
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push using standard AI models`, {
+          aiModel,
+          templateName: currentTemplate.name
+        })
+        
         // Handle other AI models with custom prompt
         const response = await fetch('/api/generate-content', {
           method: 'POST',
@@ -386,6 +405,10 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
         })
 
         if (!response.ok) {
+          console.error(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push API request failed`, {
+            status: response.status,
+            statusText: response.statusText
+          })
           throw new Error(`HTTP error! status: ${response.status}`)
         }
 
@@ -394,6 +417,13 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
         await new Promise(resolve => setTimeout(resolve, 200))
 
         const data = await response.json()
+        
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push API response received`, {
+          success: data.success,
+          contentLength: data.content?.length || 0,
+          model: data.metadata?.model,
+          aiModel
+        })
         
         if (!data.success) {
           throw new Error(data.error || 'Failed to generate content')
@@ -411,6 +441,13 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
         const isUsingMock = data.metadata?.model === 'mock-ai'
         setIsUsingMockContent(isUsingMock) // Track if mock content was used
         
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push content generation completed`, {
+          modelInfo,
+          isUsingMock,
+          contentLength: content.title.length + content.description.length,
+          templateUsed: currentTemplate.name
+        })
+        
         if (isUsingMock) {
           success('Content Generated (Mock)', `${workItemType} content has been generated using enhanced mock content. For real AI generation, configure OpenAI or Anthropic API keys in your environment.`)
         } else {
@@ -418,7 +455,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
         }
       }
     } catch (err) {
-      console.error('Error generating content:', err)
+      console.error(`[AI-DEBUG] ${new Date().toISOString()} - Create & Push generation error:`, err)
       error('Generation Failed', 'Failed to generate content. Please try again.')
     } finally {
       setIsGenerating(false)

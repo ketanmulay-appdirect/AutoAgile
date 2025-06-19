@@ -122,6 +122,13 @@ export function ContentStudioChatRefiner({
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isLoading) return
 
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio Chat Refiner sendMessage called`, {
+      contentType,
+      workItemKey: workItem.key,
+      messageLength: newMessage.trim().length,
+      isDevsAIAvailable
+    })
+
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -136,6 +143,7 @@ export function ContentStudioChatRefiner({
 
     try {
       if (!isDevsAIAvailable) {
+        console.error(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio Chat Refiner: DevS.ai not available`)
         throw new Error('DevS.ai connection is required for chat refinement. Please connect to DevS.ai in the "DevS.ai Connection" tab first.')
       }
 
@@ -154,6 +162,7 @@ export function ContentStudioChatRefiner({
       }
 
       if (!apiToken) {
+        console.error(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio Chat Refiner: API token not found`)
         throw new Error('DevS.ai API token not found. Please connect to DevS.ai first.')
       }
 
@@ -174,6 +183,12 @@ export function ContentStudioChatRefiner({
           content: newMessage.trim()
         }
       ]
+
+      console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio Chat Refiner: API request prepared`, {
+        messagesCount: apiMessages.length,
+        systemPromptLength: systemPrompt.length,
+        model: 'gpt-4' // DevS.ai default model for chat
+      })
 
       const response = await fetch('/api/devs-ai-proxy', {
         method: 'POST',
@@ -203,12 +218,19 @@ export function ContentStudioChatRefiner({
           // If error response is not JSON, use the status text
         }
         
+        console.error(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio Chat Refiner API error`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorMessage
+        })
+        
         throw new Error(errorMessage)
       }
 
       const data = await response.json()
       
       if (!data.choices || data.choices.length === 0) {
+        console.error(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio Chat Refiner: No choices returned`)
         throw new Error('No response generated from AI')
       }
 
@@ -219,9 +241,15 @@ export function ContentStudioChatRefiner({
         timestamp: new Date()
       }
 
+      console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio Chat Refiner: Response received`, {
+        model: 'devs-ai-gpt-4',
+        responseLength: assistantMessage.content.length,
+        messagesCount: updatedMessages.length + 1
+      })
+
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
-      console.error('Error sending message:', error)
+      console.error(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio Chat Refiner error:`, error)
       // Add error message to chat
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,

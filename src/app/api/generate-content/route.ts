@@ -2,25 +2,40 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAIService } from '../../../lib/ai-service'
 
 export async function POST(request: NextRequest) {
+  console.log(`[AI-DEBUG] ${new Date().toISOString()} - /api/generate-content POST request received`)
+  
   try {
-    const { prompt, contentType, workItem, useDevsAI, apiToken, context } = await request.json()
+    const body = await request.json()
+    const { prompt, contentType, workItem, useDevsAI, apiToken, context } = body
 
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - Request parsed`, {
+      contentType,
+      useDevsAI,
+      hasApiToken: !!apiToken,
+      promptLength: prompt?.length || 0,
+      preferredModel: context?.preferredModel,
+      template: context?.template
+    })
+
+    // Validate required fields
     if (!prompt || !contentType) {
-      return NextResponse.json(
-        { error: 'Missing required fields: prompt and contentType' },
-        { status: 400 }
-      )
+      console.error(`[AI-DEBUG] ${new Date().toISOString()} - Missing required fields`, {
+        hasPrompt: !!prompt,
+        contentType
+      })
+      return NextResponse.json({
+        success: false,
+        error: 'Prompt and content type are required'
+      }, { status: 400 })
     }
 
-    // If DevS.ai is requested and API token is provided, use real AI
+    // Handle DevS.ai requests
     if (useDevsAI && apiToken) {
+      console.log(`[AI-DEBUG] ${new Date().toISOString()} - Processing DevS.ai request`)
+      
       try {
-        // Use DevS.ai API through the proxy - use relative URL for server-side requests
-        const baseUrl = process.env.NODE_ENV === 'development' 
-          ? 'http://localhost:3000' 
-          : `https://${process.env.VERCEL_URL || 'localhost:3000'}`
-        
-        const devsAIResponse = await fetch(`${baseUrl}/api/devs-ai-proxy`, {
+        // Forward to DevS.ai proxy
+        const devsAIResponse = await fetch(`${request.nextUrl.origin}/api/devs-ai-proxy`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -31,7 +46,7 @@ export async function POST(request: NextRequest) {
               messages: [
                 {
                   role: 'system',
-                  content: 'You are an expert product manager and technical writer who creates professional, detailed content for business communications. Generate comprehensive, well-structured content that follows industry best practices.'
+                  content: 'You are an expert product manager and technical writer who creates professional, detailed content. Generate comprehensive, well-structured content that follows industry best practices.'
                 },
                 {
                   role: 'user',
@@ -41,42 +56,53 @@ export async function POST(request: NextRequest) {
               model: 'gpt-4',
               stream: false
             }
-          })
+          }),
         })
 
         if (devsAIResponse.ok) {
           const devsAIData = await devsAIResponse.json()
-          const aiContent = devsAIData.choices?.[0]?.message?.content || 'No content generated'
+          const content = devsAIData.choices?.[0]?.message?.content || 'No content generated'
+          
+          console.log(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai response successful`, {
+            contentLength: content.length,
+            model: 'gpt-4'
+          })
           
           return NextResponse.json({
             success: true,
-            content: aiContent,
+            content,
             metadata: {
               model: 'devs-ai-gpt-4',
-              tokensUsed: devsAIData.usage?.total_tokens || 0,
+              tokensUsed: 0,
               generatedAt: new Date().toISOString()
             }
           })
         } else {
-          console.error('DevS.ai API error:', await devsAIResponse.text())
-          // Fall back to mock content if DevS.ai fails
+          console.error(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai API failed`, {
+            status: devsAIResponse.status,
+            statusText: devsAIResponse.statusText
+          })
+          throw new Error(`DevS.ai API failed: ${devsAIResponse.status}`)
         }
       } catch (error) {
-        console.error('DevS.ai integration error:', error)
-        // Fall back to mock content if DevS.ai fails
+        console.error(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai request failed:`, error)
+        // Fall back to other providers
       }
     }
 
-    // Try to use real AI service if available (OpenAI/Anthropic)
+    // Try real AI services if available
     try {
       const aiService = getAIService()
-      const availableProviders = aiService.getAvailableProviders()
-      
-      if (availableProviders.length > 0) {
-        console.log('Using real AI service with providers:', availableProviders)
+      if (aiService.isConfigured()) {
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Using real AI service`, {
+          availableProviders: aiService.getAvailableProviders(),
+          preferredModel: context?.preferredModel
+        })
+        
+        // Determine which provider to use
+        const availableProviders = aiService.getAvailableProviders()
         const preferredModel = context?.preferredModel || 'auto'
         
-        // Map our AI model types to the AI service types
         let aiProvider: 'openai' | 'anthropic' | 'devs-ai' = 'openai'
         if (preferredModel === 'anthropic' && availableProviders.includes('anthropic')) {
           aiProvider = 'anthropic'
@@ -87,11 +113,19 @@ export async function POST(request: NextRequest) {
           aiProvider = availableProviders[0] as 'openai' | 'anthropic'
         }
         
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Selected AI provider: ${aiProvider}`)
+        
         const result = await aiService.generateContent(
           contentType as any, // Cast to WorkItemType
           prompt,
           { model: aiProvider }
         )
+        
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - AI service completed`, {
+          provider: result.provider,
+          model: result.model,
+          contentLength: result.content.length
+        })
         
         return NextResponse.json({
           success: true,
@@ -104,12 +138,17 @@ export async function POST(request: NextRequest) {
         })
       }
     } catch (error) {
-      console.error('Real AI service error:', error)
+      console.error(`[AI-DEBUG] ${new Date().toISOString()} - Real AI service error:`, error)
       // Fall back to mock content
     }
     
     // Simulate API delay for mock content
     await new Promise(resolve => setTimeout(resolve, 1500))
+
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - Falling back to mock content`, {
+      contentType,
+      workItemType: workItem?.issueType
+    })
 
     // Mock content generation based on content type and actual user prompt
     const mockContent = generateMockContent(contentType, workItem, prompt)
@@ -125,11 +164,11 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Content generation error:', error)
-    return NextResponse.json(
-      { error: 'Failed to generate content' },
-      { status: 500 }
-    )
+    console.error(`[AI-DEBUG] ${new Date().toISOString()} - Content generation error:`, error)
+    return NextResponse.json({
+      success: false,
+      error: 'Internal server error'
+    }, { status: 500 })
   }
 }
 

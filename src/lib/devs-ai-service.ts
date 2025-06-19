@@ -92,7 +92,14 @@ export class DevsAIService {
 
   // Generate content using DevS.ai chat completions API via server proxy
   async generateContent(prompt: string, model: string = 'gpt-4'): Promise<string> {
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai generateContent called`, {
+      model,
+      promptLength: prompt.length,
+      isConfigured: this.isConfigured()
+    })
+
     if (!this.config) {
+      console.error(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai service not configured`)
       throw new Error('DevS.ai service is not configured. Please provide API token.')
     }
 
@@ -112,6 +119,12 @@ export class DevsAIService {
       model,
       stream: false
     }
+
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai API request prepared`, {
+      model,
+      messagesCount: messages.length,
+      baseUrl: this.config.baseUrl
+    })
 
     try {
       // Use our server-side proxy to avoid CORS issues
@@ -139,24 +152,42 @@ export class DevsAIService {
           // If error response is not JSON, use the status text
         }
         
+        console.error(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai API error`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorMessage
+        })
+        
         throw new Error(errorMessage)
       }
 
       const data: DevsAICompletionResponse = await response.json()
       
       if (!data.choices || data.choices.length === 0) {
+        console.error(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai returned no choices`)
         throw new Error('No response generated from DevS.ai')
       }
 
-      return data.choices[0].message.content
+      const content = data.choices[0].message.content
+      console.log(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai generateContent completed`, {
+        model,
+        contentLength: content.length,
+        choicesCount: data.choices.length
+      })
+
+      return content
     } catch (error) {
-      console.error('DevS.ai API error:', error)
+      console.error(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai API error:`, error)
       throw error
     }
   }
 
   // Test the connection by making a simple request via server proxy
   async testConnection(apiToken: string): Promise<{ success: boolean; error?: string }> {
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai testConnection called`, {
+      apiTokenLength: apiToken?.length || 0
+    })
+
     try {
       const response = await fetch('/api/devs-ai-proxy', {
         method: 'POST',
@@ -178,6 +209,7 @@ export class DevsAIService {
       })
 
       if (response.ok) {
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai testConnection successful`)
         return { success: true }
       } else {
         const errorText = await response.text()
@@ -192,9 +224,16 @@ export class DevsAIService {
           // If error response is not JSON, use the status text
         }
         
+        console.error(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai testConnection failed`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorMessage
+        })
+        
         return { success: false, error: errorMessage }
       }
     } catch (error) {
+      console.error(`[AI-DEBUG] ${new Date().toISOString()} - DevS.ai testConnection error:`, error)
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Network error occurred' 

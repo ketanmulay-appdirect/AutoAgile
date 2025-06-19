@@ -82,6 +82,14 @@ export function ContentGenerator({
   const generateContent = useCallback(async () => {
     if (!workItem) return
     
+    console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio generateContent called`, {
+      workItemKey: workItem.key,
+      workItemType: workItem.issueType,
+      contentType,
+      hasDevsAIConnection: !!devsAIConnection,
+      deliveryQuarter
+    })
+    
     setIsGenerating(true)
     setGeneratedContent('')
     setError(null)
@@ -89,6 +97,11 @@ export function ContentGenerator({
     
     try {
       const instructions = contentInstructionService.getActiveInstructions(contentType)
+      
+      console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content instructions loaded`, {
+        contentType,
+        instructionsLength: instructions.length
+      })
       
       // Extract problem and solution descriptions
       const extractProblemAndSolution = (description: any): { problemDescription: string; solutionDescription: string } => {
@@ -209,13 +222,23 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
       // Store the original prompt for chat refiner
       setOriginalPrompt(prompt)
 
+      console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio prompt prepared`, {
+        promptLength: prompt.length,
+        contentType,
+        hasDevsAIConnection: !!devsAIConnection
+      })
+
       // Use Devs.ai API if available, otherwise use a mock response
       if (devsAIConnection) {
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio using DevS.ai connection`)
+        
         // Get the API token from the DevS.ai connection
         const apiToken = (devsAIConnection as any)?.apiToken || 
                         (typeof window !== 'undefined' ? 
                           JSON.parse(localStorage.getItem('devs-ai-connection') || '{}')?.apiToken : 
                           null)
+
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio DevS.ai API token available:`, !!apiToken)
 
         const response = await fetch('/api/generate-content', {
           method: 'POST',
@@ -232,19 +255,38 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
         })
 
         if (!response.ok) {
+          console.error(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio API request failed`, {
+            status: response.status,
+            statusText: response.statusText
+          })
           throw new Error('Failed to generate content')
         }
 
         const data = await response.json()
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio API response received`, {
+          success: data.success,
+          contentLength: data.content?.length || 0,
+          model: data.metadata?.model
+        })
+        
         setGeneratedContent(data.content)
       } else {
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio falling back to mock content (no DevsAI connection)`)
+        
         // Mock content generation for demo purposes
         await new Promise(resolve => setTimeout(resolve, 2000))
-        setGeneratedContent(generateMockContent(contentType, workItem))
+        const mockContent = generateMockContent(contentType, workItem)
+        
+        console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio mock content generated`, {
+          contentLength: mockContent.length,
+          model: 'mock-ai'
+        })
+        
+        setGeneratedContent(mockContent)
       }
     } catch (err) {
+      console.error(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio generation error:`, err)
       setError('Failed to generate content. Please try again.')
-      console.error(err)
     } finally {
       setIsGenerating(false)
     }
