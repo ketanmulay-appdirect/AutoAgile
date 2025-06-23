@@ -196,8 +196,8 @@ export default function Home() {
       anthropicConnection={anthropicConnection}
     >
       {/* Header */}
-      <header className="bg-white border-b border-cloud-200 shadow-sm">
-        <div className="px-6 py-4">
+      <header className="bg-white border-b border-cloud-200 shadow-sm h-[72px] flex items-center">
+        <div className="px-6 w-full">
           <div>
             <h1 className="text-2xl font-bold text-navy-950 mb-1">
               {viewInfo.title}

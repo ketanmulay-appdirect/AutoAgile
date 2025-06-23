@@ -898,7 +898,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
   }
 
   return (
-    <div className="space-y-6">
+    <>
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       
       {/* Contextual PM Resources Toggle */}
@@ -1467,6 +1467,6 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
         ]}
         currentStep={pushingStep}
       />
-    </div>
+    </>
   )
 } 

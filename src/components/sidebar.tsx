@@ -95,33 +95,35 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
       isCollapsed ? "w-16" : "w-64"
     )}>
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-cloud-200">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex flex-col">
-              <div className="flex items-center space-x-2 mb-1">
-                <Icons.Target size="md" variant="accent" />
-                <span className="font-bold text-lg text-navy-950">AutoAgile</span>
+      <header className="bg-white border-b border-cloud-200 shadow-sm h-[72px] flex items-center">
+        <div className="px-4 w-full">
+          <div className="flex items-center justify-between">
+            {!isCollapsed && (
+              <div className="flex flex-col">
+                <div className="flex items-center space-x-2 mb-1">
+                  <Icons.Target size="md" variant="accent" />
+                  <span className="font-bold text-lg text-navy-950">AutoAgile</span>
+                </div>
+                <span className="text-xs text-cloud-600 ml-8">AI-Powered Agile</span>
               </div>
-              <span className="text-xs text-cloud-600 ml-8">AI-Powered Agile</span>
-            </div>
-          )}
-          {isCollapsed && (
-            <div className="flex items-center justify-center flex-1">
-              <Icons.Target size="md" variant="accent" />
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2 flex-shrink-0"
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <Icons.Menu size="sm" variant="secondary" />
-          </Button>
+            )}
+            {isCollapsed && (
+              <div className="flex items-center justify-center flex-1">
+                <Icons.Target size="md" variant="accent" />
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="p-2 flex-shrink-0"
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <Icons.Menu size="sm" variant="secondary" />
+            </Button>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Navigation Groups */}
       <nav className="flex-1 p-2 overflow-y-auto">
@@ -130,7 +132,7 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
             <div key={group.id}>
               {/* Section Header - only show when expanded */}
               {!isCollapsed && (
-                <div className="px-3 mb-3">
+                <div className="px-3 mb-2">
                   <h3 className="text-xs font-semibold text-cloud-500 uppercase tracking-wider">
                     {group.label}
                   </h3>
@@ -139,13 +141,13 @@ export function Sidebar({ currentView, onViewChange, jiraConnection, devsAIConne
               
               {/* Section Divider for collapsed state */}
               {isCollapsed && groupIndex > 0 && (
-                <div className="mx-2 mb-3">
+                <div className="mx-2 mb-2">
                   <div className="h-px bg-cloud-200"></div>
                 </div>
               )}
 
               {/* Navigation Items */}
-              <div className="space-y-1">
+              <div className="space-y-1 mb-4">
                 {group.items.map((item) => {
                   const IconComponent = item.icon
                   const isActive = currentView === item.id
