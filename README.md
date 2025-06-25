@@ -6,6 +6,8 @@
 
 AutoAgile transforms how teams create, manage, and communicate around Jira work items. Using natural language and AI, it eliminates the friction between ideation and execution, enabling teams to go from concept to delivery faster than ever before.
 
+![AutoAgile in action](/public/Hero.gif)
+
 ## The Complete Work Item Lifecycle Solution
 
 **Create → Generate → Communicate → Deliver**
