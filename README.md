@@ -27,6 +27,8 @@ Transform simple descriptions into comprehensive Jira work items:
 - **Smart Content Generation**: Automatically generate titles, descriptions, acceptance criteria, and story points
 - **Real-time Refinement**: Collaborate with AI to perfect your content before creation
 
+![Workitem](/public/Hero Image.png)
+
 ### 2. Intelligent Field Extraction
 Eliminate manual form-filling with AI-powered field detection:
 - **Automatic Field Population**: Extract priorities, story points, components, and custom fields from descriptions
@@ -34,12 +36,16 @@ Eliminate manual form-filling with AI-powered field detection:
 - **Configurable Extraction**: Customize which fields are extracted and how they're processed
 - **Pattern Matching Fallback**: Reliable extraction even without AI connectivity
 
+![Extraction](/public/Configure extraction.png)
+
 ### 3. Professional Content Studio
 Generate polished business communications from your work items:
 - **Executive Presentations**: Transform technical work into quarterly business reviews
 - **Customer Communications**: Create webinar content and feature announcements
 - **Stakeholder Updates**: Generate newsletters and progress reports
 - **Context-Aware Generation**: Leverage existing work item details for accurate, relevant content
+
+![Studio](/public/Generate content types.png)
 
 ### 4. Complete Template Control
 Customize every aspect of your workflow:
