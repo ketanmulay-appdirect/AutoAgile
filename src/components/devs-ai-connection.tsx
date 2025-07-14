@@ -44,6 +44,13 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
     const envConfigured = devsAIService.isEnvironmentConfigured()
     setIsEnvironmentConfigured(envConfigured)
     
+    // Debug logging for environment variable detection
+    console.log('[DevS.ai Debug] Environment variable check:', {
+      envConfigured,
+      envApiKey: process.env.DEVS_AI_API_KEY ? 'PRESENT' : 'NOT_PRESENT',
+      envApiKeyLength: process.env.DEVS_AI_API_KEY?.length || 0
+    })
+    
     if (envConfigured) {
       // Environment configured - show as connected
       setIsConnected(true)

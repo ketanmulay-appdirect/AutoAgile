@@ -49,12 +49,21 @@ export class DevsAIService {
   // Check for environment variable configuration
   private checkEnvironmentConfiguration(): void {
     const envApiKey = process.env.DEVS_AI_API_KEY
+    console.log('[DevS.ai Service Debug] Environment check:', {
+      envApiKey: envApiKey ? 'PRESENT' : 'NOT_PRESENT',
+      envApiKeyLength: envApiKey?.length || 0,
+      processEnvKeys: Object.keys(process.env).filter(key => key.includes('DEVS')),
+      allEnvKeys: Object.keys(process.env).length
+    })
+    
     if (envApiKey) {
       this.config = {
         apiToken: envApiKey,
         baseUrl: this.baseUrl
       }
       console.log(`[DevS.ai] Configured with environment variable`)
+    } else {
+      console.log(`[DevS.ai] No environment variable found`)
     }
   }
 
@@ -104,7 +113,14 @@ export class DevsAIService {
 
   // Check if the current connection is from environment variables
   isEnvironmentConfigured(): boolean {
-    return !!process.env.DEVS_AI_API_KEY
+    const result = !!process.env.DEVS_AI_API_KEY
+    console.log('[DevS.ai Service Debug] isEnvironmentConfigured check:', {
+      result,
+      envApiKey: process.env.DEVS_AI_API_KEY ? 'PRESENT' : 'NOT_PRESENT',
+      configExists: !!this.config,
+      configApiToken: this.config?.apiToken ? 'PRESENT' : 'NOT_PRESENT'
+    })
+    return result
   }
 
   // Check if the service is configured with API token
