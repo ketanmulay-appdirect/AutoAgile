@@ -36,6 +36,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
   })
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [isEnvironmentConfigured, setIsEnvironmentConfigured] = useState(false)
+  const [useManualConfig, setUseManualConfig] = useState(false)
 
   const devsAIService = DevsAIService.getInstance()
 
@@ -44,14 +45,9 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
     const envConfigured = devsAIService.isEnvironmentConfigured()
     setIsEnvironmentConfigured(envConfigured)
     
-    // Debug logging for environment variable detection
-    console.log('[DevS.ai Debug] Environment variable check:', {
-      envConfigured,
-      envApiKey: process.env.DEVS_AI_API_KEY ? 'PRESENT' : 'NOT_PRESENT',
-      envApiKeyLength: process.env.DEVS_AI_API_KEY?.length || 0
-    })
+
     
-    if (envConfigured) {
+    if (envConfigured && !useManualConfig) {
       // Environment configured - show as connected
       setIsConnected(true)
       setConnection({ apiToken: 'env-configured' })
@@ -69,7 +65,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
         setIsConnected(true)
       }
     }
-  }, [])
+  }, [useManualConfig])
 
   const handleInputChange = (field: keyof DevsAIConnection, value: string) => {
     setConnection(prev => ({ ...prev, [field]: value }))
@@ -117,8 +113,8 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
   }
 
   const disconnect = () => {
-    // Don't allow disconnection if using environment variables
-    if (isEnvironmentConfigured) {
+    // Don't allow disconnection if using environment variables and not in manual mode
+    if (isEnvironmentConfigured && !useManualConfig) {
       return
     }
     
@@ -129,6 +125,28 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
     setTestResult(null)
     localStorage.removeItem('devs-ai-connection')
     onConnectionRemoved?.()
+  }
+
+  const handleManualConfigToggle = () => {
+    if (useManualConfig) {
+      // Switching back to environment config
+      setUseManualConfig(false)
+      setConnection({ apiToken: 'env-configured' })
+      setIsConnected(true)
+      setTestResult(null)
+      // Notify parent of environment connection
+      const savedConnection = devsAIService.loadSavedConnection()
+      if (savedConnection) {
+        onConnectionSaved(savedConnection as DevsAIConnection)
+      }
+    } else {
+      // Switching to manual config
+      setUseManualConfig(true)
+      setConnection({ apiToken: '' })
+      setIsConnected(false)
+      setTestResult(null)
+      onConnectionRemoved?.()
+    }
   }
 
   return (
@@ -147,7 +165,7 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
         {isConnected && (
           <div className="flex items-center space-x-2">
             <Badge variant="success">Connected</Badge>
-            {isEnvironmentConfigured && (
+            {isEnvironmentConfigured && !useManualConfig && (
               <Badge variant="outline">Pre-configured</Badge>
             )}
           </div>
@@ -162,18 +180,46 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
           </label>
           <Input
             type={isConnected ? "text" : "password"}
-            value={isConnected ? (isEnvironmentConfigured ? 'Configured via environment variable' : maskToken(connection.apiToken || '')) : (connection.apiToken || '')}
+            value={isConnected ? (isEnvironmentConfigured && !useManualConfig ? 'Configured via environment variable' : maskToken(connection.apiToken || '')) : (connection.apiToken || '')}
             onChange={(e) => handleInputChange('apiToken', e.target.value)}
             placeholder="Your Devs.ai secret key (starts with sk-)"
-            disabled={isConnected}
-            readOnly={isConnected}
+            disabled={isConnected && !(isEnvironmentConfigured && useManualConfig)}
+            readOnly={isConnected && !(isEnvironmentConfigured && useManualConfig)}
           />
           <p className="mt-1 text-sm text-cloud-600">
-            {isEnvironmentConfigured ? 
+            {isEnvironmentConfigured && !useManualConfig ? 
               'API key is configured via DEVS_AI_API_KEY environment variable' : 
               'Your Devs.ai secret key from the API Keys page'
             }
           </p>
+          
+          {/* Manual configuration toggle */}
+          {isEnvironmentConfigured && (
+            <div className="mt-3 p-3 bg-cloud-50 rounded-md border border-cloud-200">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-navy-950">
+                    {useManualConfig ? 'Use Pre-configured API Key' : 'Use Your Own API Key'}
+                  </p>
+                  <p className="text-xs text-cloud-600 mt-1">
+                    {useManualConfig ? 
+                      'Switch back to the environment-configured API key' : 
+                      'Override the environment variable with your own API key'
+                    }
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleManualConfigToggle}
+                  className="ml-3"
+                >
+                  <Icons.Settings size="sm" className="mr-1" />
+                  {useManualConfig ? 'Use Pre-configured' : 'Use Manual'}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {testResult && (
@@ -215,11 +261,11 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
             <Button 
               variant="outline"
               onClick={disconnect}
-              disabled={isEnvironmentConfigured}
+              disabled={isEnvironmentConfigured && !useManualConfig}
               className="flex-1"
             >
               <Icons.X size="sm" autoContrast className="mr-2" />
-              {isEnvironmentConfigured ? 'Pre-configured' : 'Disconnect'}
+              {isEnvironmentConfigured && !useManualConfig ? 'Pre-configured' : 'Disconnect'}
             </Button>
           )}
       </div>

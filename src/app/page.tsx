@@ -17,6 +17,7 @@ import { AppLayout } from '../components/app-layout'
 
 import { type OpenAIConnection as OpenAIConnectionType } from '../lib/openai-service'
 import { type AnthropicConnection as AnthropicConnectionType } from '../lib/anthropic-service'
+import { DevsAIService } from '../lib/devs-ai-service'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<'create' | 'jira' | 'ai-models' | 'config' | 'content-studio' | 'work-items' | 'pm-resources'>('create')
@@ -39,16 +40,11 @@ export default function Home() {
       }
     }
 
-    // Load Devs.ai connection
-    const savedDevsAIConnection = localStorage.getItem('devs-ai-connection')
+    // Load Devs.ai connection (check environment variable first)
+    const devsAIService = DevsAIService.getInstance()
+    const savedDevsAIConnection = devsAIService.loadSavedConnection()
     if (savedDevsAIConnection) {
-      try {
-        const parsed = JSON.parse(savedDevsAIConnection)
-        setDevsAIConnection(parsed)
-      } catch (error) {
-        console.error('Failed to parse saved Devs.ai connection:', error)
-        localStorage.removeItem('devs-ai-connection')
-      }
+      setDevsAIConnection(savedDevsAIConnection)
     }
 
     // Load OpenAI connection
