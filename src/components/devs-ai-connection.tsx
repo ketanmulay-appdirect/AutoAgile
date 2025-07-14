@@ -8,6 +8,7 @@ import { Badge } from './ui/badge'
 import { Alert, AlertDescription, AlertTitle } from './ui/alert'
 import { LoadingSpinner } from './ui/loading-spinner'
 import { Icons } from './ui/icons'
+import { DevsAIService } from '../lib/devs-ai-service'
 
 export interface DevsAIConnection {
   apiToken: string
@@ -34,14 +35,32 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
     apiToken: ''
   })
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [isEnvironmentConfigured, setIsEnvironmentConfigured] = useState(false)
+
+  const devsAIService = DevsAIService.getInstance()
 
   useEffect(() => {
-    // Load saved connection from localStorage
-    const savedConnection = localStorage.getItem('devs-ai-connection')
-    if (savedConnection) {
-      const parsed = JSON.parse(savedConnection)
-      setConnection(parsed)
+    // Check if DevS.ai is configured via environment variables
+    const envConfigured = devsAIService.isEnvironmentConfigured()
+    setIsEnvironmentConfigured(envConfigured)
+    
+    if (envConfigured) {
+      // Environment configured - show as connected
       setIsConnected(true)
+      setConnection({ apiToken: 'env-configured' })
+      // Notify parent component about the connection
+      const savedConnection = devsAIService.loadSavedConnection()
+      if (savedConnection) {
+        onConnectionSaved(savedConnection as DevsAIConnection)
+      }
+    } else {
+      // Load saved connection from localStorage
+      const savedConnection = localStorage.getItem('devs-ai-connection')
+      if (savedConnection) {
+        const parsed = JSON.parse(savedConnection)
+        setConnection(parsed)
+        setIsConnected(true)
+      }
     }
   }, [])
 
@@ -91,6 +110,11 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
   }
 
   const disconnect = () => {
+    // Don't allow disconnection if using environment variables
+    if (isEnvironmentConfigured) {
+      return
+    }
+    
     setConnection({
       apiToken: ''
     })
@@ -115,7 +139,10 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
           </div>
         {isConnected && (
           <div className="flex items-center space-x-2">
-              <Badge variant="success">Connected</Badge>
+            <Badge variant="success">Connected</Badge>
+            {isEnvironmentConfigured && (
+              <Badge variant="outline">Pre-configured</Badge>
+            )}
           </div>
         )}
       </div>
@@ -128,14 +155,17 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
           </label>
           <Input
             type={isConnected ? "text" : "password"}
-            value={isConnected ? maskToken(connection.apiToken || '') : (connection.apiToken || '')}
+            value={isConnected ? (isEnvironmentConfigured ? 'Configured via environment variable' : maskToken(connection.apiToken || '')) : (connection.apiToken || '')}
             onChange={(e) => handleInputChange('apiToken', e.target.value)}
             placeholder="Your Devs.ai secret key (starts with sk-)"
             disabled={isConnected}
             readOnly={isConnected}
           />
           <p className="mt-1 text-sm text-cloud-600">
-            Your Devs.ai secret key from the API Keys page
+            {isEnvironmentConfigured ? 
+              'API key is configured via DEVS_AI_API_KEY environment variable' : 
+              'Your Devs.ai secret key from the API Keys page'
+            }
           </p>
         </div>
 
@@ -178,10 +208,11 @@ export function DevsAIConnection({ onConnectionSaved, onConnectionRemoved }: Dev
             <Button 
               variant="outline"
               onClick={disconnect}
+              disabled={isEnvironmentConfigured}
               className="flex-1"
             >
               <Icons.X size="sm" autoContrast className="mr-2" />
-              Disconnect
+              {isEnvironmentConfigured ? 'Pre-configured' : 'Disconnect'}
             </Button>
           )}
       </div>

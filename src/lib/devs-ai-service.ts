@@ -34,13 +34,28 @@ export class DevsAIService {
   private config: DevsAIConfig | null = null
   private readonly baseUrl = 'https://devs.ai'
 
-  private constructor() {}
+  private constructor() {
+    // Auto-initialize with environment variable if available
+    this.checkEnvironmentConfiguration()
+  }
 
   static getInstance(): DevsAIService {
     if (!DevsAIService.instance) {
       DevsAIService.instance = new DevsAIService()
     }
     return DevsAIService.instance
+  }
+
+  // Check for environment variable configuration
+  private checkEnvironmentConfiguration(): void {
+    const envApiKey = process.env.DEVS_AI_API_KEY
+    if (envApiKey) {
+      this.config = {
+        apiToken: envApiKey,
+        baseUrl: this.baseUrl
+      }
+      console.log(`[DevS.ai] Configured with environment variable`)
+    }
   }
 
   // Initialize the service with API token
@@ -50,14 +65,24 @@ export class DevsAIService {
       baseUrl: this.baseUrl
     }
     
-    // Save connection to localStorage for persistence
-    if (typeof window !== 'undefined') {
+    // Only save to localStorage if not using environment variables
+    if (!this.isEnvironmentConfigured() && typeof window !== 'undefined') {
       localStorage.setItem('devs-ai-connection', JSON.stringify({ apiToken }))
     }
   }
 
-  // Load connection from localStorage
+  // Load connection from environment variables or localStorage
   loadSavedConnection(): DevsAIConfig | null {
+    // First check for environment variable
+    const envApiKey = process.env.DEVS_AI_API_KEY
+    if (envApiKey) {
+      return {
+        apiToken: envApiKey,
+        baseUrl: this.baseUrl
+      }
+    }
+
+    // Then check localStorage
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('devs-ai-connection')
       if (saved) {
@@ -75,6 +100,11 @@ export class DevsAIService {
       }
     }
     return null
+  }
+
+  // Check if the current connection is from environment variables
+  isEnvironmentConfigured(): boolean {
+    return !!process.env.DEVS_AI_API_KEY
   }
 
   // Check if the service is configured with API token

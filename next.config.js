@@ -11,6 +11,7 @@ const nextConfig = {
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    DEVS_AI_API_KEY: process.env.DEVS_AI_API_KEY,
   },
 };
 

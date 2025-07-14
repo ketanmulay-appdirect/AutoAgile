@@ -185,6 +185,42 @@ Generate professional updates, newsletters, and presentations that translate tec
 - Bulk work item creation capabilities
 - Integration with existing CI/CD workflows
 
+## Deployment
+
+### Environment Variables for Production
+
+For production deployment (e.g., Vercel), configure these environment variables:
+
+```bash
+# Required for AI generation
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+DEVS_AI_API_KEY=sk-...
+
+# Optional: Default model preference
+DEFAULT_AI_MODEL=openai  # or 'anthropic' or 'devs-ai'
+```
+
+#### Vercel Deployment
+
+1. **Set Environment Variables**:
+   - Go to your Vercel project dashboard
+   - Navigate to Settings → Environment Variables
+   - Add your API keys for Production environment
+
+2. **Deploy**:
+   ```bash
+   vercel --prod
+   ```
+
+3. **Verify**: After deployment, visit your app and check the AI Models section - pre-configured providers will show as "Connected" and "Pre-configured"
+
+#### Security Notes
+- Environment variables are securely managed by Vercel
+- API keys are not exposed in the client bundle
+- Pre-configured connections cannot be accidentally disconnected
+- Users can still manually configure additional providers if needed
+
 ---
 **Built with ❤️ for modern development teams**
 
