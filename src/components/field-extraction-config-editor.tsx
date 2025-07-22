@@ -66,21 +66,39 @@ export function FieldExtractionConfigEditor({
     const existingPrefs = template.extractionPreferences || preferences
 
     const configs: FieldExtractionConfig[] = []
+    const jiraFieldsMap = new Map(jiraFields.map(field => [field.id, field]))
 
-    // Create configs for all required Jira fields
-    jiraFields.forEach(jiraField => {
-      if (jiraField.required) {
-        const existingConfig = existingConfigs.find(c => c.jiraFieldId === jiraField.id)
-        
+    // First, preserve all existing configurations for fields that still exist
+    existingConfigs.forEach(existingConfig => {
+      const jiraField = jiraFieldsMap.get(existingConfig.jiraFieldId)
+      if (jiraField) {
+        // Field still exists, preserve the configuration
         configs.push({
-          fieldId: existingConfig?.fieldId || jiraField.id,
+          fieldId: existingConfig.fieldId,
+          jiraFieldId: existingConfig.jiraFieldId,
+          extractionEnabled: existingConfig.extractionEnabled,
+          extractionMethod: existingConfig.extractionMethod,
+          confirmationRequired: existingConfig.confirmationRequired,
+          confidenceThreshold: existingConfig.confidenceThreshold,
+          autoApply: existingConfig.autoApply,
+          displayName: existingConfig.displayName
+        })
+      }
+    })
+
+    // Then, add any new required fields that don't have configurations yet
+    const configuredFieldIds = new Set(configs.map(c => c.jiraFieldId))
+    jiraFields.forEach(jiraField => {
+      if (jiraField.required && !configuredFieldIds.has(jiraField.id)) {
+        configs.push({
+          fieldId: jiraField.id,
           jiraFieldId: jiraField.id,
-          extractionEnabled: existingConfig?.extractionEnabled ?? true,
-          extractionMethod: existingConfig?.extractionMethod || getDefaultExtractionMethod(jiraField),
-          confirmationRequired: existingConfig?.confirmationRequired ?? false,
-          confidenceThreshold: existingConfig?.confidenceThreshold || existingPrefs.globalConfidenceThreshold,
-          autoApply: existingConfig?.autoApply ?? true,
-          displayName: existingConfig?.displayName || jiraField.name
+          extractionEnabled: true,
+          extractionMethod: getDefaultExtractionMethod(jiraField),
+          confirmationRequired: false,
+          confidenceThreshold: existingPrefs.globalConfidenceThreshold,
+          autoApply: true,
+          displayName: jiraField.name
         })
       }
     })
@@ -116,6 +134,13 @@ export function FieldExtractionConfigEditor({
   const updateFieldConfig = (index: number, updates: Partial<FieldExtractionConfig>) => {
     const newConfigs = [...fieldConfigs]
     newConfigs[index] = { ...newConfigs[index], ...updates }
+    setFieldConfigs(newConfigs)
+    setHasChanges(true)
+  }
+
+  const removeFieldConfig = (index: number) => {
+    const newConfigs = [...fieldConfigs]
+    newConfigs.splice(index, 1)
     setFieldConfigs(newConfigs)
     setHasChanges(true)
   }
@@ -338,10 +363,11 @@ export function FieldExtractionConfigEditor({
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Icons.FileText size="sm" autoContrast className="mr-2" />
-                Field Configuration ({fieldConfigs.length} required fields)
+                Field Configuration ({fieldConfigs.length} fields)
               </CardTitle>
               <CardDescription>
-                Configure extraction settings for each required Jira field
+                Configure extraction settings for Jira fields 
+                ({fieldConfigs.filter(c => jiraFields.find(f => f.id === c.jiraFieldId)?.required).length} required, {fieldConfigs.filter(c => !jiraFields.find(f => f.id === c.jiraFieldId)?.required).length} optional)
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -366,11 +392,26 @@ export function FieldExtractionConfigEditor({
                               </p>
                             </div>
                           </div>
-                          <Badge variant="secondary">Required</Badge>
+                          {jiraField?.required ? (
+                            <Badge variant="secondary">Required</Badge>
+                          ) : (
+                            <Badge variant="outline">Optional</Badge>
+                          )}
                         </div>
-                        <Badge className={getMethodColor(config.extractionMethod)}>
-                          {getMethodIcon(config.extractionMethod)} {config.extractionMethod.toUpperCase()}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getMethodColor(config.extractionMethod)}>
+                            {getMethodIcon(config.extractionMethod)} {config.extractionMethod.toUpperCase()}
+                          </Badge>
+                          {!jiraField?.required && (
+                            <button
+                              onClick={() => removeFieldConfig(index)}
+                              className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                              title="Remove this optional field"
+                            >
+                              <Icons.X size="xs" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {config.extractionEnabled && (
