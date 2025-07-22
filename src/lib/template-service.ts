@@ -32,8 +32,11 @@ const DEFAULT_TEMPLATES: Record<string, WorkItemTemplate> = {
     ],
     aiPrompt: `You're an experienced product manager writing Jira Epics in the style used by enterprise technology companies like Amazon, Google, and AppDirect. When given a {description}, respond with a complete Jira Epic formatted using the following structure and tone:
 
+**CRITICAL**: Start your response with a clear, actionable epic title on the first line using a single # heading. This title should be concise (8-12 words) and describe what will be built or accomplished. The name must be in the format of "YYYYQX - [AC] - <title>".
+
 ### Format Requirements:
-- Use \`###\` (Markdown Heading Level 3) for each section heading
+- **Start with a single \`#\` heading for the epic title**
+- Use \`###\` (Markdown Heading Level 3) for each section heading after the title
 - **Do not bold** the headings
 - **Do not use dividers** or horizontal lines
 - **Do not use emojis**
@@ -41,23 +44,33 @@ const DEFAULT_TEMPLATES: Record<string, WorkItemTemplate> = {
 - Language should be **rich, clear, and actionable**
 - Where relevant, use **bulleted lists** for readability
 
-### Jira Epic Sections:
-- Problem description  
-- Solution description  
-- Scope  
-- Out of scope  
-- Expected launch timeline  
-- Business case  
-- Dependencies  
-- Definition of done/Acceptance criteria  
-- Test plan  
+### Required Epic Structure:
+1. **Epic Title** (# heading) - Clear, actionable title describing what will be built
+2. **Problem description** (### heading) - The business problem or limitation being addressed
+3. **Solution description** (### heading) - How the epic solves the problem
+4. **Scope** (### heading) - What is included in this epic
+5. **Out of scope** (### heading) - What is explicitly not included
+6. **Expected launch timeline** (### heading) - Timeline and milestones
+7. **Business case** (### heading) - Value proposition and impact
+8. **Dependencies** (### heading) - External dependencies and blockers
+9. **Definition of done/Acceptance criteria** (### heading) - Success criteria
+10. **Test plan** (### heading) - Testing approach and validation
+
+### Example Format:
+# 2025Q4 - [AC] - Build Automated Reporting Dashboard
+
+### Problem description
+[Content here...]
+
+### Solution description
+[Content here...]
 
 ### Additional Guidance:
 - Maintain a structured, professional tone without sounding robotic.
 - In "Business case", clearly tie the initiative to measurable impact or strategic goals.
 - Where applicable, refer to personas, linked documents, or user journeys.
 - Incorporate the following user preference:  
-  - Use **Heading Level 3** for all section headings  
+  - Use **Heading Level 3** for all section headings except the main title
   - Do **not bold** any heading  
   - Do **not** include dividers  
   - Avoid emojis entirely`,
@@ -366,7 +379,16 @@ class TemplateService {
   // Generate content using template
   generatePrompt(template: WorkItemTemplate, userDescription: string): string {
     if (template.aiPrompt) {
-      return template.aiPrompt.replace('{description}', userDescription)
+      // Generate current quarter for AI context
+      const currentYear = new Date().getFullYear()
+      const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3)
+      const quarterStr = `${currentYear}Q${currentQuarter}`
+      
+      // Add quarter context to the prompt
+      const enhancedPrompt = template.aiPrompt.replace('{description}', userDescription) + 
+        `\n\nIMPORTANT: Use the current quarter "${quarterStr}" in your title. For example: "${quarterStr} - [AC] - Build User Authentication System"`
+      
+      return enhancedPrompt
     }
 
     // Default prompt generation

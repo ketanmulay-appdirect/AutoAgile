@@ -116,6 +116,16 @@ export async function POST(request: NextRequest) {
       let fieldType = 'text'
       let isMultiSelect = false
       
+      // Debug logging for Priority field
+      if (field.name && field.name.toLowerCase().includes('priority')) {
+        console.log(`[PRIORITY-DEBUG] Processing Priority field:`, {
+          fieldId,
+          name: field.name,
+          schema: field.schema,
+          allowedValues: field.allowedValues
+        });
+      }
+      
       if (field.schema) {
         switch (field.schema.type) {
           case 'string':
@@ -167,6 +177,17 @@ export async function POST(request: NextRequest) {
             }
             break
         }
+      }
+      
+      // Debug logging for Priority field type determination
+      if (field.name && field.name.toLowerCase().includes('priority')) {
+        console.log(`[PRIORITY-DEBUG] Final type for Priority field:`, {
+          fieldId,
+          name: field.name,
+          determinedType: fieldType,
+          allowedValues: allowedValues,
+          allowedValuesLength: allowedValues.length
+        });
       }
       
       discoveredFields.push({

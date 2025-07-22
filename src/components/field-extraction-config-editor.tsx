@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { WorkItemType, FieldExtractionConfig, ExtractionPreferences, EnhancedWorkItemTemplate } from '../types'
+import { WorkItemType, FieldExtractionConfig, ExtractionMode, ExtractionPreferences, EnhancedWorkItemTemplate } from '../types'
 import { JiraField } from '../lib/jira-field-service'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -30,6 +30,25 @@ interface CategorizedFields {
   project_specific: DiscoveredField[]
   optional_standard: DiscoveredField[]
   system_fields: DiscoveredField[]
+}
+
+// Helper function to convert legacy config to new extraction mode
+function getExtractionMode(config: any): ExtractionMode {
+  // Handle legacy configurations that still have the old boolean properties
+  if ('confirmationRequired' in config && 'autoApply' in config) {
+    if (config.extractionMethod === 'manual') return 'manual-only'
+    if (config.confirmationRequired) return 'always-confirm'
+    if (config.autoApply) return 'auto-apply'
+    return 'always-confirm' // Default fallback
+  }
+  // For new configurations, use the extractionMode directly
+  return config.extractionMode || 'auto-apply'
+}
+
+// Helper function to determine default extraction mode for new fields
+function getDefaultExtractionMode(field: JiraField): ExtractionMode {
+  if (field.required) return 'auto-apply'
+  return 'always-confirm'
 }
 
 export function FieldExtractionConfigEditor({
@@ -77,10 +96,10 @@ export function FieldExtractionConfigEditor({
         jiraFieldId: existingConfig.jiraFieldId,
         extractionEnabled: existingConfig.extractionEnabled,
         extractionMethod: existingConfig.extractionMethod,
-        confirmationRequired: existingConfig.confirmationRequired,
+        extractionMode: getExtractionMode(existingConfig),
         confidenceThreshold: existingConfig.confidenceThreshold,
-        autoApply: existingConfig.autoApply,
-        displayName: existingConfig.displayName
+        displayName: existingConfig.displayName,
+        requiredForSubmission: existingConfig.requiredForSubmission ?? false
       })
     })
 
@@ -93,10 +112,10 @@ export function FieldExtractionConfigEditor({
           jiraFieldId: jiraField.id,
           extractionEnabled: true,
           extractionMethod: getDefaultExtractionMethod(jiraField),
-          confirmationRequired: false,
+          extractionMode: getDefaultExtractionMode(jiraField),
           confidenceThreshold: existingPrefs.globalConfidenceThreshold,
-          autoApply: true,
-          displayName: jiraField.name
+          displayName: jiraField.name,
+          requiredForSubmission: false
         })
       }
     })
@@ -248,10 +267,12 @@ export function FieldExtractionConfigEditor({
       jiraFieldId: field.id,
       extractionEnabled: true,
       extractionMethod: getDefaultExtractionMethod(field),
-      confirmationRequired: !field.usage_stats.is_popular,
+      extractionMode: field.usage_stats.is_popular && field.usage_stats.usage_percentage > 80 
+        ? 'auto-apply' 
+        : 'always-confirm',
       confidenceThreshold: field.usage_stats.is_popular ? 0.8 : 0.7,
-      autoApply: field.usage_stats.is_popular && field.usage_stats.usage_percentage > 80,
-      displayName: field.name
+      displayName: field.name,
+      requiredForSubmission: false
     }))
 
     setFieldConfigs(prev => [...prev, ...newConfigs])
@@ -418,7 +439,18 @@ export function FieldExtractionConfigEditor({
                           {isRequired ? (
                             <Badge variant="secondary">Required</Badge>
                           ) : (
-                            <Badge variant="outline">Optional</Badge>
+                            <Badge 
+                              variant={config.requiredForSubmission ? "default" : "outline"}
+                              className={`cursor-pointer transition-colors ${
+                                config.requiredForSubmission 
+                                  ? "bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200" 
+                                  : "hover:bg-gray-100"
+                              }`}
+                              onClick={() => updateFieldConfig(index, { requiredForSubmission: !config.requiredForSubmission })}
+                              title="Click to toggle requirement for submission"
+                            >
+                              {config.requiredForSubmission ? "Required for submission" : "Optional"}
+                            </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -473,26 +505,33 @@ export function FieldExtractionConfigEditor({
                           )}
 
                           <div className="flex flex-col justify-end">
-                            <label className="flex items-center text-sm">
-                              <input
-                                type="checkbox"
-                                checked={config.confirmationRequired}
-                                onChange={(e) => updateFieldConfig(index, { confirmationRequired: e.target.checked })}
-                                className="mr-2"
-                              />
-                              Require confirmation
-                            </label>
-                            {config.extractionMethod !== 'manual' && (
-                              <label className="flex items-center text-sm mt-1">
-                                <input
-                                  type="checkbox"
-                                  checked={config.autoApply}
-                                  onChange={(e) => updateFieldConfig(index, { autoApply: e.target.checked })}
-                                  className="mr-2"
-                                />
-                                Auto-apply when confident
-                              </label>
-                            )}
+                            <div>
+                              <span className="text-sm font-medium text-gray-700 mb-2 block">Extraction Behavior</span>
+                              <div className="space-y-2">
+                                <label className="flex items-center text-sm">
+                                  <input
+                                    type="radio"
+                                    name={`extraction-mode-${index}`}
+                                    value="auto-apply"
+                                    checked={config.extractionMode === 'auto-apply'}
+                                    onChange={(e) => updateFieldConfig(index, { extractionMode: e.target.value as ExtractionMode })}
+                                    className="mr-2 text-blue-600"
+                                  />
+                                  Auto-apply when confident
+                                </label>
+                                <label className="flex items-center text-sm">
+                                  <input
+                                    type="radio"
+                                    name={`extraction-mode-${index}`}
+                                    value="always-confirm"
+                                    checked={config.extractionMode === 'always-confirm'}
+                                    onChange={(e) => updateFieldConfig(index, { extractionMode: e.target.value as ExtractionMode })}
+                                    className="mr-2 text-blue-600"
+                                  />
+                                  Always confirm
+                                </label>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}

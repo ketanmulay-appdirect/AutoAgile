@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { WorkItemType, GeneratedContent, AIModel, JiraInstance, WorkItemTemplate, JiraField, EnhancedExtractionResult, FieldExtractionConfig, ExtractionPreferences, PMToolCategory } from '../types'
+import { WorkItemType, GeneratedContent, AIModel, JiraInstance, WorkItemTemplate, JiraField, EnhancedExtractionResult, FieldExtractionConfig, ExtractionPreferences, PMToolCategory, EnhancedWorkItemTemplate } from '../types'
 import { ContentEditor } from './content-editor'
 import { ToastContainer } from './ui/toast'
 import { useToast } from '../hooks/use-toast'
@@ -46,7 +46,32 @@ interface ChatMessage {
 // Helper function to parse generated content into structured format
 function parseGeneratedContent(content: string, workItemType: WorkItemType): GeneratedContent {
   const lines = content.split('\n')
-  const title = lines.find(line => line.startsWith('#'))?.replace(/^#+\s*/, '') || `Generated ${workItemType}`
+  const titleLineIndex = lines.findIndex(line => line.startsWith('#'))
+  const titleLine = titleLineIndex >= 0 ? lines[titleLineIndex] : null
+  const title = titleLine?.replace(/^#+\s*/, '') || `Generated ${workItemType}`
+  
+  // Remove the title line from the description to avoid duplication
+  let cleanedDescription = content
+  if (titleLineIndex >= 0) {
+    // Remove the title line and any empty lines immediately after it
+    const remainingLines = lines.slice(titleLineIndex + 1)
+    // Skip any empty lines after the title
+    const contentStartIndex = remainingLines.findIndex(line => line.trim() !== '')
+    if (contentStartIndex >= 0) {
+      cleanedDescription = remainingLines.slice(contentStartIndex).join('\n')
+    } else {
+      cleanedDescription = remainingLines.join('\n')
+    }
+  }
+  
+  // Debug logging to understand what's being generated
+  console.log('[TITLE-DEBUG] Generated content parsing:', {
+    originalContentPreview: content.substring(0, 200),
+    titleLine,
+    extractedTitle: title,
+    cleanedDescriptionPreview: cleanedDescription.substring(0, 200),
+    workItemType
+  })
   
   // Extract acceptance criteria if present
   const acceptanceCriteria: string[] = []
@@ -68,7 +93,7 @@ function parseGeneratedContent(content: string, workItemType: WorkItemType): Gen
   
   return {
     title,
-    description: content,
+    description: cleanedDescription,
     acceptanceCriteria,
     priority: 'Medium',
     labels: [],
@@ -98,7 +123,7 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
   
   // Client-side template state
   const [availableTemplates, setAvailableTemplates] = useState<WorkItemTemplate[]>([])
-  const [currentTemplate, setCurrentTemplate] = useState<WorkItemTemplate | null>(null)
+  const [currentTemplate, setCurrentTemplate] = useState<EnhancedWorkItemTemplate | null>(null)
   const [isTemplatesLoaded, setIsTemplatesLoaded] = useState(false)
   
   // Field validation state
@@ -151,15 +176,15 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
         const templates = templateService.getTemplatesByType(workItemType)
         setAvailableTemplates(templates)
         
-        const template = templates.find(t => t.id === selectedTemplate) || templateService.getDefaultTemplate(workItemType)
-        setCurrentTemplate(template)
+        const enhancedTemplate = templateService.getEnhancedTemplate(workItemType)
+        setCurrentTemplate(enhancedTemplate)
         setIsTemplatesLoaded(true)
       } catch (error) {
         console.error('Failed to load templates:', error)
-        // Fallback to default template
-        const defaultTemplate = templateService.getDefaultTemplate(workItemType)
-        setAvailableTemplates([defaultTemplate])
-        setCurrentTemplate(defaultTemplate)
+        // Fallback to enhanced template
+        const enhancedTemplate = templateService.getEnhancedTemplate(workItemType)
+        setAvailableTemplates([enhancedTemplate])
+        setCurrentTemplate(enhancedTemplate)
         setIsTemplatesLoaded(true)
       }
     }

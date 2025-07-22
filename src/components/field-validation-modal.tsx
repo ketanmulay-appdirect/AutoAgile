@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { GeneratedContent, WorkItemTemplate, JiraField, EnhancedExtractionResult, ExtractionCandidate } from '../types'
+import { GeneratedContent, WorkItemTemplate, JiraField, EnhancedExtractionResult, ExtractionCandidate, EnhancedWorkItemTemplate, FieldExtractionConfig } from '../types'
 import { fieldValidationService } from '../lib/field-validation-service'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -20,7 +20,7 @@ interface FieldValidationModalProps {
   onClose: () => void
   onSubmit: (updatedContent: GeneratedContent, customFields: Record<string, any>) => void
   content: GeneratedContent
-  template: WorkItemTemplate | null
+  template: EnhancedWorkItemTemplate | null
   jiraFields: JiraField[]
   missingFields: MissingField[]
   extractedFields?: Record<string, any>
@@ -48,6 +48,7 @@ export function FieldValidationModal({
   const [confirmedExtractions, setConfirmedExtractions] = useState<Set<string>>(new Set())
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [requiredForSubmission, setRequiredForSubmission] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (isOpen && content) {
@@ -206,13 +207,21 @@ export function FieldValidationModal({
     return isValid
   }
 
+  // Helper function to check if field is required for submission in template
+  const getFieldRequiredForSubmission = (fieldId: string): boolean => {
+    if (!template?.fieldExtractionConfig) return false
+    const fieldConfig = template.fieldExtractionConfig.find(c => c.jiraFieldId === fieldId)
+    return fieldConfig?.requiredForSubmission ?? false
+  }
+
   const handleSubmit = async () => {
     // Validate only user-visible fields (system fields are auto-populated and don't need validation)
     const errors: Record<string, string> = {}
     let isValid = true
 
-    // Validate user-visible required fields
-    userVisibleFields.filter(f => f.required).forEach(field => {
+    // Validate required fields and fields marked as required for submission in template
+
+    userVisibleFields.filter(f => f.required || getFieldRequiredForSubmission(f.id) || requiredForSubmission.has(f.id)).forEach(field => {
       const value = fieldValues[field.id]
       const validation = fieldValidationService.validateFieldValue(field, value)
       
@@ -275,10 +284,40 @@ export function FieldValidationModal({
 
   if (!isOpen) return null
 
-  const requiredFields = jiraFields.filter(f => f.required)
+  // Get all configured fields from template, not just required Jira fields
+  const getConfiguredFields = (): JiraField[] => {
+    if (!template?.fieldExtractionConfig) {
+      // Fallback to required fields if no template config
+      return jiraFields.filter(f => f.required)
+    }
+
+    const configuredFields: JiraField[] = []
+    const jiraFieldsMap = new Map(jiraFields.map(f => [f.id, f]))
+
+    template.fieldExtractionConfig.forEach(config => {
+      const jiraField = jiraFieldsMap.get(config.jiraFieldId)
+      if (jiraField) {
+        // Field exists in current Jira fields
+        configuredFields.push(jiraField)
+      } else {
+        // Field is configured but not in current Jira discovery - create a basic field object
+        configuredFields.push({
+          id: config.jiraFieldId,
+          name: config.displayName,
+          type: 'string' as const,
+          required: false, // Optional since it's not in required Jira fields
+          allowedValues: []
+        })
+      }
+    })
+
+    return configuredFields
+  }
+
+  const allConfiguredFields = getConfiguredFields()
   
   // Filter out system fields from the fields shown to the user
-  const userVisibleFields = requiredFields.filter(f => !isSystemField(f))
+  const userVisibleFields = allConfiguredFields.filter(f => !isSystemField(f))
   
   const autoAppliedFields = userVisibleFields.filter(f => getFieldSection(f) === 'auto-applied')
   const confirmationFields = userVisibleFields.filter(f => getFieldSection(f) === 'confirmation')
@@ -358,6 +397,24 @@ export function FieldValidationModal({
                   <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
                   <span>{enhancedExtraction.extractionSummary.skippedCount} Skipped</span>
                 </div>
+              </div>
+              <div className="mt-2 pt-2 border-t border-blue-200 text-xs text-blue-700">
+                Showing all {userVisibleFields.length} configured fields
+                ({userVisibleFields.filter(f => f.required).length} required by Jira, {userVisibleFields.filter(f => !f.required).length} optional)
+              </div>
+            </div>
+          )}
+
+          {/* Show configured fields info even without enhanced extraction */}
+          {!enhancedExtraction && userVisibleFields.length > 0 && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center">
+                <Icons.Info size="sm" className="text-blue-600 mr-2" />
+                <span className="text-sm font-medium text-blue-900">Field Configuration</span>
+              </div>
+              <div className="mt-2 text-xs text-blue-700">
+                Showing all {userVisibleFields.length} configured fields
+                ({userVisibleFields.filter(f => f.required).length} required by Jira, {userVisibleFields.filter(f => !f.required).length} optional)
               </div>
             </div>
           )}
@@ -470,12 +527,44 @@ export function FieldValidationModal({
                 <div className="space-y-4">
                   {[...manualFields, ...otherMissingFields].map(field => {
                     const fieldSuggestions = suggestions[field.id] || []
+                    const configRequiredForSubmission = getFieldRequiredForSubmission(field.id)
+                    const isRequiredForSubmission = field.required || configRequiredForSubmission || requiredForSubmission.has(field.id)
                     return (
                       <div key={field.id} className="border border-gray-200 rounded-lg p-4">
-                        <label className="block text-sm font-medium text-gray-900 mb-2">
-                          {field.name}
-                          {field.required && <span className="text-red-500 ml-1">*</span>}
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-sm font-medium text-gray-900">
+                            {field.name}
+                            {isRequiredForSubmission && <span className="text-red-500 ml-1">*</span>}
+                          </label>
+                          <div className="flex items-center gap-2">
+                            {field.required ? (
+                              <Badge variant="secondary" className="text-xs">Required by Jira</Badge>
+                            ) : configRequiredForSubmission ? (
+                              <Badge variant="default" className="text-xs bg-blue-100 text-blue-800">Required for submission</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">Optional</Badge>
+                            )}
+                            {!field.required && !configRequiredForSubmission && (
+                              <label className="flex items-center text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={requiredForSubmission.has(field.id)}
+                                  onChange={(e) => {
+                                    const newSet = new Set(requiredForSubmission)
+                                    if (e.target.checked) {
+                                      newSet.add(field.id)
+                                    } else {
+                                      newSet.delete(field.id)
+                                    }
+                                    setRequiredForSubmission(newSet)
+                                  }}
+                                  className="mr-1"
+                                />
+                                <span className="text-blue-600">Required for submission</span>
+                              </label>
+                            )}
+                          </div>
+                        </div>
                         {renderFieldInput(field, fieldValues[field.id], fieldSuggestions)}
                         {validationErrors[field.id] && (
                           <p className="text-red-500 text-xs mt-1">{validationErrors[field.id]}</p>
@@ -526,8 +615,18 @@ export function FieldValidationModal({
   function renderFieldInput(field: JiraField, currentValue: any, fieldSuggestions: any[]): React.ReactElement {
     const value = fieldValues[field.id] !== undefined ? fieldValues[field.id] : currentValue
 
+    // DEBUG: Log field information
+    console.log(`[FIELD-DEBUG] Rendering field: ${field.name}`, {
+      id: field.id,
+      type: field.type,
+      allowedValues: field.allowedValues,
+      currentValue,
+      value
+    });
+
     switch (field.type) {
       case 'select':
+      case 'priority':
         return (
           <div className="space-y-2">
             <select

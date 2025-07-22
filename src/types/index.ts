@@ -67,7 +67,7 @@ export interface JiraField {
   id: string
   name: string
   required: boolean
-  type: 'string' | 'number' | 'select' | 'multiselect' | 'date' | 'user' | 'textarea'
+  type: 'string' | 'number' | 'select' | 'multiselect' | 'date' | 'user' | 'textarea' | 'priority'
   allowedValues?: string[]
 }
 
@@ -193,15 +193,17 @@ export interface WorkItemHistory {
   createdAt: Date
 }
 
+export type ExtractionMode = 'auto-apply' | 'always-confirm' | 'manual-only'
+
 export interface FieldExtractionConfig {
   fieldId: string
   jiraFieldId: string
   extractionEnabled: boolean
   extractionMethod: 'ai' | 'pattern' | 'manual'
-  confirmationRequired: boolean
+  extractionMode: ExtractionMode
   confidenceThreshold: number
-  autoApply: boolean
   displayName: string
+  requiredForSubmission?: boolean // Optional fields can be marked as required for submission
 }
 
 export interface ExtractionPreferences {

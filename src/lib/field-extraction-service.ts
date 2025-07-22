@@ -54,12 +54,13 @@ export class FieldExtractionService {
 
     // Process each field based on configuration
     for (const jiraField of jiraFields) {
-      if (!jiraField.required) continue; // Only process required fields for now
+      // Process all fields (required and optional configured fields)
+      const config = fieldConfigs.find(c => c.jiraFieldId === jiraField.id);
+      if (!jiraField.required && !config) continue; // Skip only if not required AND not configured
       
       totalFields++;
-      const fieldConfig = fieldConfigs.find(config => config.jiraFieldId === jiraField.id);
       
-      if (!fieldConfig) {
+      if (!config) {
         // No configuration found - use default behavior
         await this.processFieldWithDefaults(
           description, jiraField, preferences, autoApplied, requiresConfirmation, manualFields, skippedFields, aiProvider, apiKey
@@ -68,13 +69,13 @@ export class FieldExtractionService {
       }
 
       // Process field based on user configuration
-      if (!fieldConfig.extractionEnabled) {
+      if (!config.extractionEnabled) {
         skippedFields.push(jiraField.id);
         skippedCount++;
         continue;
       }
 
-      if (fieldConfig.extractionMethod === 'manual') {
+      if (config.extractionMethod === 'manual' || config.extractionMode === 'manual-only') {
         manualFields.push(jiraField.id);
         manualCount++;
         continue;
@@ -82,7 +83,7 @@ export class FieldExtractionService {
 
       // Extract field value using configured method
       const extractedValue = await this.extractSingleFieldValue(
-        description, jiraField, fieldConfig, aiProvider, apiKey
+        description, jiraField, config, aiProvider, apiKey
       );
 
       if (extractedValue) {
@@ -95,7 +96,7 @@ export class FieldExtractionService {
         };
 
         // Determine if field should be auto-applied or require confirmation
-        const shouldAutoApply = this.shouldAutoApplyField(fieldConfig, candidate, preferences);
+        const shouldAutoApply = this.shouldAutoApplyField(config, candidate, preferences);
         
         if (shouldAutoApply) {
           autoApplied.set(jiraField.id, extractedValue.value);
@@ -173,13 +174,17 @@ export class FieldExtractionService {
       return false;
     }
     
-    // Field-specific confirmation requirement
-    if (fieldConfig.confirmationRequired) {
-      return false;
+    // Check extraction mode
+    switch (fieldConfig.extractionMode) {
+      case 'auto-apply':
+        return candidate.confidence >= fieldConfig.confidenceThreshold;
+      case 'always-confirm':
+        return false;
+      case 'manual-only':
+        return false; // This shouldn't reach here for manual-only fields
+      default:
+        return false;
     }
-    
-    // Auto-apply setting and confidence check
-    return fieldConfig.autoApply && candidate.confidence >= fieldConfig.confidenceThreshold;
   }
 
   /**
@@ -523,6 +528,41 @@ Return a JSON object with this structure:
         }
       }
 
+      // Labels extraction - detect alphanumeric labels like 2025q4ac, epic-migration, etc.
+      else if (fieldName.includes('label')) {
+        const labelPatterns = [
+          // Quarter labels: 2025Q1, 2025q4ac, 2024Q3, etc.
+          /\b(20\d{2}[qQ]\d[a-zA-Z]*)\b/g,
+          // Project codes: epic-migration, api-v2, backend-rewrite, etc.
+          /\b([a-z]+-[a-z0-9-]+)\b/g,
+          // Single word labels after keywords: label:, tag:, #hashtag
+          /(?:label|tag|#)\s*[:\s]*([a-zA-Z0-9_-]+)/gi,
+          // Simple alphanumeric labels: migration, v2, backend, etc.
+          /\b([a-zA-Z0-9]{3,}(?:[a-zA-Z0-9_-]*[a-zA-Z0-9])?)\b/g
+        ];
+
+        const extractedLabels = new Set<string>();
+        
+        for (const pattern of labelPatterns) {
+          const matches = [...description.matchAll(pattern)];
+          for (const match of matches) {
+            const label = match[1];
+            // Filter out common words that aren't labels
+            if (label && !this.isCommonWord(label) && label.length >= 3) {
+              extractedLabels.add(label.toLowerCase());
+            }
+          }
+        }
+
+        if (extractedLabels.size > 0) {
+          extractedValue = Array.from(extractedLabels);
+          confidence = 0.7;
+          console.log(`[LABEL-DEBUG] Extracted labels for ${field.name}:`, extractedValue);
+        } else {
+          console.log(`[LABEL-DEBUG] No labels extracted for ${field.name} from description:`, description.substring(0, 100));
+        }
+      }
+
       if (extractedValue !== null) {
         extractedFields.push({
           fieldId: field.id,
@@ -710,6 +750,19 @@ Return a JSON object with this structure:
       const data = await response.json();
       return data.content || data.response || '';
     }
+  }
+
+  /**
+   * Check if a word is a common English word that shouldn't be a label
+   */
+  private isCommonWord(word: string): boolean {
+    const commonWords = new Set([
+      'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'man', 'end', 'why', 'let', 'put', 'say', 'she', 'too', 'use',
+      'that', 'with', 'have', 'this', 'will', 'your', 'from', 'they', 'know', 'want', 'been', 'good', 'much', 'some', 'time', 'very', 'when', 'come', 'here', 'just', 'like', 'long', 'make', 'many', 'over', 'such', 'take', 'than', 'them', 'well', 'were', 'what',
+      'would', 'there', 'could', 'other', 'after', 'first', 'never', 'these', 'think', 'where', 'being', 'every', 'great', 'might', 'shall', 'still', 'those', 'under', 'while', 'years', 'before', 'should', 'through', 'system', 'process', 'project', 'service', 'feature', 'design', 'development', 'implementation', 'management', 'application', 'solution'
+    ]);
+    
+    return commonWords.has(word.toLowerCase());
   }
 
   private extractInternalExternalValue(description: string): ExtractedFieldValue[] {

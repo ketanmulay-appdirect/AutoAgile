@@ -184,13 +184,19 @@ function generateMockContent(contentType: string, workItem: unknown, userPrompt:
   const actualWorkItemDescription = extractTextFromDescription(workItemDescription)
   const { problemDescription, solutionDescription } = extractProblemAndSolution(actualWorkItemDescription)
   
-  // Generate a title from the work item summary
+  // Generate a title from the work item summary in the required format
   const generateTitle = (summary: string): string => {
     // Clean up the summary by removing project prefixes and quarter info
     const cleanSummary = summary.replace(/^\d{4}Q\d\s*-\s*\[[^\]]+\]\s*-\s*/, '').trim()
     // Take first 8-10 words for a concise title
-    const words = cleanSummary.split(' ').slice(0, 10).join(' ')
-    return words || 'Feature Update'
+    const words = cleanSummary.split(' ').slice(0, 8).join(' ') || 'Feature Update'
+    
+    // Generate current quarter in the required format
+    const currentYear = new Date().getFullYear()
+    const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3)
+    const quarterStr = `${currentYear}Q${currentQuarter}`
+    
+    return `${quarterStr} - [AC] - ${words}`
   }
   
   const generatedTitle = generateTitle(workItemSummary)
@@ -365,47 +371,64 @@ Estimated effort: 8 points
     case 'epic':
       return `# ${generatedTitle}
 
-## Epic Overview
+### Problem description
 ${problemDescription}
 
-## Business Value
-This epic addresses critical user needs and business requirements that will drive significant value through improved user experience and operational efficiency.
-
-## Solution Summary
+### Solution description
 ${solutionDescription}
 
-## User Stories
-This epic encompasses the following user stories:
-- User authentication and authorization
-- Core feature implementation
-- Data management and processing
-- User interface enhancements
-- Integration with external systems
+### Scope
+This epic encompasses the following capabilities:
+- Core functionality implementation and user interface
+- Data processing and management systems
+- Integration with existing platform components
+- User authentication and authorization features
+- Quality assurance and testing frameworks
 
-## Acceptance Criteria
-- [ ] All constituent user stories are completed
-- [ ] End-to-end testing validates the complete workflow
-- [ ] Performance requirements are met
-- [ ] Security standards are implemented
-- [ ] Documentation is comprehensive and up-to-date
+### Out of scope
+- Advanced analytics and reporting features (future epic)
+- Mobile application development (separate initiative)
+- Third-party integrations beyond core requirements
+- Legacy system migration (handled by infrastructure team)
 
-## Dependencies
-- API infrastructure updates
-- Database schema modifications
-- Third-party service integrations
-- User interface component library updates
+### Expected launch timeline
+- **Planning and Design**: 2 weeks
+- **Core Development**: 8-10 weeks  
+- **Integration and Testing**: 3 weeks
+- **Deployment and Rollout**: 1 week
+- **Total Duration**: 14-16 weeks
 
-## Success Metrics
+### Business case
+This epic addresses critical user needs and business requirements that will drive significant value through improved user experience and operational efficiency. Expected outcomes include:
 - User adoption rate: Target 70% within 60 days
-- Performance improvement: 25% faster task completion
+- Performance improvement: 25% faster task completion  
 - Error reduction: 40% fewer support tickets
 - User satisfaction: +20 points on satisfaction surveys
+- Estimated ROI: $500K annually through efficiency gains
 
-## Timeline
-- Planning: 2 weeks
-- Development: 8-12 weeks
-- Testing: 3 weeks
-- Deployment: 1 week
+### Dependencies
+- API infrastructure updates and database schema modifications
+- User interface component library updates
+- Third-party service integrations and authentication systems
+- Quality assurance framework and testing infrastructure
+- Documentation and training material development
+
+### Definition of done/Acceptance criteria
+- [ ] All constituent user stories are completed and tested
+- [ ] End-to-end testing validates the complete workflow
+- [ ] Performance requirements are met (sub-2 second response times)
+- [ ] Security standards are implemented and validated
+- [ ] Documentation is comprehensive and up-to-date
+- [ ] User acceptance testing completed successfully
+- [ ] Production deployment executed without issues
+
+### Test plan
+- **Unit Testing**: Comprehensive coverage for all new components
+- **Integration Testing**: Validate system interactions and data flow
+- **Performance Testing**: Load testing under expected usage patterns
+- **Security Testing**: Penetration testing and vulnerability assessment
+- **User Acceptance Testing**: Real-world scenario validation with stakeholders
+- **Regression Testing**: Ensure existing functionality remains intact
 
 ---
 *Generated from user requirements on ${new Date().toISOString()}*`
