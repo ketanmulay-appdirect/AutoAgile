@@ -68,22 +68,18 @@ export function FieldExtractionConfigEditor({
     const configs: FieldExtractionConfig[] = []
     const jiraFieldsMap = new Map(jiraFields.map(field => [field.id, field]))
 
-    // First, preserve all existing configurations for fields that still exist
+    // Preserve ALL existing configurations - we'll handle missing field info gracefully
     existingConfigs.forEach(existingConfig => {
-      const jiraField = jiraFieldsMap.get(existingConfig.jiraFieldId)
-      if (jiraField) {
-        // Field still exists, preserve the configuration
-        configs.push({
-          fieldId: existingConfig.fieldId,
-          jiraFieldId: existingConfig.jiraFieldId,
-          extractionEnabled: existingConfig.extractionEnabled,
-          extractionMethod: existingConfig.extractionMethod,
-          confirmationRequired: existingConfig.confirmationRequired,
-          confidenceThreshold: existingConfig.confidenceThreshold,
-          autoApply: existingConfig.autoApply,
-          displayName: existingConfig.displayName
-        })
-      }
+      configs.push({
+        fieldId: existingConfig.fieldId,
+        jiraFieldId: existingConfig.jiraFieldId,
+        extractionEnabled: existingConfig.extractionEnabled,
+        extractionMethod: existingConfig.extractionMethod,
+        confirmationRequired: existingConfig.confirmationRequired,
+        confidenceThreshold: existingConfig.confidenceThreshold,
+        autoApply: existingConfig.autoApply,
+        displayName: existingConfig.displayName
+      })
     })
 
     // Then, add any new required fields that don't have configurations yet
@@ -367,13 +363,35 @@ export function FieldExtractionConfigEditor({
               </CardTitle>
               <CardDescription>
                 Configure extraction settings for Jira fields 
-                ({fieldConfigs.filter(c => jiraFields.find(f => f.id === c.jiraFieldId)?.required).length} required, {fieldConfigs.filter(c => !jiraFields.find(f => f.id === c.jiraFieldId)?.required).length} optional)
+                ({fieldConfigs.filter(c => jiraFields.find(f => f.id === c.jiraFieldId)?.required).length} required, {fieldConfigs.filter(c => {
+                  const field = jiraFields.find(f => f.id === c.jiraFieldId)
+                  return field ? !field.required : true // assume optional if field info missing
+                }).length} optional)
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Info about missing field data */}
+              {fieldConfigs.some(config => !jiraFields.find(f => f.id === config.jiraFieldId)) && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start">
+                    <Icons.AlertTriangle size="sm" className="text-orange-600 mr-2 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-medium text-orange-900">Some Field Information Missing</h4>
+                      <p className="text-sm text-orange-800 mt-1">
+                        You have configured fields that aren't fully loaded. Use "Scan All Available Fields" 
+                        to reload complete field information and discover more fields.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div className="space-y-4">
                 {fieldConfigs.map((config, index) => {
                   const jiraField = jiraFields.find(f => f.id === config.jiraFieldId)
+                  const isRequired = jiraField?.required ?? false
+                  const fieldExists = !!jiraField
+                  
                   return (
                     <div key={config.jiraFieldId} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
@@ -388,21 +406,31 @@ export function FieldExtractionConfigEditor({
                             <div>
                               <h4 className="font-medium text-gray-900">{config.displayName}</h4>
                               <p className="text-sm text-gray-500">
-                                {jiraField?.id} • {jiraField?.type}
+                                {config.jiraFieldId} • {jiraField?.type || 'Unknown type'}
+                                {!fieldExists && (
+                                  <span className="text-orange-600 ml-2">• Field info not loaded</span>
+                                )}
                               </p>
                             </div>
                           </div>
-                          {jiraField?.required ? (
-                            <Badge variant="secondary">Required</Badge>
-                          ) : (
-                            <Badge variant="outline">Optional</Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {isRequired ? (
+                              <Badge variant="secondary">Required</Badge>
+                            ) : (
+                              <Badge variant="outline">Optional</Badge>
+                            )}
+                            {!fieldExists && (
+                              <Badge variant="outline" className="text-orange-600 border-orange-300">
+                                Needs Reload
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge className={getMethodColor(config.extractionMethod)}>
                             {getMethodIcon(config.extractionMethod)} {config.extractionMethod.toUpperCase()}
                           </Badge>
-                          {!jiraField?.required && (
+                          {!isRequired && (
                             <button
                               onClick={() => removeFieldConfig(index)}
                               className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
