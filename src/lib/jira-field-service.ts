@@ -50,26 +50,106 @@ class JiraFieldService {
     }
   }
 
-  // Get field metadata for a specific issue type
-  async getFieldsForIssueType(jiraConnection: JiraInstance, issueTypeId: string): Promise<JiraField[]> {
+  // Get Jira issue type ID from work item type
+  async getIssueTypeId(jiraConnection: JiraInstance, workItemType: string): Promise<string | null> {
     try {
-      const response = await fetch('/api/jira/get-create-meta', {
-        method: 'POST',
+      // Map work item type to Jira issue type name
+      const issueTypeMap: Record<string, string> = {
+        'epic': 'Epic',
+        'story': 'Story',
+        'initiative': 'Initiative'
+      }
+      
+      const jiraIssueTypeName = issueTypeMap[workItemType]
+      if (!jiraIssueTypeName) {
+        console.error(`Unknown work item type: ${workItemType}`)
+        return null
+      }
+
+      // Get all issue types from Jira
+      const auth = btoa(`${jiraConnection.email}:${jiraConnection.apiToken}`)
+      const response = await fetch(`${jiraConnection.url}/rest/api/3/issuetype`, {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
+          'Authorization': `Basic ${auth}`,
+          'Accept': 'application/json',
         },
-        body: JSON.stringify({ 
-          jiraConnection,
-          issueTypeId 
-        }),
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to get field metadata: ${response.status}`)
+        console.error('Failed to get issue types from Jira')
+        return null
       }
 
-      const data = await response.json()
-      return this.parseFieldMetadata(data.fields || {})
+      const issueTypes = await response.json()
+      const targetIssueType = issueTypes.find((type: any) => 
+        type.name.toLowerCase() === jiraIssueTypeName.toLowerCase()
+      )
+
+      if (!targetIssueType) {
+        console.error(`Issue type '${jiraIssueTypeName}' not found in Jira`)
+        return null
+      }
+
+      console.log(`Mapped work item type '${workItemType}' to Jira issue type '${targetIssueType.name}' (ID: ${targetIssueType.id})`)
+      return targetIssueType.id
+    } catch (error) {
+      console.error('Error getting issue type ID:', error)
+      return null
+    }
+  }
+
+  // Get field metadata for a specific issue type - direct Jira API call
+  async getFieldsForIssueType(jiraConnection: JiraInstance, issueTypeId: string): Promise<JiraField[]> {
+    try {
+      const auth = btoa(`${jiraConnection.email}:${jiraConnection.apiToken}`)
+      
+      // Get project key - try from connection first, fallback to any project
+      let projectKey = jiraConnection.projectKey
+      if (!projectKey) {
+        // Get first available project
+        const projectsResponse = await fetch(`${jiraConnection.url}/rest/api/3/project`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Accept': 'application/json',
+          },
+        })
+        
+        if (projectsResponse.ok) {
+          const projects = await projectsResponse.json()
+          projectKey = projects[0]?.key
+        }
+      }
+      
+      if (!projectKey) {
+        throw new Error('No project key available')
+      }
+
+      // Get create metadata for the specific issue type and project
+      const metaUrl = `${jiraConnection.url}/rest/api/3/issue/createmeta?projectKeys=${projectKey}&issuetypeIds=${issueTypeId}&expand=projects.issuetypes.fields`
+      
+      const response = await fetch(metaUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Accept': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to get create metadata: ${response.status}`)
+      }
+
+      const metadata = await response.json()
+      
+      // Extract fields from the metadata structure
+      const project = metadata.projects?.[0]
+      const issueType = project?.issuetypes?.[0]
+      const fieldsData = issueType?.fields || {}
+      
+      console.log(`Found ${Object.keys(fieldsData).length} fields for issue type ${issueTypeId}`)
+      return this.parseFieldMetadata(fieldsData)
     } catch (error) {
       console.error('Error getting field metadata:', error)
       return []
@@ -430,35 +510,27 @@ class JiraFieldService {
     return standardNames[fieldId] || fieldId.charAt(0).toUpperCase() + fieldId.slice(1)
   }
 
-  // Get ALL available fields for comprehensive discovery
+  // Get fields available for a specific issue type (smart discovery)
   async getAllAvailableFields(jiraConnection: JiraInstance, issueTypeId?: string): Promise<JiraField[]> {
     try {
-      console.log('Discovering all available fields...')
+      console.log('Discovering available fields for issue type:', issueTypeId)
 
-      // Method 1: Get all fields from the global fields endpoint
-      const allFields = await this.fetchAllSystemFields(jiraConnection)
-      
-      // Method 2: If we have a specific issue type, get its create metadata
-      let issueTypeFields: JiraField[] = []
+      // If we have a specific issue type, ONLY use fields available for that issue type
+      // This prevents showing fields that exist globally but aren't available for creation
       if (issueTypeId) {
-        issueTypeFields = await this.getFieldsForIssueType(jiraConnection, issueTypeId)
+        console.log('Using issue-type-specific field discovery for maximum accuracy')
+        const issueTypeFields = await this.getFieldsForIssueType(jiraConnection, issueTypeId)
+        console.log(`Discovered ${issueTypeFields.length} fields available for issue type ${issueTypeId}`)
+        return issueTypeFields
       }
 
-      // Combine and deduplicate fields
-      const fieldMap = new Map<string, JiraField>()
-      
-      // Add all system fields
-      allFields.forEach(field => fieldMap.set(field.id, field))
-      
-      // Overlay issue-type specific fields (they have more context)
-      issueTypeFields.forEach(field => fieldMap.set(field.id, field))
-
-      const discoveredFields = Array.from(fieldMap.values())
-      
-      console.log(`Discovered ${discoveredFields.length} total available fields`)
-      return discoveredFields
+      // Fallback: If no issue type specified, get all system fields (less accurate)
+      console.log('No issue type specified, falling back to all system fields (may include unavailable fields)')
+      const allFields = await this.fetchAllSystemFields(jiraConnection)
+      console.log(`Discovered ${allFields.length} total system fields`)
+      return allFields
     } catch (error) {
-      console.error('Error getting all available fields:', error)
+      console.error('Error getting available fields:', error)
       return []
     }
   }

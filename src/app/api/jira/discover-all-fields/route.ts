@@ -12,10 +12,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('Discovering all available fields for:', { workItemType, issueTypeId, searchTerm })
+    console.log('Discovering available fields for:', { workItemType, issueTypeId, searchTerm })
 
-    // Get all available fields
-    const allFields = await jiraFieldService.getAllAvailableFields(jiraInstance, issueTypeId)
+    // Resolve issue type ID from work item type if not provided
+    let resolvedIssueTypeId = issueTypeId
+    if (!resolvedIssueTypeId && workItemType) {
+      console.log(`Resolving issue type ID for work item type: ${workItemType}`)
+      resolvedIssueTypeId = await jiraFieldService.getIssueTypeId(jiraInstance, workItemType)
+      if (!resolvedIssueTypeId) {
+        return NextResponse.json(
+          { error: `Could not find Jira issue type for work item type: ${workItemType}` },
+          { status: 400 }
+        )
+      }
+      console.log(`Resolved issue type ID: ${resolvedIssueTypeId}`)
+    }
+
+    // Get fields available for the specific issue type (smart discovery)
+    const allFields = await jiraFieldService.getAllAvailableFields(jiraInstance, resolvedIssueTypeId)
     
     if (allFields.length === 0) {
       return NextResponse.json(
@@ -76,7 +90,9 @@ export async function POST(request: NextRequest) {
       fields: enrichedCategories,
       summary,
       search_term: searchTerm || null,
-      work_item_type: workItemType
+      work_item_type: workItemType,
+      issue_type_id: resolvedIssueTypeId,
+      discovery_mode: resolvedIssueTypeId ? 'issue-type-specific' : 'all-fields'
     })
 
   } catch (error) {
