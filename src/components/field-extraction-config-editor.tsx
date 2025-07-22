@@ -14,6 +14,7 @@ interface FieldExtractionConfigEditorProps {
   jiraFields: JiraField[]
   onSave: (config: FieldExtractionConfig[], preferences: ExtractionPreferences) => void
   onCancel: () => void
+  onFieldsUpdated?: (fields: JiraField[]) => void
 }
 
 interface DiscoveredField extends JiraField {
@@ -36,7 +37,8 @@ export function FieldExtractionConfigEditor({
   template,
   jiraFields,
   onSave,
-  onCancel
+  onCancel,
+  onFieldsUpdated
 }: FieldExtractionConfigEditorProps) {
   const [fieldConfigs, setFieldConfigs] = useState<FieldExtractionConfig[]>([])
   const [preferences, setPreferences] = useState<ExtractionPreferences>({
@@ -199,6 +201,9 @@ export function FieldExtractionConfigEditor({
       const data = await response.json()
       setDiscoveredFields(data.fields)
       setShowFieldDiscovery(true)
+      
+      // Don't automatically refresh parent fields - this causes the cyclical loop
+      // Instead, let the configured fields persist and users can manually refresh if needed
       
       // Auto-expand all categories when searching to show all results
       if (searchTerm.trim() && data.fields) {
@@ -370,16 +375,16 @@ export function FieldExtractionConfigEditor({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Info about missing field data */}
+              {/* Info about configured fields */}
               {fieldConfigs.some(config => !jiraFields.find(f => f.id === config.jiraFieldId)) && (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                   <div className="flex items-start">
-                    <Icons.AlertTriangle size="sm" className="text-orange-600 mr-2 mt-0.5" />
+                    <Icons.Info size="sm" className="text-blue-600 mr-2 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-medium text-orange-900">Some Field Information Missing</h4>
-                      <p className="text-sm text-orange-800 mt-1">
-                        You have configured fields that aren't fully loaded. Use "Scan All Available Fields" 
-                        to reload complete field information and discover more fields.
+                      <h4 className="text-sm font-medium text-blue-900">Additional Fields Configured</h4>
+                      <p className="text-sm text-blue-800 mt-1">
+                        You have additional optional fields configured beyond the basic required fields. 
+                        These will be extracted when pushing content to Jira.
                       </p>
                     </div>
                   </div>
@@ -406,25 +411,15 @@ export function FieldExtractionConfigEditor({
                             <div>
                               <h4 className="font-medium text-gray-900">{config.displayName}</h4>
                               <p className="text-sm text-gray-500">
-                                {config.jiraFieldId} • {jiraField?.type || 'Unknown type'}
-                                {!fieldExists && (
-                                  <span className="text-orange-600 ml-2">• Field info not loaded</span>
-                                )}
+                                {config.jiraFieldId} • {jiraField?.type || 'Custom field'}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {isRequired ? (
-                              <Badge variant="secondary">Required</Badge>
-                            ) : (
-                              <Badge variant="outline">Optional</Badge>
-                            )}
-                            {!fieldExists && (
-                              <Badge variant="outline" className="text-orange-600 border-orange-300">
-                                Needs Reload
-                              </Badge>
-                            )}
-                          </div>
+                          {isRequired ? (
+                            <Badge variant="secondary">Required</Badge>
+                          ) : (
+                            <Badge variant="outline">Optional</Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge className={getMethodColor(config.extractionMethod)}>

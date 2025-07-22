@@ -107,6 +107,10 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
     setShowFieldExtractionEditor(false)
   }
 
+  const handleFieldsUpdated = (fields: JiraField[]) => {
+    setJiraFields(fields)
+  }
+
   const handleOpenFieldExtractionEditor = () => {
     if (jiraFields.length === 0) {
       alert('No Jira fields available. Please ensure you have a Jira connection configured and field discovery has been run.')
@@ -228,6 +232,7 @@ export function TemplateConfiguration({ onClose }: TemplateConfigurationProps) {
         jiraFields={jiraFields}
         onSave={handleFieldExtractionSave}
         onCancel={() => setShowFieldExtractionEditor(false)}
+        onFieldsUpdated={handleFieldsUpdated}
       />
     )
   }
