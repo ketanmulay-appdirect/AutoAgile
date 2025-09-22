@@ -26,22 +26,24 @@ export async function POST(request: NextRequest) {
     // This searches for issues where the Epic Link field points to our epic
     const jql = `"Epic Link" = "${epicKey}" OR parent = "${epicKey}"`
     
-    const searchUrl = `${jiraConnection.url}/rest/api/3/search`
-    const searchParams = new URLSearchParams({
+    const searchUrl = `${jiraConnection.url}/rest/api/3/search/jql`
+    const requestBody = {
       jql: jql,
-      fields: 'summary,assignee,status,issuetype,key',
-      maxResults: '100'
-    })
+      fields: ['summary', 'assignee', 'status', 'issuetype', 'key'],
+      maxResults: 100
+    }
 
     console.log(`🔍 JQL Query: ${jql}`)
+    console.log(`🔍 Request body: ${JSON.stringify(requestBody)}`)
     
-    const response = await fetch(`${searchUrl}?${searchParams}`, {
-      method: 'GET',
+    const response = await fetch(searchUrl, {
+      method: 'POST',
       headers: {
         'Authorization': `Basic ${auth}`,
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify(requestBody)
     })
 
     if (!response.ok) {

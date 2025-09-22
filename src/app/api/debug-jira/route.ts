@@ -33,14 +33,19 @@ export async function POST(request: NextRequest) {
     for (const jql of queries) {
       try {
         const response = await fetch(
-          `${jiraInstance.url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&fields=summary,issuetype&maxResults=5`,
+          `${jiraInstance.url}/rest/api/3/search/jql`,
           {
-            method: 'GET',
+            method: 'POST',
             headers: {
               'Authorization': `Basic ${auth}`,
               'Accept': 'application/json',
               'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+              jql: jql,
+              fields: ['summary', 'issuetype'],
+              maxResults: 5
+            })
           }
         )
 

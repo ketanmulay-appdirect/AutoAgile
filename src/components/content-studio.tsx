@@ -453,7 +453,6 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       case 'heading':
         const level = Math.min(node.attrs?.level || 1, 6)
         const headingProps = {
-          key,
           className: "font-bold text-gray-900 mt-4 mb-2 first:mt-0",
           children: node.content ? node.content.map((child: any, childIndex: number) => 
             renderADFNode(child, `${key}-${childIndex}`)
@@ -461,13 +460,13 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         }
         
         switch (level) {
-          case 1: return <h1 {...headingProps} />
-          case 2: return <h2 {...headingProps} />
-          case 3: return <h3 {...headingProps} />
-          case 4: return <h4 {...headingProps} />
-          case 5: return <h5 {...headingProps} />
-          case 6: return <h6 {...headingProps} />
-          default: return <h1 {...headingProps} />
+          case 1: return <h1 key={key} {...headingProps} />
+          case 2: return <h2 key={key} {...headingProps} />
+          case 3: return <h3 key={key} {...headingProps} />
+          case 4: return <h4 key={key} {...headingProps} />
+          case 5: return <h5 key={key} {...headingProps} />
+          case 6: return <h6 key={key} {...headingProps} />
+          default: return <h1 key={key} {...headingProps} />
         }
       
       case 'bulletList':

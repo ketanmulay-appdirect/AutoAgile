@@ -39,18 +39,31 @@ export async function POST(request: NextRequest) {
     console.log('JQL Query:', jql)
     
     // Standard fields to include in the response
-    const fields = 'summary,description,issuetype,status,project,fixVersions,labels'
+    const fields = ['summary', 'description', 'issuetype', 'status', 'project', 'fixVersions', 'labels']
     
-    const searchUrl = `${jiraInstance.url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&fields=${fields}&maxResults=50`
+    // Use the correct /rest/api/3/search/jql endpoint as per official documentation
+    const searchUrl = `${jiraInstance.url}/rest/api/3/search/jql`
+    
+    const requestBody = {
+      jql: jql,
+      fields: fields,
+      maxResults: 50
+    }
+    
     console.log('Search URL:', searchUrl)
+    console.log('JQL Query:', jql)
+    console.log('Using POST method with enhanced JQL search endpoint')
+    console.log('Request body:', JSON.stringify(requestBody, null, 2))
+    console.log('Auth header (first 20 chars):', `Basic ${auth}`.substring(0, 20) + '...')
 
     const response = await fetch(searchUrl, {
-      method: 'GET',
+      method: 'POST',
       headers: {
         'Authorization': `Basic ${auth}`,
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify(requestBody)
     })
 
     if (!response.ok) {
@@ -60,7 +73,9 @@ export async function POST(request: NextRequest) {
         statusText: response.statusText,
         errorBody: errorText,
         jql: jql,
-        url: searchUrl
+        url: searchUrl,
+        method: 'GET',
+        responseHeaders: Object.fromEntries(response.headers.entries())
       })
       throw new Error(`Jira API error: ${response.status} ${response.statusText} - ${errorText}`)
     }
