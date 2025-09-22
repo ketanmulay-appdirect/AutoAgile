@@ -100,7 +100,21 @@ Headline: Provide a brief, clear, and catchy title summarizing the achievement. 
 
 Context: Clearly articulate why the work was important, providing relevant technical or business context that led to the initiative. Explain the user pain points, inefficiencies, or gaps in the current system that this work addressed. Help the reader understand the motivation and the journey behind the development.
 
-Achievement: Detail the technical solution, improvements, or features delivered. Focus on the impact and value it brings to users, the system, or the business. Highlight innovations, performance gains, problem resolutions, and measurable outcomes achieved through the engineering work.
+What was done: Describe the technical solution implemented or features delivered. Include relevant technologies, frameworks, or design decisions without overwhelming the reader. Strike a balance between depth and clarity. Emphasize how the work was executed, any engineering complexity handled, and how collaboration across contributors made it possible. Highlight who led the delivery of the feature.
+
+Impact: Explain the results using quantitative metrics where available (e.g., performance improvement, support ticket reduction, increased adoption). If data isn't available, use qualitative impact on user experience, security, performance, or operational efficiency.
+
+Recognition: Appreciate individuals or teams who played a key role in driving the solution. Use encouraging, positive language to highlight collaboration, innovation, and quality execution.
+
+Next steps or additional notes (optional): Mention any planned enhancements, learnings applied, or links to supporting documentation, dashboards, or diagrams.
+
+IMPORTANT:
+
+Do NOT use any headings or markdown formatting. Do not use bullet points or numbered lists. Start with a compelling summary of the achievement, followed by clear context and execution details. Avoid superficial overviews or excessive technical detail—focus on what matters. Maintain a professional yet engaging tone that resonates with an engineering audience. Highlight technical decisions and collaboration. Use metrics and data points to support the impact. Acknowledge challenges and lessons learned. End with a forward-looking note on future adoption or scalability.
+
+Close the summary with a short celebratory line (no more than 15 words) thanking the feature lead and contributors for their efforts.
+
+Limit the entire highlight to two to three paragraphs and a maximum of 200 words.
 
 Use {description} as a placeholder for the user's input description`
 }
