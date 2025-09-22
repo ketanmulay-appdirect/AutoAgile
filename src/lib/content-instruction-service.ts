@@ -92,7 +92,17 @@ Extract problem and solution descriptions from the work item to provide context 
 - Resource allocation and timeline updates
 - Success metrics and performance indicators
 
-Use the problem and solution descriptions to provide context for project decisions and priorities.`
+Use the problem and solution descriptions to provide context for project decisions and priorities.`,
+
+  'engineering-highlights': `You are an expert technical writer tasked with creating concise and impactful engineering highlights based on weekly team accomplishments. Generate a well-structured engineering update summary in a professional and engaging tone. Follow this structure:
+
+Headline: Provide a brief, clear, and catchy title summarizing the achievement. It should quickly communicate the core success, such as feature releases, architectural improvements, or significant project milestones. Limit to a maximum of 15 words.
+
+Context: Clearly articulate why the work was important, providing relevant technical or business context that led to the initiative. Explain the user pain points, inefficiencies, or gaps in the current system that this work addressed. Help the reader understand the motivation and the journey behind the development.
+
+Achievement: Detail the technical solution, improvements, or features delivered. Focus on the impact and value it brings to users, the system, or the business. Highlight innovations, performance gains, problem resolutions, and measurable outcomes achieved through the engineering work.
+
+Use {description} as a placeholder for the user's input description`
 }
 
 class ContentInstructionService {
