@@ -552,19 +552,6 @@ export const PM_TOOLS: PMTool[] = [
     tags: ['forms', 'surveys', 'data-collection', 'user-research', 'feedback'],
     useCases: ['User research', 'Feedback collection', 'Lead generation', 'Event registration']
   },
-  {
-    id: 'calendly',
-    name: 'Calendly',
-    description: 'Calendly helps you schedule meetings without the back-and-forth emails.',
-    shortDescription: 'Automated meeting scheduling and calendar management',
-    category: 'collaboration-communication',
-    type: 'freemium',
-    complexity: 'beginner',
-    url: 'https://calendly.com',
-    isPopular: true,
-    tags: ['scheduling', 'calendar', 'meetings', 'automation', 'time-management'],
-    useCases: ['User interviews', 'Stakeholder meetings', 'Demo scheduling', 'Team syncs']
-  },
 
   // Development Workflow
   {
