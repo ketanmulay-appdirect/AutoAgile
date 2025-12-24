@@ -68,7 +68,7 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
           case 'paragraph':
             return (
               <span key={key} className="block mb-1 last:mb-0">
-                {node.content ? node.content.map((child: any, childIndex: number) => 
+                {node.content && Array.isArray(node.content) ? node.content.map((child: any, childIndex: number) => 
                   renderSimpleADF(child, `${key}-${childIndex}`)
                 ).filter(Boolean) : ''}
               </span>
@@ -106,7 +106,7 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
                   <div key={`${key}-${itemIndex}`} className="flex items-start">
                     <span className="text-cloud-500 mr-1 text-xs">•</span>
                     <span className="text-sm">
-                      {item.content ? item.content.map((child: any, childIndex: number) => 
+                      {item.content && Array.isArray(item.content) ? item.content.map((child: any, childIndex: number) => 
                         renderSimpleADF(child, `${key}-${itemIndex}-${childIndex}`)
                       ).filter(Boolean) : ''}
                     </span>
@@ -121,7 +121,7 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
           case 'listItem':
             return (
               <span key={key}>
-                {node.content ? node.content.map((child: any, childIndex: number) => 
+                {node.content && Array.isArray(node.content) ? node.content.map((child: any, childIndex: number) => 
                   renderSimpleADF(child, `${key}-${childIndex}`)
                 ).filter(Boolean) : ''}
               </span>
@@ -130,7 +130,7 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
           case 'heading':
             return (
               <span key={key} className="font-semibold text-navy-950 block mb-1">
-                {node.content ? node.content.map((child: any, childIndex: number) => 
+                {node.content && Array.isArray(node.content) ? node.content.map((child: any, childIndex: number) => 
                   renderSimpleADF(child, `${key}-${childIndex}`)
                 ).filter(Boolean) : ''}
               </span>
@@ -143,9 +143,9 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
             if (node.content) {
               return (
                 <span key={key}>
-                  {node.content.map((child: any, childIndex: number) => 
+                  {node.content && Array.isArray(node.content) ? node.content.map((child: any, childIndex: number) => 
                     renderSimpleADF(child, `${key}-${childIndex}`)
-                  ).filter(Boolean)}
+                  ).filter(Boolean) : ''}
                 </span>
               )
             }
@@ -153,9 +153,11 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
         }
       }
 
-      const renderedContent = description.content.map((node: any, index: number) => 
-        renderSimpleADF(node, index.toString())
-      ).filter(Boolean)
+      const renderedContent = (description.content && Array.isArray(description.content)) 
+        ? description.content.map((node: any, index: number) => 
+            renderSimpleADF(node, index.toString())
+          ).filter(Boolean)
+        : []
 
       // Convert to string to check length and truncate if needed
       const textContent = extractTextFromADF(description)
