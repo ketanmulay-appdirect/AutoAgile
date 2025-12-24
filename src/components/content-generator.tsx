@@ -29,6 +29,14 @@ export function ContentGenerator({
   deliveryQuarter,
   onBack
 }: ContentGeneratorProps) {
+  // VERSION LOG - This should appear immediately when component loads
+  console.log('[CONTENT-GEN-DEBUG] 🚀🚀🚀 COMPONENT MOUNTED - VERSION: 2025-12-24-19:00 🚀🚀🚀')
+  console.log('[CONTENT-GEN-DEBUG] Component props:', {
+    workItemKey: workItem?.key,
+    contentType,
+    deliveryQuarter
+  })
+  
   const [generatedContent, setGeneratedContent] = useState<string>('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
