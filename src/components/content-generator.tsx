@@ -89,6 +89,7 @@ export function ContentGenerator({
   const generateContent = useCallback(async () => {
     if (!workItem) return
     
+    console.log('[CONTENT-GEN-DEBUG] 🚀 VERSION: 2025-12-24-18:12 🚀')
     console.log(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio generateContent called`, {
       workItemKey: workItem.key,
       workItemType: workItem.issueType,
@@ -356,6 +357,12 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
       }
     } catch (err) {
       console.error(`[AI-DEBUG] ${new Date().toISOString()} - Content Studio generation error:`, err)
+      console.error('[CONTENT-GEN-DEBUG] Error details:', {
+        errorMessage: (err as Error)?.message,
+        errorStack: (err as Error)?.stack,
+        errorType: typeof err,
+        errorKeys: err ? Object.keys(err) : []
+      })
       setError('Failed to generate content. Please try again.')
     } finally {
       setIsGenerating(false)
