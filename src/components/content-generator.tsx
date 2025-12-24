@@ -97,6 +97,18 @@ export function ContentGenerator({
       deliveryQuarter
     })
     
+    console.log('[CONTENT-GEN-DEBUG] ========== GENERATION STARTED ==========')
+    console.log('[CONTENT-GEN-DEBUG] Work Item Full Data:', {
+      key: workItem.key,
+      summary: workItem.summary,
+      issueType: workItem.issueType,
+      hasDescription: workItem.description !== undefined,
+      descriptionType: typeof workItem.description,
+      descriptionIsNull: workItem.description === null,
+      descriptionIsUndefined: workItem.description === undefined,
+      descriptionValue: workItem.description ? JSON.stringify(workItem.description).substring(0, 200) : 'N/A'
+    })
+    
     setIsGenerating(true)
     setGeneratedContent('')
     setError(null)
@@ -112,13 +124,31 @@ export function ContentGenerator({
       
       // Extract problem and solution descriptions
       const extractProblemAndSolution = (description: any): { problemDescription: string; solutionDescription: string } => {
+        console.log('[CONTENT-GEN-DEBUG] Starting extractProblemAndSolution', {
+          descriptionType: typeof description,
+          isNull: description === null,
+          isUndefined: description === undefined,
+          hasContent: description?.content !== undefined,
+          contentType: description?.content ? typeof description.content : 'N/A',
+          isArray: Array.isArray(description?.content)
+        })
+        
         let fullText = ''
         
         // Extract text from description (handle both string and ADF formats)
         if (typeof description === 'string') {
+          console.log('[CONTENT-GEN-DEBUG] Description is string, length:', description.length)
           fullText = description
         } else if (description && typeof description === 'object' && description.content) {
+          console.log('[CONTENT-GEN-DEBUG] Description is object with content property')
           const extractText = (node: any): string => {
+            console.log('[CONTENT-GEN-DEBUG] Extracting text from node', {
+              hasText: node.text !== undefined,
+              hasContent: node.content !== undefined,
+              contentIsArray: Array.isArray(node.content),
+              nodeType: node.type
+            })
+            
             if (node.text) {
               return node.text
             }
@@ -127,9 +157,18 @@ export function ContentGenerator({
             }
             return ''
           }
+          
+          console.log('[CONTENT-GEN-DEBUG] About to process description.content', {
+            contentExists: description.content !== undefined,
+            isArray: Array.isArray(description.content),
+            length: Array.isArray(description.content) ? description.content.length : 'N/A'
+          })
+          
           fullText = (description.content && Array.isArray(description.content)) 
             ? description.content.map(extractText).join('\n').trim()
             : 'No description content available'
+            
+          console.log('[CONTENT-GEN-DEBUG] Full text extracted, length:', fullText.length)
         }
         
         // Initialize result
@@ -201,7 +240,24 @@ export function ContentGenerator({
         }
       }
       
-      const { problemDescription, solutionDescription } = extractProblemAndSolution(workItem.description)
+      console.log('[CONTENT-GEN-DEBUG] About to call extractProblemAndSolution')
+      
+      let problemDescription = ''
+      let solutionDescription = ''
+      
+      try {
+        const result = extractProblemAndSolution(workItem.description)
+        problemDescription = result.problemDescription
+        solutionDescription = result.solutionDescription
+        console.log('[CONTENT-GEN-DEBUG] Successfully extracted problem and solution', {
+          problemLength: problemDescription.length,
+          solutionLength: solutionDescription.length
+        })
+      } catch (extractError) {
+        console.error('[CONTENT-GEN-DEBUG] ERROR in extractProblemAndSolution:', extractError)
+        console.error('[CONTENT-GEN-DEBUG] Error stack:', (extractError as Error).stack)
+        throw extractError
+      }
       
       const prompt = `${instructions}
 
