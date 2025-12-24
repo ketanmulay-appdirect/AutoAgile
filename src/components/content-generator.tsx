@@ -176,7 +176,9 @@ export function ContentGenerator({
         let solutionDescription = ''
         
         // Split text into lines for processing
-        const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+        console.log('[CONTENT-GEN-DEBUG] About to split fullText', { fullTextLength: fullText?.length, fullTextType: typeof fullText })
+        const lines = fullText.split('\n').map(line => line ? line.trim() : '').filter(line => line && line.length > 0)
+        console.log('[CONTENT-GEN-DEBUG] Lines processed', { linesCount: lines.length })
         
         let currentSection = ''
         let problemLines: string[] = []
@@ -223,7 +225,7 @@ export function ContentGenerator({
         // If we didn't find specific sections, try to extract from the beginning of the description
         if (!problemDescription && !solutionDescription && fullText.length > 50) {
           // Take first half as problem, second half as solution (fallback)
-          const sentences = fullText.split(/[.!?]+/).filter(s => s.trim().length > 10)
+          const sentences = fullText.split(/[.!?]+/).filter(s => s && s.trim && s.trim().length > 10)
           if (sentences.length >= 2) {
             const midPoint = Math.ceil(sentences.length / 2)
             problemDescription = sentences.slice(0, midPoint).join('. ').trim() + '.'
@@ -387,7 +389,7 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
       let solutionDescription = ''
       
       // Split text into lines for processing
-      const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+      const lines = fullText.split('\n').map(line => line ? line.trim() : '').filter(line => line && line.length > 0)
       
       let currentSection = ''
       let problemLines: string[] = []
@@ -434,7 +436,7 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
       // If we didn't find specific sections, try to extract from the beginning of the description
       if (!problemDescription && !solutionDescription && fullText.length > 50) {
         // Take first half as problem, second half as solution (fallback)
-        const sentences = fullText.split(/[.!?]+/).filter(s => s.trim().length > 10)
+        const sentences = fullText.split(/[.!?]+/).filter(s => s && s.trim && s.trim().length > 10)
         if (sentences.length >= 2) {
           const midPoint = Math.ceil(sentences.length / 2)
           problemDescription = sentences.slice(0, midPoint).join('. ').trim() + '.'
