@@ -127,7 +127,9 @@ export function ContentGenerator({
             }
             return ''
           }
-          fullText = description.content.map(extractText).join('\n').trim()
+          fullText = (description.content && Array.isArray(description.content)) 
+            ? description.content.map(extractText).join('\n').trim()
+            : 'No description content available'
         }
         
         // Initialize result
@@ -319,7 +321,9 @@ Do NOT include any headings like "# Title" or "## The Why". Just provide the tit
           }
           return ''
         }
-        fullText = description.content.map(extractText).join('\n').trim()
+        fullText = (description.content && Array.isArray(description.content)) 
+          ? description.content.map(extractText).join('\n').trim()
+          : 'No description content available'
       }
       
       // Initialize result
