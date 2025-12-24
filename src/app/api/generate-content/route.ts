@@ -67,13 +67,17 @@ export async function POST(request: NextRequest) {
             // Enhance the work item with linked stories
             enhancedWorkItem = {
               ...workItemObj,
-              linkedStories: linkedStoriesResult.linkedStories
+              linkedStories: (linkedStoriesResult.linkedStories && Array.isArray(linkedStoriesResult.linkedStories)) 
+                ? linkedStoriesResult.linkedStories 
+                : []
             }
 
             // Update the prompt to include linked stories information for DevS.ai
-            const storyDetails = linkedStoriesResult.linkedStories.map((story: any) =>
-                `- ${story.summary} (Assignee: ${story.assignee || 'Unassigned'}, Status: ${story.status}, Type: ${story.issueType})`
-            ).join('\n')
+            const storyDetails = (linkedStoriesResult.linkedStories && Array.isArray(linkedStoriesResult.linkedStories)) 
+              ? linkedStoriesResult.linkedStories.map((story: any) =>
+                  `- ${story.summary} (Assignee: ${story.assignee || 'Unassigned'}, Status: ${story.status}, Type: ${story.issueType})`
+                ).join('\n')
+              : 'No linked stories found'
 
             enhancedPrompt = `${prompt}
 
@@ -564,11 +568,12 @@ This initiative includes the following major components:
 
       // Use the linked stories that were fetched and added to workItem
       const linkedStories = (workItem as any)?.linkedStories || [];
-      console.log('🔗 Linked stories found:', linkedStories);
-      console.log('📈 Number of linked stories:', linkedStories.length);
+      const safeLinkedStories = Array.isArray(linkedStories) ? linkedStories : [];
+      console.log('🔗 Linked stories found:', safeLinkedStories);
+      console.log('📈 Number of linked stories:', safeLinkedStories.length);
 
-      const storyDetails = linkedStories.length > 0
-          ? linkedStories.map((story: any) => `- **${story.summary}** (Assignee: ${story.assignee || 'Unassigned'})`).join('\n')
+      const storyDetails = safeLinkedStories.length > 0
+          ? safeLinkedStories.map((story: any) => `- **${story.summary}** (Assignee: ${story.assignee || 'Unassigned'})`).join('\n')
           : '- No linked stories found for this epic';
 
       console.log('✅ Generated story details:', storyDetails);
@@ -623,7 +628,10 @@ function extractTextFromDescription(description: unknown): string {
       return ''
     }
     
-    return (description as any).content.map(extractText).join('\n').trim()
+    const content = (description as any).content;
+    return (content && Array.isArray(content)) 
+      ? content.map(extractText).join('\n').trim()
+      : 'No description content available'
   }
   
   return 'No description available'
