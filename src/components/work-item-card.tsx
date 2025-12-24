@@ -78,7 +78,7 @@ export function WorkItemCard({ workItem, isSelected, onClick }: WorkItemCardProp
             let textElement: React.ReactNode = node.text || ''
             
             // Apply basic formatting
-            if (node.marks) {
+            if (node.marks && Array.isArray(node.marks)) {
               node.marks.forEach((mark: any) => {
                 switch (mark.type) {
                   case 'strong':
