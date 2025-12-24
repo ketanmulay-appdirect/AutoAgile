@@ -444,7 +444,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       case 'paragraph':
         return (
           <p key={key} className="mb-3 last:mb-0">
-            {node.content ? node.content.map((child: any, childIndex: number) => 
+            {node.content && Array.isArray(node.content) ? node.content.map((child: any, childIndex: number) => 
               renderADFNode(child, `${key}-${childIndex}`)
             ) : '\u00A0'}
           </p>
@@ -454,7 +454,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         const level = Math.min(node.attrs?.level || 1, 6)
         const headingProps = {
           className: "font-bold text-gray-900 mt-4 mb-2 first:mt-0",
-          children: node.content ? node.content.map((child: any, childIndex: number) => 
+          children: node.content && Array.isArray(node.content) ? node.content.map((child: any, childIndex: number) => 
             renderADFNode(child, `${key}-${childIndex}`)
           ) : ''
         }
@@ -472,7 +472,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       case 'bulletList':
         return (
           <ul key={key} className="list-disc list-inside mb-3 space-y-1">
-            {node.content ? node.content.map((child: any, childIndex: number) => 
+            {node.content && Array.isArray(node.content) ? node.content.map((child: any, childIndex: number) => 
               renderADFNode(child, `${key}-${childIndex}`)
             ) : null}
           </ul>
@@ -481,7 +481,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       case 'orderedList':
         return (
           <ol key={key} className="list-decimal list-inside mb-3 space-y-1">
-            {node.content ? node.content.map((child: any, childIndex: number) => 
+            {node.content && Array.isArray(node.content) ? node.content.map((child: any, childIndex: number) => 
               renderADFNode(child, `${key}-${childIndex}`)
             ) : null}
           </ol>
@@ -490,7 +490,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       case 'listItem':
         return (
           <li key={key}>
-            {node.content ? node.content.map((child: any, childIndex: number) => 
+            {node.content && Array.isArray(node.content) ? node.content.map((child: any, childIndex: number) => 
               renderADFNode(child, `${key}-${childIndex}`)
             ) : ''}
           </li>
@@ -500,7 +500,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         let textElement: React.ReactNode = node.text || ''
         
         // Apply text formatting
-        if (node.marks) {
+        if (node.marks && Array.isArray(node.marks)) {
           node.marks.forEach((mark: any) => {
             switch (mark.type) {
               case 'strong':
@@ -529,7 +529,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
         return (
           <pre key={key} className="bg-gray-100 p-3 rounded-lg overflow-x-auto mb-3">
             <code>
-              {node.content ? node.content.map((child: any) => child.text).join('') : ''}
+              {node.content && Array.isArray(node.content) ? node.content.map((child: any) => child?.text || '').join('') : ''}
             </code>
           </pre>
         )
@@ -539,7 +539,7 @@ export function ContentStudio({ jiraConnection, devsAIConnection }: ContentStudi
       
       default:
         // For unknown node types, try to render content if available
-        if (node.content) {
+        if (node.content && Array.isArray(node.content)) {
           return (
             <div key={key}>
               {node.content.map((child: any, childIndex: number) => 
