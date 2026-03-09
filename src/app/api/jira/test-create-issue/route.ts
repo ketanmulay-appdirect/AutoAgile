@@ -19,9 +19,14 @@ export async function POST(request: NextRequest) {
     }
 
     const auth = Buffer.from(`${jiraConnection.email}:${jiraConnection.apiToken}`).toString('base64')
+    const cleanUrl = jiraConnection.url.replace(/\/$/, '')
+    
+    // Detect if this is Jira Cloud or Server
+    const isJiraCloud = cleanUrl.includes('.atlassian.net')
+    const apiVersion = isJiraCloud ? '3' : '2'
     
     // Get project key from the first project
-    const projectsResponse = await fetch(`${jiraConnection.url}/rest/api/3/project`, {
+    const projectsResponse = await fetch(`${cleanUrl}/rest/api/${apiVersion}/project`, {
       method: 'GET',
       headers: {
         'Authorization': `Basic ${auth}`,
@@ -47,6 +52,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Attempt to create a test issue with minimal data
+    const descriptionText = testData?.description || 'This is a test for field discovery'
+    
+    // Use ADF for Jira Cloud, plain text for Jira Server
+    let description: any
+    if (isJiraCloud) {
+      description = {
+        type: 'doc',
+        version: 1,
+        content: [{
+          type: 'paragraph',
+          content: [{
+            type: 'text',
+            text: descriptionText
+          }]
+        }]
+      }
+    } else {
+      description = descriptionText
+    }
+    
     const issueData = {
       fields: {
         project: {
@@ -56,11 +81,11 @@ export async function POST(request: NextRequest) {
           id: issueTypeId
         },
         summary: testData?.summary || 'TEST - Field Discovery',
-        description: testData?.description || 'This is a test for field discovery'
+        description: description
       }
     }
 
-    const response = await fetch(`${jiraConnection.url}/rest/api/3/issue`, {
+    const response = await fetch(`${cleanUrl}/rest/api/${apiVersion}/issue`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${auth}`,
@@ -77,7 +102,7 @@ export async function POST(request: NextRequest) {
       const issueKey = responseData.key
       if (issueKey) {
         try {
-          await fetch(`${jiraConnection.url}/rest/api/3/issue/${issueKey}`, {
+          await fetch(`${cleanUrl}/rest/api/${apiVersion}/issue/${issueKey}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Basic ${auth}`,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { jiraFieldFormatter } from '../../../../lib/jira-field-formatter'
 import { jiraFieldService } from '../../../../lib/jira-field-service'
 import { markdownToADFConverter, ADFDocument } from '../../../../lib/markdown-to-adf-converter'
+import { markdownToWikiConverter } from '../../../../lib/markdown-to-wiki-converter'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +16,14 @@ export async function POST(request: NextRequest) {
     }
 
     const { url, email, apiToken, projectKey } = jiraConnection
+    
+    console.log('Received jiraConnection:', { 
+      url, 
+      email, 
+      projectKey, 
+      hasApiToken: !!apiToken,
+      allKeys: Object.keys(jiraConnection)
+    })
 
     if (!url || !email || !apiToken) {
       return NextResponse.json(
@@ -31,76 +40,316 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.log('Creating Jira issue with project key:', projectKey, 'for work item type:', workItemType)
+
     // Clean up the URL
     const cleanUrl = url.replace(/\/$/, '')
+    
+    // Detect if this is Jira Cloud or Server based on URL
+    const isJiraCloud = cleanUrl.includes('.atlassian.net')
+    const apiVersion = isJiraCloud ? '3' : '2'
+    console.log(`Detected Jira type: ${isJiraCloud ? 'Cloud' : 'Server/Data Center'}, using API v${apiVersion}`)
     
     // Create Basic Auth header
     const auth = Buffer.from(`${email}:${apiToken}`).toString('base64')
 
-    // Map work item type to Jira issue type
-    const issueTypeMap = {
-      'initiative': 'Epic', // or 'Initiative' if available
-      'epic': 'Epic',
-      'story': 'Story'
+    // First, verify the project exists and get its ID (more reliable than key for some Jira instances)
+    let projectId: string | null = null
+    try {
+      const projectCheckUrl = `${cleanUrl}/rest/api/${apiVersion}/project/${projectKey}`
+      const projectResponse = await fetch(projectCheckUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Accept': 'application/json',
+        },
+      })
+      
+      if (!projectResponse.ok) {
+        if (projectResponse.status === 404) {
+          return NextResponse.json(
+            { error: `Project "${projectKey}" not found. Please go to Jira Connection settings and select a valid project using the Discover button.` },
+            { status: 400 }
+          )
+        } else if (projectResponse.status === 403) {
+          return NextResponse.json(
+            { error: `You don't have permission to access project "${projectKey}". Please contact your Jira administrator or select a different project.` },
+            { status: 403 }
+          )
+        } else {
+          console.warn(`Project check failed with status ${projectResponse.status}`)
+        }
+      } else {
+        const projectData = await projectResponse.json()
+        projectId = projectData.id
+        console.log(`Verified project: ${projectData.key} - ${projectData.name} (ID: ${projectId})`)
+      }
+    } catch (projectError) {
+      console.warn('Error verifying project:', projectError)
     }
 
-    // Convert description to Atlassian Document Format (ADF)
-    // Use the markdown-to-ADF converter to preserve formatting
-    let descriptionADF: ADFDocument
+    // Get available issue types for this project
+    let issueTypeId: string | null = null
+    let issueTypeName: string = 'Task' // fallback
     
-    if (content.description && content.description.trim()) {
-      // Convert markdown to ADF to preserve formatting (headings, bold, italics, lists, etc.)
-      descriptionADF = markdownToADFConverter.convert(content.description)
-    } else {
-      // Fallback to basic ADF structure
-      descriptionADF = {
-        type: 'doc',
-        version: 1,
-        content: [{
-          type: 'paragraph',
-          content: [{
-            type: 'text',
-            text: content.description || ''
-          }]
-        }]
+    try {
+      // Try the newer createmeta endpoint first (Jira Cloud)
+      const createMetaUrl = `${cleanUrl}/rest/api/${apiVersion}/issue/createmeta/${projectKey}/issuetypes`
+      console.log('Fetching issue types from:', createMetaUrl)
+      
+      const metaResponse = await fetch(createMetaUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Accept': 'application/json',
+        },
+      })
+      
+      if (metaResponse.ok) {
+        const metaData = await metaResponse.json()
+        // Handle different response formats from Jira API
+        let availableTypes = metaData.issueTypes || metaData.values || metaData || []
+        // If the response is an array directly
+        if (Array.isArray(metaData)) {
+          availableTypes = metaData
+        }
+        
+        console.log('Raw metadata response:', JSON.stringify(metaData).substring(0, 500))
+        console.log('Available issue types:', availableTypes.map((t: any) => ({ id: t.id, name: t.name })))
+        
+        // Map our work item types to possible Jira issue type names (in order of preference)
+        const typePreferences: Record<string, string[]> = {
+          'initiative': ['Initiative', 'Epic', 'Feature'],
+          'epic': ['Epic', 'Initiative', 'Feature'],
+          'story': ['Story', 'User Story', 'Task'],
+        }
+        
+        const preferredNames = typePreferences[workItemType] || ['Task']
+        
+        // Find the first matching issue type (case-insensitive)
+        for (const preferred of preferredNames) {
+          const found = availableTypes.find((t: any) => 
+            t.name.toLowerCase() === preferred.toLowerCase()
+          )
+          if (found) {
+            issueTypeId = found.id
+            issueTypeName = found.name
+            console.log(`Found matching issue type: ${issueTypeName} (ID: ${issueTypeId}) for work item type: ${workItemType}`)
+            break
+          }
+        }
+        
+        // If no preferred type found, try to use any available type
+        if (!issueTypeId && availableTypes.length > 0) {
+          // Prefer non-subtask types
+          const nonSubtask = availableTypes.find((t: any) => !t.subtask)
+          if (nonSubtask) {
+            issueTypeId = nonSubtask.id
+            issueTypeName = nonSubtask.name
+            console.log(`Using fallback issue type: ${issueTypeName} (ID: ${issueTypeId})`)
+          }
+        }
+        
+        if (!issueTypeId && availableTypes.length > 0) {
+          // Return helpful error with available types
+          const availableTypeNames = availableTypes.map((t: any) => t.name).join(', ')
+          console.warn('No suitable issue type found. Available types:', availableTypeNames)
+          return NextResponse.json(
+            { 
+              error: `No matching issue type found for "${workItemType}". Available types in project ${projectKey}: ${availableTypeNames}. Please check your Jira project configuration.`,
+              availableTypes: availableTypes.map((t: any) => ({ id: t.id, name: t.name }))
+            },
+            { status: 400 }
+          )
+        } else if (availableTypes.length === 0) {
+          console.warn('No issue types returned from API')
+        }
+      } else {
+        const errorText = await metaResponse.text()
+        console.warn('Failed to fetch issue types from createmeta:', metaResponse.status, errorText)
+        
+        // Try legacy endpoint as fallback
+        const legacyUrl = `${cleanUrl}/rest/api/${apiVersion}/issue/createmeta?projectKeys=${projectKey}&expand=projects.issuetypes`
+        const legacyResponse = await fetch(legacyUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Accept': 'application/json',
+          },
+        })
+        
+        if (legacyResponse.ok) {
+          const legacyData = await legacyResponse.json()
+          const project = legacyData.projects?.[0]
+          const availableTypes = project?.issuetypes || []
+          
+          const typePreferences: Record<string, string[]> = {
+            'initiative': ['Initiative', 'Epic', 'Feature'],
+            'epic': ['Epic', 'Initiative', 'Feature'],
+            'story': ['Story', 'User Story', 'Task'],
+          }
+          
+          const preferredNames = typePreferences[workItemType] || ['Task']
+          
+          for (const preferred of preferredNames) {
+            const found = availableTypes.find((t: any) => 
+              t.name.toLowerCase() === preferred.toLowerCase()
+            )
+            if (found) {
+              issueTypeId = found.id
+              issueTypeName = found.name
+              break
+            }
+          }
+        }
+      }
+    } catch (metaError) {
+      console.warn('Error fetching issue type metadata:', metaError)
+    }
+    
+    // If we still don't have an issue type, try the global issuetype endpoint
+    if (!issueTypeId) {
+      try {
+        console.log('Trying global issue types endpoint as fallback')
+        const globalTypesUrl = `${cleanUrl}/rest/api/${apiVersion}/issuetype`
+        const globalResponse = await fetch(globalTypesUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Accept': 'application/json',
+          },
+        })
+        
+        if (globalResponse.ok) {
+          const globalTypes = await globalResponse.json()
+          console.log('Global issue types:', globalTypes.map((t: any) => ({ id: t.id, name: t.name })))
+          
+          const typePreferences: Record<string, string[]> = {
+            'initiative': ['Initiative', 'Epic', 'Feature'],
+            'epic': ['Epic', 'Initiative', 'Feature'],
+            'story': ['Story', 'User Story', 'Task'],
+          }
+          
+          const preferredNames = typePreferences[workItemType] || ['Task']
+          
+          for (const preferred of preferredNames) {
+            const found = globalTypes.find((t: any) => 
+              t.name.toLowerCase() === preferred.toLowerCase() && !t.subtask
+            )
+            if (found) {
+              issueTypeId = found.id
+              issueTypeName = found.name
+              console.log(`Found global issue type: ${issueTypeName} (ID: ${issueTypeId})`)
+              break
+            }
+          }
+          
+          // If still not found, use any non-subtask type
+          if (!issueTypeId) {
+            const anyType = globalTypes.find((t: any) => !t.subtask)
+            if (anyType) {
+              issueTypeId = anyType.id
+              issueTypeName = anyType.name
+              console.log(`Using first available non-subtask type: ${issueTypeName} (ID: ${issueTypeId})`)
+            }
+          }
+        }
+      } catch (globalError) {
+        console.warn('Error fetching global issue types:', globalError)
       }
     }
+    
+    // Final fallback - use name-based approach
+    if (!issueTypeId) {
+      const issueTypeMap: Record<string, string> = {
+        'initiative': 'Epic',
+        'epic': 'Epic',
+        'story': 'Story'
+      }
+      issueTypeName = issueTypeMap[workItemType] || 'Task'
+      console.log(`Using final fallback issue type name: ${issueTypeName}`)
+    }
 
-    // Add acceptance criteria if present
-    if (content.acceptanceCriteria && content.acceptanceCriteria.length > 0) {
-      descriptionADF.content.push({
-        type: 'heading',
-        attrs: { level: 3 },
-        content: [{ type: 'text', text: 'Acceptance Criteria' }]
-      })
-
-      const criteriaList = {
-        type: 'bulletList',
-        content: content.acceptanceCriteria.map((criteria: string) => ({
-          type: 'listItem',
+    // Convert description based on API version
+    // API v3 (Jira Cloud) uses ADF, API v2 (Jira Server) uses plain text/wiki markup
+    let description: string | ADFDocument
+    
+    if (isJiraCloud) {
+      // Use ADF for Jira Cloud
+      let descriptionADF: ADFDocument
+      
+      if (content.description && content.description.trim()) {
+        descriptionADF = markdownToADFConverter.convert(content.description)
+      } else {
+        descriptionADF = {
+          type: 'doc',
+          version: 1,
           content: [{
             type: 'paragraph',
-            content: [{ type: 'text', text: criteria }]
+            content: [{
+              type: 'text',
+              text: content.description || ''
+            }]
           }]
-        }))
+        }
       }
 
-      descriptionADF.content.push(criteriaList)
+      // Add acceptance criteria if present
+      if (content.acceptanceCriteria && content.acceptanceCriteria.length > 0) {
+        descriptionADF.content.push({
+          type: 'heading',
+          attrs: { level: 3 },
+          content: [{ type: 'text', text: 'Acceptance Criteria' }]
+        })
+
+        const criteriaList = {
+          type: 'bulletList',
+          content: content.acceptanceCriteria.map((criteria: string) => ({
+            type: 'listItem',
+            content: [{
+              type: 'paragraph',
+              content: [{ type: 'text', text: criteria }]
+            }]
+          }))
+        }
+
+        descriptionADF.content.push(criteriaList)
+      }
+      
+      description = descriptionADF
+    } else {
+      // Use Jira wiki markup for Jira Server/Data Center
+      let descriptionText = content.description || ''
+      
+      // Convert markdown to Jira wiki markup
+      descriptionText = markdownToWikiConverter.convert(descriptionText)
+      
+      // Add acceptance criteria if present (already in wiki format)
+      if (content.acceptanceCriteria && content.acceptanceCriteria.length > 0) {
+        descriptionText += '\n\nh3. Acceptance Criteria\n'
+        content.acceptanceCriteria.forEach((criteria: string) => {
+          descriptionText += `* ${criteria}\n`
+        })
+      }
+      
+      description = descriptionText
     }
 
     // Prepare the basic issue data with only required fields
     const issueData: any = {
       fields: {
-        project: {
-          key: projectKey || 'AC' // Default project key
-        },
+        project: projectId 
+          ? { id: projectId }  // Use ID if available (more reliable for some Jira instances)
+          : { key: projectKey },  // Fall back to key
         summary: content.title,
-        description: descriptionADF,
-        issuetype: {
-          name: issueTypeMap[workItemType as keyof typeof issueTypeMap] || 'Task'
-        }
+        description: description,
+        issuetype: issueTypeId 
+          ? { id: issueTypeId }  // Use ID if available (more reliable)
+          : { name: issueTypeName }  // Fall back to name
       }
     }
+    
+    console.log(`Creating issue in project: ${projectKey}${projectId ? ` (ID: ${projectId})` : ''}, type: ${issueTypeName}${issueTypeId ? ` (ID: ${issueTypeId})` : ''}`)
 
     // Add optional fields only if they have values
     // We'll try to create the issue first with basic fields, then retry without problematic fields if needed
@@ -116,11 +365,19 @@ export async function POST(request: NextRequest) {
         if (value !== null && value !== undefined && value !== '') {
           // Handle special fields that need specific formatting
           if (key === 'project') {
-            // Project should be an object with key
-            issueData.fields.project = { key: value }
+            // Project should be an object with key - handle if value is already an object
+            if (typeof value === 'object' && value !== null && (value as any).key) {
+              issueData.fields.project = value  // Already properly formatted
+            } else {
+              issueData.fields.project = { key: value }
+            }
           } else if (key === 'issuetype') {
-            // Issue type should be an object with name
-            issueData.fields.issuetype = { name: value }
+            // Issue type should be an object with name - handle if value is already an object
+            if (typeof value === 'object' && value !== null && ((value as any).name || (value as any).id)) {
+              issueData.fields.issuetype = value  // Already properly formatted
+            } else {
+              issueData.fields.issuetype = { name: value }
+            }
           } else if (key === 'assignee') {
             // User fields should be objects with accountId or emailAddress
             issueData.fields[key] = { emailAddress: value }
@@ -182,7 +439,7 @@ export async function POST(request: NextRequest) {
     const createIssue = async (data: any) => {
       console.log('Creating Jira issue with data:', JSON.stringify(data, null, 2))
       
-      return await fetch(`${cleanUrl}/rest/api/3/issue`, {
+      return await fetch(`${cleanUrl}/rest/api/${apiVersion}/issue`, {
         method: 'POST',
         headers: {
           'Authorization': `Basic ${auth}`,
@@ -195,10 +452,12 @@ export async function POST(request: NextRequest) {
 
     // Try to create the issue with all fields first
     let response = await createIssue(issueData)
+    let consumedErrorData: any = null  // Track if we've already consumed the response body
 
     // If we get a 400 error, check for field discovery opportunities first
     if (!response.ok && response.status === 400) {
       const errorData = await response.json().catch(() => ({}))
+      consumedErrorData = errorData  // Store the consumed error data
       console.error('Jira API error:', response.status, response.statusText, errorData)
 
       // Check for invalid option value error for custom fields
@@ -285,14 +544,14 @@ export async function POST(request: NextRequest) {
         // Create a minimal issue data with only required fields
         const basicIssueData: any = {
           fields: {
-            project: {
-              key: projectKey || 'AC'
-            },
+            project: projectId 
+              ? { id: projectId }
+              : { key: projectKey },
             summary: content.title,
-            description: descriptionADF,
-            issuetype: {
-              name: issueTypeMap[workItemType as keyof typeof issueTypeMap] || 'Task'
-            }
+            description: description,
+            issuetype: issueTypeId 
+              ? { id: issueTypeId }
+              : { name: issueTypeName }
           }
         }
 
@@ -301,9 +560,19 @@ export async function POST(request: NextRequest) {
           for (const [key, value] of Object.entries(content.customFields)) {
             if (value !== null && value !== undefined && value !== '') {
               if (key === 'project') {
-                basicIssueData.fields.project = { key: value }
+                // Project should be an object with key - handle if value is already an object
+                if (typeof value === 'object' && value !== null && (value as any).key) {
+                  basicIssueData.fields.project = value
+                } else {
+                  basicIssueData.fields.project = { key: value }
+                }
               } else if (key === 'issuetype') {
-                basicIssueData.fields.issuetype = { name: value }
+                // Issue type should be an object with name - handle if value is already an object
+                if (typeof value === 'object' && value !== null && ((value as any).name || (value as any).id)) {
+                  basicIssueData.fields.issuetype = value
+                } else {
+                  basicIssueData.fields.issuetype = { name: value }
+                }
               } else if (key === 'assignee') {
                 basicIssueData.fields[key] = { emailAddress: value }
               } else if (key === 'reporter') {
@@ -349,11 +618,26 @@ export async function POST(request: NextRequest) {
 
         // Retry with basic fields
         response = await createIssue(basicIssueData)
+        consumedErrorData = null  // Reset since we have a new response
       }
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      let errorData: any = {}
+      
+      // Use already consumed error data if available, otherwise read fresh
+      if (consumedErrorData !== null) {
+        errorData = consumedErrorData
+      } else {
+        let rawResponseText = ''
+        try {
+          rawResponseText = await response.text()
+          errorData = rawResponseText ? JSON.parse(rawResponseText) : {}
+        } catch (parseError) {
+          console.error('Failed to parse Jira error response:', rawResponseText)
+          errorData = { rawResponse: rawResponseText }
+        }
+      }
       console.error('Jira API error:', response.status, response.statusText, errorData)
       
       // Check if this is an invalid field option error that was re-thrown after a retry
@@ -366,18 +650,28 @@ export async function POST(request: NextRequest) {
         // Check if this is a project key error
         if (errorData.errors && errorData.errors.project) {
           return NextResponse.json(
-            { error: `Project error: ${errorData.errors.project}. Please check your Jira connection and ensure the project key is valid.` },
+            { error: `Project error: ${errorData.errors.project}. Project key used: "${projectKey}". Please check your Jira connection and ensure this project exists and you have access to it.` },
             { status: 400 }
           )
         }
         
 
         
-        const errorMessages = errorData.errors 
-          ? Object.values(errorData.errors).join(', ')
-          : 'Invalid request data'
+        let errorMessages = 'Invalid request data'
+        if (errorData.errors && Object.keys(errorData.errors).length > 0) {
+          errorMessages = Object.values(errorData.errors).join(', ')
+        } else if (errorData.errorMessages) {
+          errorMessages = Array.isArray(errorData.errorMessages) ? errorData.errorMessages.join(', ') : errorData.errorMessages
+        } else if (errorData.message) {
+          errorMessages = errorData.message
+        } else if (errorData.rawResponse) {
+          errorMessages = `Jira returned: ${errorData.rawResponse.substring(0, 500)}`
+        } else if (Object.keys(errorData).length > 0) {
+          errorMessages = JSON.stringify(errorData)
+        }
+        console.error('Jira API 400 error details:', JSON.stringify(errorData, null, 2))
         return NextResponse.json(
-          { error: `Bad request: ${errorMessages}` },
+          { error: `Bad request: ${errorMessages}`, details: errorData },
           { status: 400 }
         )
       } else if (response.status === 401) {
