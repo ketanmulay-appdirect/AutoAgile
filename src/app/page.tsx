@@ -33,6 +33,11 @@ export default function Home() {
     if (savedJiraConnection) {
       try {
         const parsed = JSON.parse(savedJiraConnection)
+        console.log('Loaded Jira connection from localStorage:', { 
+          url: parsed.url, 
+          projectKey: parsed.projectKey,
+          email: parsed.email 
+        })
         setJiraConnection(parsed)
       } catch (error) {
         console.error('Failed to parse saved Jira connection:', error)
@@ -98,8 +103,12 @@ export default function Home() {
   }, [])
 
   const handleJiraConnectionSaved = (connection: JiraInstance) => {
+    const isNewConnection = !jiraConnection
     setJiraConnection(connection)
-    setCurrentView('create')
+    // Only switch to create view for new connections, not updates
+    if (isNewConnection) {
+      setCurrentView('create')
+    }
   }
 
   const handleJiraConnectionRemoved = () => {

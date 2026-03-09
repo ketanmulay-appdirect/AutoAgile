@@ -738,13 +738,36 @@ export function EnhancedWorkItemCreator({ jiraConnection, devsAIConnection, open
 
       // Step 3: Create issue
       setPushingStep(3)
+      
+      // Get the latest jiraConnection from localStorage to ensure we have the most up-to-date values
+      let connectionToUse = jiraConnection
+      try {
+        const savedConnection = localStorage.getItem('jira-connection')
+        if (savedConnection) {
+          const parsed = JSON.parse(savedConnection)
+          // Use localStorage version if it has a project key and the prop doesn't, or if they differ
+          if (parsed.projectKey && (!jiraConnection.projectKey || parsed.projectKey !== jiraConnection.projectKey)) {
+            console.log('Using updated jiraConnection from localStorage:', parsed.projectKey)
+            connectionToUse = parsed
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to read jiraConnection from localStorage:', e)
+      }
+      
+      console.log('Creating Jira issue with connection:', { 
+        url: connectionToUse.url, 
+        projectKey: connectionToUse.projectKey,
+        email: connectionToUse.email 
+      })
+      
       const response = await fetch('/api/jira/create-issue', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          jiraConnection,
+          jiraConnection: connectionToUse,
           workItemType,
           content,
         }),

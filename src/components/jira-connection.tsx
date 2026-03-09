@@ -49,8 +49,15 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
   }, [])
 
   const handleInputChange = (field: keyof JiraInstance, value: string) => {
-    setConnection(prev => ({ ...prev, [field]: value }))
+    const updatedConnection = { ...connection, [field]: value }
+    setConnection(updatedConnection)
     setTestResult(null)
+    
+    // If already connected and changing the project key, save the update
+    if (isConnected && field === 'projectKey') {
+      localStorage.setItem('jira-connection', JSON.stringify(updatedConnection))
+      onConnectionSaved(updatedConnection as JiraInstance)
+    }
   }
 
   const testConnection = async () => {
@@ -108,7 +115,7 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ jiraConnection: connection }),
+        body: JSON.stringify({ jiraInstance: connection }),
       })
 
       const result = await response.json()
@@ -132,9 +139,16 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
   }
 
   const selectProject = (projectKey: string) => {
-    setConnection(prev => ({ ...prev, projectKey }))
+    const updatedConnection = { ...connection, projectKey }
+    setConnection(updatedConnection)
     setShowProjectList(false)
     setTestResult({ success: true, message: `Selected project: ${projectKey}` })
+    
+    // If already connected, save the updated project key
+    if (isConnected) {
+      localStorage.setItem('jira-connection', JSON.stringify(updatedConnection))
+      onConnectionSaved(updatedConnection as JiraInstance)
+    }
   }
 
   const disconnect = () => {
@@ -241,13 +255,12 @@ export function JiraConnection({ onConnectionSaved, onConnectionRemoved }: JiraC
               value={connection.projectKey || ''}
               onChange={(e) => handleInputChange('projectKey', e.target.value)}
                 placeholder="e.g., PROJ"
-              disabled={isConnected}
                 className="flex-1"
             />
               <Button
                 variant="outline"
                 onClick={discoverProjects}
-                disabled={isConnecting || isDiscoveringProjects || isConnected || !connection.url || !connection.email || !connection.apiToken}
+                disabled={isConnecting || isDiscoveringProjects || !connection.url || !connection.email || !connection.apiToken}
               >
                 {isDiscoveringProjects ? (
                   <>

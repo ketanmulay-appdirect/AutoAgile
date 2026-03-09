@@ -12,8 +12,13 @@ export async function POST(request: NextRequest) {
     }
 
     const auth = Buffer.from(`${jiraConnection.email}:${jiraConnection.apiToken}`).toString('base64')
+    const cleanUrl = jiraConnection.url.replace(/\/$/, '')
     
-    const response = await fetch(`${jiraConnection.url}/rest/api/3/issuetype`, {
+    // Detect if this is Jira Cloud or Server
+    const isJiraCloud = cleanUrl.includes('.atlassian.net')
+    const apiVersion = isJiraCloud ? '3' : '2'
+    
+    const response = await fetch(`${cleanUrl}/rest/api/${apiVersion}/issuetype`, {
       method: 'GET',
       headers: {
         'Authorization': `Basic ${auth}`,
